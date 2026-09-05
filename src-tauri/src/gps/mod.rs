@@ -3,6 +3,7 @@
 
 pub mod miltona;
 pub mod shenshu;
+pub mod viofo;
 
 use crate::archive::{require_db, ArchiveSlot};
 use crate::error::AppError;
@@ -13,19 +14,15 @@ use serde::Deserialize;
 use std::path::Path;
 use tauri::State;
 
-/// Bump when shenshu/miltona decoders change semantics so previously
-/// archived GPS becomes stale. The encoder's `has_current` probe and the
-/// startup backfill both compare against this; rows below the current
-/// version are re-extracted on the next encode (or backfill pass) when
-/// the original MP4 is still on disk.
+/// Bump when GPS decoders change semantics so previously archived GPS becomes
+/// stale. The encoder's `has_current` probe and the startup backfill both compare
+/// against this; rows below the current version are re-extracted on the next
+/// encode (or backfill pass) when the original MP4 is still on disk.
 ///
-/// v2: trip-stitched GPS now trims each segment's points to the
-/// segment's video duration. Parking-mode clips embed GPS for the whole
-/// parked interval (~90 min) into a ~180s video; the untrimmed points
-/// pushed later segments backwards in concat time, producing a
-/// non-monotonic track that desynced the map from the video. All v1
-/// rows must be re-stitched.
-pub const GPS_PARSER_VERSION: i32 = 2;
+/// v2: trip-stitched GPS trims each segment's points to video duration.
+/// v3: adds VIOFO / Novatek GPS extraction for A229-family footage and fixes
+///     generic VIOFO files being sent through the Wolf Box ShenShu decoder.
+pub const GPS_PARSER_VERSION: i32 = 3;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
@@ -93,9 +90,20 @@ pub fn extract_for_kind(path: &Path, kind: CameraKind) -> Result<Vec<GpsPoint>, 
         // data at all). If a GPS-equipped Thinkware model turns up, add a
         // decoder and flip `CameraKind::gps_supported` for that variant.
         CameraKind::Thinkware => Ok(vec![]),
-        // Generic fallback: try Wolf Box's decoder as a best-guess since
-        // the ShenShu meta-track layout is the only one we know, but log
-        // that we're guessing. Often this will just return an empty vec.
-        CameraKind::Generic => shenshu::extract(path),
+        // VIOFO is currently represented by the persisted Generic enum value
+        // to avoid a DB/frontend migration. Distinguish it by its specific
+        // A229-family filename before using the historical generic fallback.
+        CameraKind::Generic => {
+            let is_viofo = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(crate::scan::viofo::is_viofo_filename)
+                .unwrap_or(false);
+            if is_viofo {
+                viofo::extract(path)
+            } else {
+                shenshu::extract(path)
+            }
+        }
     }
 }
