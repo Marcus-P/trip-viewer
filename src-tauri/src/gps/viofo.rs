@@ -17,6 +17,16 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 const KNOT_TO_MPS: f64 = 0.514_444;
+const EARTH_RADIUS_M: f64 = 6_371_000.0;
+
+// VIOFO files can contain isolated, otherwise-valid GPS records that jump far
+// away for a single sample before immediately returning to the real route.
+// Keep the thresholds deliberately generous so normal driving data cannot be
+// removed: a candidate must be hundreds of metres from both neighbours while
+// those neighbours remain mutually reachable at up to 200 m/s (720 km/h).
+const MAX_SPIKE_NEIGHBOR_GAP_S: f64 = 5.0;
+const MAX_PLAUSIBLE_TRAVEL_MPS: f64 = 200.0;
+const MIN_SPIKE_DISTANCE_M: f64 = 300.0;
 
 #[derive(Debug, Clone, Copy)]
 struct BoxHeader {
@@ -48,14 +58,31 @@ pub fn extract(path: &Path) -> Result<Vec<GpsPoint>, AppError> {
     }
 
     if decoded.is_empty() {
-        eprintln!("viofo gps: descriptor box found but no valid GPS records in {}", path.display());
+        eprintln!(
+            "viofo gps: descriptor box found but no valid GPS records in {}",
+            path.display()
+        );
         return Ok(vec![]);
     }
 
     // Descriptor order is normally chronological, but sorting by the embedded
     // UTC timestamp makes the result robust to a malformed descriptor table.
     decoded.sort_by_key(|(ts, _)| *ts);
+
+    // Keep the original first timestamp as the video-relative time origin even
+    // if a later filtering pass removes a bad GPS record. This means removing a
+    // spike never shifts the remaining samples on the playback timeline.
     let first_ts = decoded[0].0;
+    let before_filter = decoded.len();
+    let decoded = filter_isolated_position_spikes(decoded);
+    let removed = before_filter.saturating_sub(decoded.len());
+    if removed > 0 {
+        eprintln!(
+            "viofo gps: filtered {removed} isolated position spike(s) in {}",
+            path.display()
+        );
+    }
+
     let mut points = Vec::with_capacity(decoded.len());
     for (ts, mut point) in decoded {
         point.t_offset_s = (ts - first_ts).num_milliseconds() as f64 / 1000.0;
@@ -63,6 +90,74 @@ pub fn extract(path: &Path) -> Result<Vec<GpsPoint>, AppError> {
     }
 
     Ok(points)
+}
+
+fn filter_isolated_position_spikes(
+    points: Vec<(NaiveDateTime, GpsPoint)>,
+) -> Vec<(NaiveDateTime, GpsPoint)> {
+    if points.len() < 3 {
+        return points;
+    }
+
+    let mut keep = vec![true; points.len()];
+
+    for i in 1..points.len() - 1 {
+        let (prev_ts, prev) = &points[i - 1];
+        let (current_ts, current) = &points[i];
+        let (next_ts, next) = &points[i + 1];
+
+        if !prev.fix_ok || !current.fix_ok || !next.fix_ok {
+            continue;
+        }
+
+        let dt_prev = (*current_ts - *prev_ts).num_milliseconds() as f64 / 1000.0;
+        let dt_next = (*next_ts - *current_ts).num_milliseconds() as f64 / 1000.0;
+        if dt_prev <= 0.0
+            || dt_next <= 0.0
+            || dt_prev > MAX_SPIKE_NEIGHBOR_GAP_S
+            || dt_next > MAX_SPIKE_NEIGHBOR_GAP_S
+        {
+            continue;
+        }
+
+        let prev_current_m = gps_distance_m(prev, current);
+        let current_next_m = gps_distance_m(current, next);
+        let prev_next_m = gps_distance_m(prev, next);
+
+        let prev_limit_m =
+            MIN_SPIKE_DISTANCE_M.max(MAX_PLAUSIBLE_TRAVEL_MPS * dt_prev);
+        let next_limit_m =
+            MIN_SPIKE_DISTANCE_M.max(MAX_PLAUSIBLE_TRAVEL_MPS * dt_next);
+        let bridge_limit_m = MIN_SPIKE_DISTANCE_M
+            .max(MAX_PLAUSIBLE_TRAVEL_MPS * (dt_prev + dt_next));
+
+        if prev_current_m > prev_limit_m
+            && current_next_m > next_limit_m
+            && prev_next_m <= bridge_limit_m
+        {
+            keep[i] = false;
+        }
+    }
+
+    points
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, point)| keep[i].then_some(point))
+        .collect()
+}
+
+fn gps_distance_m(a: &GpsPoint, b: &GpsPoint) -> f64 {
+    let lat1 = a.lat.to_radians();
+    let lat2 = b.lat.to_radians();
+    let dlat = (b.lat - a.lat).to_radians();
+    let dlon = (b.lon - a.lon).to_radians();
+
+    let sin_dlat = (dlat / 2.0).sin();
+    let sin_dlon = (dlon / 2.0).sin();
+    let h = sin_dlat * sin_dlat + lat1.cos() * lat2.cos() * sin_dlon * sin_dlon;
+    let h = h.clamp(0.0, 1.0);
+    let central_angle = 2.0 * h.sqrt().atan2((1.0 - h).sqrt());
+    EARTH_RADIUS_M * central_angle
 }
 
 fn read_gps_descriptors(file: &mut File, file_len: u64) -> Result<Vec<(u64, u64)>, AppError> {
@@ -250,14 +345,22 @@ fn nmea_coord_to_degrees(raw: f64, hemi: u8) -> Option<f64> {
 }
 
 fn read_u32_le(data: &[u8], off: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?))
+    Some(u32::from_le_bytes(
+        data.get(off..off + 4)?.try_into().ok()?,
+    ))
 }
 
 fn read_f32_le(data: &[u8], off: usize) -> Option<f32> {
-    Some(f32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?))
+    Some(f32::from_le_bytes(
+        data.get(off..off + 4)?.try_into().ok()?,
+    ))
 }
 
-fn read_box_header(file: &mut File, start: u64, file_len: u64) -> Result<Option<BoxHeader>, AppError> {
+fn read_box_header(
+    file: &mut File,
+    start: u64,
+    file_len: u64,
+) -> Result<Option<BoxHeader>, AppError> {
     if start + 8 > file_len {
         return Ok(None);
     }
@@ -313,10 +416,28 @@ mod tests {
         p
     }
 
+    fn gps_point(lat: f64, lon: f64) -> GpsPoint {
+        GpsPoint {
+            t_offset_s: 0.0,
+            lat,
+            lon,
+            speed_mps: 10.0,
+            heading_deg: 0.0,
+            altitude_m: 0.0,
+            fix_ok: true,
+        }
+    }
+
     #[test]
     fn decodes_novatek_packet() {
         let (ts, p) = decode_packet(&sample_packet()).unwrap();
-        assert_eq!(ts, NaiveDate::from_ymd_opt(2026, 8, 31).unwrap().and_hms_opt(6, 52, 29).unwrap());
+        assert_eq!(
+            ts,
+            NaiveDate::from_ymd_opt(2026, 8, 31)
+                .unwrap()
+                .and_hms_opt(6, 52, 29)
+                .unwrap()
+        );
         assert!((p.lat - 53.5416667).abs() < 0.00001);
         assert!((p.lon - 10.025).abs() < 0.00001);
         assert!((p.speed_mps - 5.14444).abs() < 0.0001);
@@ -328,6 +449,52 @@ mod tests {
     fn converts_south_and_west() {
         assert!((nmea_coord_to_degrees(5332.5, b'S').unwrap() + 53.5416667).abs() < 0.00001);
         assert!((nmea_coord_to_degrees(1001.5, b'W').unwrap() + 10.025).abs() < 0.00001);
+    }
+
+    #[test]
+    fn filters_isolated_position_spike() {
+        let base = NaiveDate::from_ymd_opt(2026, 8, 31)
+            .unwrap()
+            .and_hms_opt(4, 53, 35)
+            .unwrap();
+        let points = vec![
+            (base, gps_point(53.5418701171875, 10.083750406901)),
+            (
+                base + chrono::Duration::seconds(1),
+                gps_point(0.0833333333333333, 0.0),
+            ),
+            (
+                base + chrono::Duration::seconds(2),
+                gps_point(53.5419189453125, 10.083745320638),
+            ),
+        ];
+
+        let filtered = filter_isolated_position_spikes(points);
+        assert_eq!(filtered.len(), 2);
+        assert!((filtered[0].1.lat - 53.5418701171875).abs() < 0.0000001);
+        assert!((filtered[1].1.lat - 53.5419189453125).abs() < 0.0000001);
+    }
+
+    #[test]
+    fn keeps_plausible_middle_point() {
+        let base = NaiveDate::from_ymd_opt(2026, 8, 31)
+            .unwrap()
+            .and_hms_opt(4, 53, 35)
+            .unwrap();
+        let points = vec![
+            (base, gps_point(53.54187, 10.08375)),
+            (
+                base + chrono::Duration::seconds(1),
+                gps_point(53.54190, 10.08375),
+            ),
+            (
+                base + chrono::Duration::seconds(2),
+                gps_point(53.54193, 10.08375),
+            ),
+        ];
+
+        let filtered = filter_isolated_position_spikes(points);
+        assert_eq!(filtered.len(), 3);
     }
 
     #[test]
