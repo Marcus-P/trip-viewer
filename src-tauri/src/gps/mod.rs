@@ -22,7 +22,9 @@ use tauri::State;
 /// v2: trip-stitched GPS trims each segment's points to video duration.
 /// v3: adds VIOFO / Novatek GPS extraction for A229-family footage and fixes
 ///     generic VIOFO files being sent through the Wolf Box ShenShu decoder.
-pub const GPS_PARSER_VERSION: i32 = 3;
+/// v4: filters isolated, physically impossible VIOFO position spikes while
+///     preserving each file's original GPS time axis.
+pub const GPS_PARSER_VERSION: i32 = 4;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
