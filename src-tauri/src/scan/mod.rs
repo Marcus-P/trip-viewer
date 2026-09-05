@@ -1,6 +1,7 @@
 pub mod errors;
 pub mod grouping;
 pub mod naming;
+pub mod viofo;
 pub mod walker;
 
 use crate::error::AppError;
@@ -104,7 +105,10 @@ pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, 
         root.display()
     );
 
-    // Stage 1: parse filenames. Files we can't parse go to scan errors.
+    // Stage 1: parse filenames. VIOFO is checked first because its A229
+    // naming convention is brand-specific and its channel sequence numbers
+    // deliberately differ across F/I/R. Remaining formats use the established
+    // auto-detection chain in `naming`.
     let mut parsed_inputs: Vec<GroupingInput> = Vec::with_capacity(files.len());
     let mut errors: Vec<ScanError> = Vec::new();
     for file in files {
@@ -112,7 +116,11 @@ pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, 
             Some(n) => n,
             None => continue,
         };
-        match naming::parse(name) {
+        let parsed = match viofo::parse(name) {
+            Some(parsed) => Ok(parsed),
+            None => naming::parse(name),
+        };
+        match parsed {
             Ok(parsed) => parsed_inputs.push(GroupingInput {
                 path: file,
                 parsed,
