@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  /* Trip Viewer has a dark application chrome. Tell WebKitGTK and the other
+   * platform webviews to render native form controls (selects, checkboxes,
+   * option popups) for a dark surface as well. Without this, Ubuntu can draw
+   * a light native <select> while our text color stays light, producing the
+   * very low-contrast controls seen in the Settings dialog. */
+  color-scheme: dark;
+}
+
 @theme {
   --animate-pulse-sky: pulse-glow-sky 1.6s ease-in-out infinite;
   --animate-pulse-violet: pulse-glow-violet 1.6s ease-in-out infinite;
