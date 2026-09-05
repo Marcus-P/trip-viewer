@@ -1,0 +1,33 @@
+name: VIOFO compile tests
+
+on:
+  push:
+    branches: ['feature/viofo-a229-pro']
+  workflow_dispatch:
+
+jobs:
+  rust-test:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            file \
+            gstreamer1.0-libav \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly
+      - name: Compile and run VIOFO tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml viofo
