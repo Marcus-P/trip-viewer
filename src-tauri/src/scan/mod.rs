@@ -11,7 +11,16 @@ use crate::scan::errors::classify;
 use crate::scan::grouping::{GroupingInput, DEFAULT_TRIP_GAP_SECONDS};
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use rayon::prelude::*;
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CameraModelPreference {
+    #[default]
+    Auto,
+    ViofoA229Pro,
+}
 
 /// Best-effort read of file size and last-modified time. Returns `(None, None)`
 /// if the path is gone or unreadable — these fields are decorative, not load-bearing.
@@ -41,14 +50,34 @@ fn make_scan_error(path: &Path, err: &AppError) -> ScanError {
     }
 }
 
+fn parse_filename(
+    name: &str,
+    camera_model: CameraModelPreference,
+) -> Result<naming::ParsedName, AppError> {
+    match camera_model {
+        CameraModelPreference::Auto => match viofo::parse(name) {
+            Some(parsed) => Ok(parsed),
+            None => naming::parse(name),
+        },
+        CameraModelPreference::ViofoA229Pro => viofo::parse(name).ok_or_else(|| {
+            AppError::Parse(format!("not a VIOFO A229 Pro filename: {name}"))
+        }),
+    }
+}
+
 #[tauri::command]
 pub async fn scan_folder(
     path: String,
+    camera_model: Option<CameraModelPreference>,
     slot: tauri::State<'_, crate::archive::ArchiveSlot>,
 ) -> Result<ScanResult, AppError> {
     let db = crate::archive::require_db(&slot)?;
     let archive_root = db.archive_root().to_path_buf();
-    let mut result = scan_folder_sync(Path::new(&path), &archive_root)?;
+    let mut result = scan_folder_sync_with_camera_model(
+        Path::new(&path),
+        &archive_root,
+        camera_model.unwrap_or_default(),
+    )?;
     let scan_started_ms = chrono::Utc::now().timestamp_millis();
     // Persistence is best-effort; a DB failure must not block the user
     // from seeing their scan results, they just won't have tags yet.
@@ -91,6 +120,14 @@ pub async fn scan_folder(
 }
 
 pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, AppError> {
+    scan_folder_sync_with_camera_model(root, archive_root, CameraModelPreference::Auto)
+}
+
+pub fn scan_folder_sync_with_camera_model(
+    root: &Path,
+    archive_root: &Path,
+    camera_model: CameraModelPreference,
+) -> Result<ScanResult, AppError> {
     if !root.is_dir() {
         return Err(AppError::Internal(format!(
             "not a directory: {}",
@@ -105,10 +142,11 @@ pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, 
         root.display()
     );
 
-    // Stage 1: parse filenames. VIOFO is checked first because its A229
+    // Stage 1: parse filenames. Auto mode checks VIOFO first because its A229
     // naming convention is brand-specific and its channel sequence numbers
-    // deliberately differ across F/I/R. Remaining formats use the established
-    // auto-detection chain in `naming`.
+    // deliberately differ across F/I/R. A manually selected VIOFO model uses
+    // only the VIOFO parser so the setting acts as an explicit override rather
+    // than silently falling back to another camera family.
     let mut parsed_inputs: Vec<GroupingInput> = Vec::with_capacity(files.len());
     let mut errors: Vec<ScanError> = Vec::new();
     for file in files {
@@ -116,11 +154,7 @@ pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, 
             Some(n) => n,
             None => continue,
         };
-        let parsed = match viofo::parse(name) {
-            Some(parsed) => Ok(parsed),
-            None => naming::parse(name),
-        };
-        match parsed {
+        match parse_filename(name, camera_model) {
             Ok(parsed) => parsed_inputs.push(GroupingInput {
                 path: file,
                 parsed,
@@ -313,6 +347,25 @@ mod tests {
     use super::*;
     use std::env::temp_dir;
     use std::fs;
+
+    #[test]
+    fn manual_viofo_model_accepts_a229_name() {
+        let parsed = parse_filename(
+            "2026_0831_065229_000646F.MP4",
+            CameraModelPreference::ViofoA229Pro,
+        )
+        .unwrap();
+        assert_eq!(parsed.channel_label, crate::model::LABEL_FRONT);
+    }
+
+    #[test]
+    fn manual_viofo_model_rejects_other_naming() {
+        assert!(parse_filename(
+            "2026_08_31_065229_00_F.MP4",
+            CameraModelPreference::ViofoA229Pro,
+        )
+        .is_err());
+    }
 
     #[test]
     fn probe_segment_sums_channel_file_sizes() {
