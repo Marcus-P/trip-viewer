@@ -9,7 +9,7 @@ jobs:
   rust-test:
     runs-on: ubuntu-22.04
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -31,21 +31,6 @@ jobs:
             gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly
-      - name: Format VIOFO GPS files
-        run: |
-          cargo fmt --manifest-path src-tauri/Cargo.toml
-          git add \
-            src-tauri/src/gps/mod.rs \
-            src-tauri/src/gps/validation.rs \
-            src-tauri/src/gps/viofo.rs \
-            src-tauri/src/gps/viofo_timing.rs
-          if ! git diff --cached --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'Format VIOFO GPS changes'
-            git push
-          fi
-          git restore src-tauri
       - name: Rust format check for VIOFO GPS changes
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml
@@ -54,5 +39,6 @@ jobs:
             src-tauri/src/gps/validation.rs \
             src-tauri/src/gps/viofo.rs \
             src-tauri/src/gps/viofo_timing.rs
+          git restore src-tauri
       - name: Compile and run GPS tests
         run: 'cargo test --manifest-path src-tauri/Cargo.toml gps::'
