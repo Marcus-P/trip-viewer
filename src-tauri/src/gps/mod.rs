@@ -48,9 +48,7 @@ pub async fn extract_gps(path: String, camera_kind: CameraKind) -> Result<Vec<Gp
 }
 
 #[tauri::command]
-pub async fn extract_gps_batch(
-    requests: Vec<GpsRequest>,
-) -> Result<Vec<GpsBatchItem>, AppError> {
+pub async fn extract_gps_batch(requests: Vec<GpsRequest>) -> Result<Vec<GpsBatchItem>, AppError> {
     let results: Vec<GpsBatchItem> = requests
         .par_iter()
         .map(|req| {

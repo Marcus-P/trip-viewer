@@ -97,12 +97,7 @@ pub(crate) fn extract_timed(
     let max_time_span_ms = duration_s
         .filter(|duration| duration.is_finite() && *duration >= 0.0)
         .map(|duration| (duration.ceil() * 1000.0) as i64);
-    let validated = validation::validate(
-        &observations,
-        ValidationContext {
-            max_time_span_ms,
-        },
-    );
+    let validated = validation::validate(&observations, ValidationContext { max_time_span_ms });
 
     let temporal_contradictions = validated
         .iter()
@@ -173,8 +168,7 @@ pub(crate) fn extract_timed(
     // that first fix on the video timeline.
     let first_ts = trusted[0].utc;
     for item in &mut trusted {
-        item.point.t_offset_s =
-            (item.utc - first_ts).num_milliseconds() as f64 / 1000.0;
+        item.point.t_offset_s = (item.utc - first_ts).num_milliseconds() as f64 / 1000.0;
     }
 
     Ok(trusted)
@@ -337,10 +331,7 @@ fn find_record_offset(data: &[u8]) -> Option<usize> {
         let active = data[marker];
         let lat_hemi = data[marker + 1];
         let lon_hemi = data[marker + 2];
-        if active == b'A'
-            && matches!(lat_hemi, b'N' | b'S')
-            && matches!(lon_hemi, b'E' | b'W')
-        {
+        if active == b'A' && matches!(lat_hemi, b'N' | b'S') && matches!(lon_hemi, b'E' | b'W') {
             return marker.checked_sub(24);
         }
     }
@@ -366,15 +357,11 @@ fn nmea_coord_to_degrees(raw: f64, hemi: u8) -> Option<f64> {
 }
 
 fn read_u32_le(data: &[u8], off: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(
-        data.get(off..off + 4)?.try_into().ok()?,
-    ))
+    Some(u32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?))
 }
 
 fn read_f32_le(data: &[u8], off: usize) -> Option<f32> {
-    Some(f32::from_le_bytes(
-        data.get(off..off + 4)?.try_into().ok()?,
-    ))
+    Some(f32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?))
 }
 
 fn read_box_header(

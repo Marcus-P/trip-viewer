@@ -61,10 +61,8 @@ pub fn validate(
     observations: &[GpsObservation],
     context: ValidationContext,
 ) -> Vec<ObservationValidation> {
-    let mut result: Vec<ObservationValidation> = observations
-        .iter()
-        .map(initial_validation)
-        .collect();
+    let mut result: Vec<ObservationValidation> =
+        observations.iter().map(initial_validation).collect();
 
     validate_temporal_consistency(observations, &mut result, context);
     validate_spatial_consistency(observations, &mut result);
@@ -347,10 +345,7 @@ fn unwrap_longitude_near(reference: f64, longitude: f64) -> f64 {
     reference + delta
 }
 
-fn combine_independent_witnesses(
-    speed: Option<bool>,
-    heading: Option<bool>,
-) -> FieldConsistency {
+fn combine_independent_witnesses(speed: Option<bool>, heading: Option<bool>) -> FieldConsistency {
     match (speed, heading) {
         (Some(true), Some(true)) => FieldConsistency::Contradictory,
         (Some(false), Some(false)) => FieldConsistency::Consistent,

@@ -31,11 +31,9 @@ pub fn first_fix_delay_s(
     let filename = path.file_name().and_then(|n| n.to_str())?;
     let parsed = crate::scan::viofo::parse(filename)?;
 
-    let Some((utc_offset_minutes, delay_s)) = infer_alignment(
-        parsed.start_time,
-        first_gps_utc,
-        duration_s,
-    ) else {
+    let Some((utc_offset_minutes, delay_s)) =
+        infer_alignment(parsed.start_time, first_gps_utc, duration_s)
+    else {
         eprintln!(
             "viofo gps: could not uniquely align validated GPS UTC time to video start in {}",
             path.display()
@@ -72,9 +70,7 @@ fn infer_alignment(
         let gps_as_local = first_gps_utc + Duration::minutes(offset_minutes);
         let delay_s = (gps_as_local - video_start_local).num_milliseconds() as f64 / 1000.0;
 
-        if delay_s >= -ALIGNMENT_TOLERANCE_S
-            && delay_s <= duration_s + ALIGNMENT_TOLERANCE_S
-        {
+        if delay_s >= -ALIGNMENT_TOLERANCE_S && delay_s <= duration_s + ALIGNMENT_TOLERANCE_S {
             candidates.push((offset_minutes, delay_s.max(0.0)));
         }
 
@@ -122,21 +118,13 @@ mod tests {
 
     #[test]
     fn supports_quarter_hour_civil_offsets() {
-        let aligned = infer_alignment(
-            dt(2026, 8, 31, 9, 59, 30),
-            dt(2026, 8, 31, 4, 15, 0),
-            180.0,
-        );
+        let aligned = infer_alignment(dt(2026, 8, 31, 9, 59, 30), dt(2026, 8, 31, 4, 15, 0), 180.0);
         assert_eq!(aligned, Some((345, 30.0)));
     }
 
     #[test]
     fn refuses_ambiguous_long_clip_alignment() {
-        let aligned = infer_alignment(
-            dt(2026, 8, 31, 10, 0, 0),
-            dt(2026, 8, 31, 8, 0, 0),
-            1800.0,
-        );
+        let aligned = infer_alignment(dt(2026, 8, 31, 10, 0, 0), dt(2026, 8, 31, 8, 0, 0), 1800.0);
         assert_eq!(aligned, None);
     }
 }
