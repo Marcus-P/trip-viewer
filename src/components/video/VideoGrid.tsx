@@ -1,4 +1,4 @@
-import { CSSProperties, MutableRefObject, useEffect } from "react";
+import { CSSProperties, MutableRefObject, useEffect, useRef, useState } from "react";
 import type { Segment } from "../../types/model";
 import { ChannelPanel } from "./ChannelPanel";
 import { useStore } from "../../state/store";
@@ -74,6 +74,8 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
   const sourceMode = useStore((s) => s.sourceMode);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
 
   // On first render of a segment (or when primaryChannel is null from a
   // trip/segment change), initialize the visual primary to the first channel
@@ -89,6 +91,22 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     const valid = activeSegment.channels.some((c) => c.label === primaryChannel);
     if (!valid) setPrimaryChannel(master);
   }, [activeSegment, primaryChannel, setPrimaryChannel]);
+
+  // Track whether the *whole viewing area* (VideoGrid + GPS map) is the
+  // browser fullscreen element. VideoGrid's parent is PlayerShell's main
+  // viewing grid, so requesting fullscreen on that parent keeps F/I/R and
+  // GPS together while the ordinary transport/timeline chrome stays out.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const viewingArea = gridRef.current?.parentElement ?? null;
+      setDashboardFullscreen(
+        Boolean(viewingArea && document.fullscreenElement === viewingArea),
+      );
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   // Native fullscreen can suspend or pause video pipelines that are outside
   // the fullscreen element on WebKit-based platforms. In Original mode every
@@ -175,12 +193,30 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   }
 
   function handleMainDoubleClick() {
+    // A parent <div> fullscreen means we're in the F/I/R + GPS dashboard.
+    // Keep that mode intact; only a native single-video fullscreen should be
+    // toggled by double-clicking the primary camera.
     if (document.fullscreenElement) {
-      document.exitFullscreen();
+      if (document.fullscreenElement instanceof HTMLVideoElement) {
+        document.exitFullscreen();
+      }
       return;
     }
     const el = channelRefs.current.get(effectivePrimary);
     el?.requestFullscreen();
+  }
+
+  async function toggleDashboardFullscreen() {
+    const viewingArea = gridRef.current?.parentElement;
+    if (!viewingArea) return;
+    if (document.fullscreenElement === viewingArea) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+    await viewingArea.requestFullscreen();
   }
 
   // Row template: if primary takes full height and there are N
@@ -191,9 +227,23 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
 
   return (
     <div
-      className="col-span-2 grid grid-cols-[2fr_1fr] gap-2"
+      ref={gridRef}
+      className="relative col-span-2 grid grid-cols-[2fr_1fr] gap-2"
       style={{ gridTemplateRows }}
     >
+      <button
+        type="button"
+        onClick={() => void toggleDashboardFullscreen()}
+        className="absolute right-2 top-2 z-20 rounded bg-black/70 px-2.5 py-1.5 text-xs font-medium text-neutral-100 opacity-70 backdrop-blur transition-opacity hover:opacity-100"
+        title={
+          dashboardFullscreen
+            ? "Exit F/I/R + GPS fullscreen"
+            : "Fullscreen F/I/R + GPS"
+        }
+      >
+        {dashboardFullscreen ? "Exit dashboard" : "F/I/R + GPS fullscreen"}
+      </button>
+
       {channels.map((channel) => {
         const isPrimary = channel.label === effectivePrimary;
         const idx = isPrimary
