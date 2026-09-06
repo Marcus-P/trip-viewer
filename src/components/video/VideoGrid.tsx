@@ -14,9 +14,9 @@ import { videoSrcFor } from "../../utils/videoSrc";
 //     are blocked by cross-origin policy between the webview and the
 //     filesystem.
 //
-//   macOS (WKWebView + AVFoundation): the asset:// handler on macOS does
-//     not honor HTTP Range requests. Wolfbox MP4s have `moov` at EOF, so
-//     without range support AVFoundation linearly buffers ~14 s of mdat
+//   macOS (WKWebView + AVFoundation): the asset:// handler on macOS
+//     does not honor HTTP Range requests. Wolfbox MP4s have `moov` at EOF,
+//     so without range support AVFoundation linearly buffers ~14 s of mdat
 //     before it can start decoding the primary 4K channel.
 //
 // The Rust server is fully Range-capable (206 Partial Content), so
@@ -73,10 +73,12 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const primaryChannel = useStore((s) => s.primaryChannel);
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
+  const sourceMode = useStore((s) => s.sourceMode);
 
   // On first render of a segment (or when primaryChannel is null from a
-  // trip/segment change), initialize primary to the first channel in
-  // canonical order. This is also the sync master.
+  // trip/segment change), initialize the visual primary to the first channel
+  // in canonical order. The sync engine keeps its own stable canonical master;
+  // changing the visual primary does not rebuild or retarget that engine.
   useEffect(() => {
     if (!activeSegment) return;
     const master = activeSegment.channels[0]?.label ?? null;
@@ -87,6 +89,54 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     const valid = activeSegment.channels.some((c) => c.label === primaryChannel);
     if (!valid) setPrimaryChannel(master);
   }, [activeSegment, primaryChannel, setPrimaryChannel]);
+
+  // Native fullscreen can suspend or pause video pipelines that are outside
+  // the fullscreen element on WebKit-based platforms. In Original mode every
+  // channel shares the same segment-local time axis, so the video the user was
+  // actually watching in fullscreen is the best deterministic anchor when
+  // fullscreen ends. Reposition all channels exactly once on the
+  // `fullscreenchange` event and resume them if global playback is active.
+  //
+  // This is deliberately event-driven rather than timer-driven. Tiered modes
+  // are excluded because gappy channels can live on different file-time axes;
+  // those require the SyncEngine's curve mapping rather than direct equality.
+  useEffect(() => {
+    let fullscreenVideo: HTMLVideoElement | null = null;
+
+    const onFullscreenChange = () => {
+      const current = document.fullscreenElement;
+      if (current instanceof HTMLVideoElement) {
+        fullscreenVideo = current;
+        return;
+      }
+
+      if (!fullscreenVideo) return;
+      const exitedVideo = fullscreenVideo;
+      fullscreenVideo = null;
+
+      if (sourceMode !== "original") return;
+      const anchorTime = exitedVideo.currentTime;
+      if (!Number.isFinite(anchorTime)) return;
+
+      const state = useStore.getState();
+      for (const video of channelRefs.current.values()) {
+        if (!video) continue;
+        video.playbackRate = state.speed;
+        video.currentTime = anchorTime;
+      }
+      state.setCurrentTime(anchorTime);
+
+      if (state.isPlaying) {
+        for (const video of channelRefs.current.values()) {
+          if (!video || video.ended) continue;
+          video.play().catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, [channelRefs, sourceMode]);
 
   if ((IS_LINUX || IS_MAC) && !videoPort) {
     return (
