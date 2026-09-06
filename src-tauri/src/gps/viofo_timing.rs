@@ -365,7 +365,7 @@ mod tests {
     #[test]
     fn supports_quarter_hour_civil_offsets() {
         let aligned = infer_alignment(
-            dt(2026, 8, 31, 10, 0, 30),
+            dt(2026, 8, 31, 9, 59, 30),
             dt(2026, 8, 31, 4, 15, 0),
             180.0,
         );
