@@ -30,4 +30,4 @@ jobs:
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly
       - name: Compile and run GPS tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml gps::
+        run: 'cargo test --manifest-path src-tauri/Cargo.toml gps::'
