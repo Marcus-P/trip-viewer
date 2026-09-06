@@ -3,6 +3,7 @@
 
 pub mod miltona;
 pub mod shenshu;
+pub mod validation;
 pub mod viofo;
 pub mod viofo_timing;
 
@@ -27,7 +28,9 @@ use tauri::State;
 ///     preserving each file's original GPS time axis.
 /// v5: aligns VIOFO UTC GPS timestamps to the clip's filename start time so a
 ///     delayed first GPS fix remains delayed on the video timeline.
-pub const GPS_PARSER_VERSION: i32 = 5;
+/// v6: validates VIOFO observations in physical source order with the reusable
+///     camera-neutral consistency layer before they can become route anchors.
+pub const GPS_PARSER_VERSION: i32 = 6;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
@@ -88,28 +91,29 @@ pub async fn dump_miltona_gps_debug(path: String) -> Result<String, AppError> {
 }
 
 fn extract_viofo(path: &Path) -> Result<Vec<GpsPoint>, AppError> {
-    let mut points = viofo::extract(path)?;
-    if points.is_empty() {
-        return Ok(points);
+    // The consistency validator needs the clip's measured duration only as an
+    // upper bound on how far apart two UTC records from this same MP4 can be.
+    // It does not use the filename clock or infer any timezone.
+    let duration_s = crate::metadata::mp4_probe::probe(path)?.duration_s;
+    let timed = viofo::extract_timed(path, Some(duration_s))?;
+    if timed.is_empty() {
+        return Ok(vec![]);
     }
 
-    // The VIOFO decoder historically used the first valid GPS record as t=0.
-    // That is wrong when the camera needs time to acquire a fix after startup.
-    // Align the first decoded point to the clip's actual filename start time.
-    // Timing alignment is deliberately best-effort: if metadata is malformed
-    // or the timezone cannot be inferred uniquely, keep the previous relative
-    // timing rather than discarding otherwise useful GPS data.
-    match viofo_timing::first_fix_delay_s(path) {
-        Ok(Some(delay_s)) if delay_s > 0.0 => {
+    let first_gps_utc = timed[0].utc;
+    let mut points: Vec<GpsPoint> = timed.into_iter().map(|item| item.point).collect();
+
+    // Synchronization with the local camera clock remains a separate concern
+    // from data validation. For now keep the existing best-effort civil-offset
+    // inference, but feed it the first observation that survived consistency
+    // validation so malformed raw records cannot become the timing anchor.
+    match viofo_timing::first_fix_delay_s(path, first_gps_utc, duration_s) {
+        Some(delay_s) if delay_s > 0.0 => {
             for point in &mut points {
                 point.t_offset_s += delay_s;
             }
         }
-        Ok(_) => {}
-        Err(e) => eprintln!(
-            "viofo gps: timing alignment failed for {}: {e}",
-            path.display()
-        ),
+        _ => {}
     }
 
     Ok(points)
