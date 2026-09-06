@@ -11,7 +11,70 @@ import { HeadingReadout } from "../hud/HeadingReadout";
 import { computeTripTime } from "../../utils/tripTime";
 import "leaflet/dist/leaflet.css";
 
-const SEGMENT_BOUNDARY_GPS_GRACE_S = 2;
+/**
+ * Parse a camera-local NaiveDateTime without applying the computer's timezone.
+ * We only need arithmetic between segment timestamps recorded by the same
+ * camera, so treating the numeric fields as a timezone-free UTC tuple avoids
+ * introducing host timezone/DST behaviour into the calculation.
+ */
+function naiveDateTimeMs(value: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/.exec(
+    value,
+  );
+  if (!match) return null;
+
+  const fractionMs = Number(`0.${match[7] ?? "0"}`) * 1000;
+  return Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6]),
+    Math.round(fractionMs),
+  );
+}
+
+/**
+ * Rebase GPS samples from the preceding segment onto the current segment's
+ * local time axis and keep only samples whose actual timestamp reaches into
+ * the current segment. No grace period is assumed: continuity exists only
+ * when the recorded timestamps themselves overlap the boundary.
+ */
+function precedingGpsOverlap(
+  previousSegment: Segment,
+  currentSegment: Segment,
+  previousPoints: GpsPoint[],
+): GpsPoint[] {
+  const previousStartMs = naiveDateTimeMs(previousSegment.startTime);
+  const currentStartMs = naiveDateTimeMs(currentSegment.startTime);
+  if (previousStartMs === null || currentStartMs === null) return [];
+
+  const startDeltaS = (previousStartMs - currentStartMs) / 1000;
+  return previousPoints
+    .map((point) => ({
+      ...point,
+      tOffsetS: startDeltaS + point.tOffsetS,
+    }))
+    .filter((point) => point.tOffsetS >= 0);
+}
+
+/**
+ * Merge overlapping GPS samples by their exact segment-relative timestamp.
+ * When both files contain the same timestamp, prefer the current segment's
+ * sample because it belongs to the video that is now active.
+ */
+function mergeGpsAtBoundary(
+  precedingOverlap: GpsPoint[],
+  currentPoints: GpsPoint[],
+): GpsPoint[] {
+  if (precedingOverlap.length === 0) return currentPoints;
+
+  const byTimestamp = new Map<number, GpsPoint>();
+  for (const point of precedingOverlap) byTimestamp.set(point.tOffsetS, point);
+  for (const point of currentPoints) byTimestamp.set(point.tOffsetS, point);
+  return Array.from(byTimestamp.values()).sort((a, b) => a.tOffsetS - b.tOffsetS);
+}
 
 /**
  * Keeps Leaflet's cached container size in sync with the actual DOM
@@ -171,41 +234,19 @@ export function MapPanel({ activeSegment }: Props) {
     if (!activeSegment) return [];
     const front = activeSegment.channels[0];
     if (!front) return [];
-    const points = gpsByFile[front.filePath] ?? [];
-
-    // A229-family clips commonly start their next one-second GPS sample just
-    // after a 3-minute file boundary. Preserve continuity across that tiny
-    // recorder boundary by seeding t=0 with the preceding segment's final GPS
-    // sample, but only when both sides are within the normal 2-second GPS gap
-    // tolerance. This does not affect a true delayed acquisition at trip start
-    // (for example the observed +87s first fix), because the first segment has
-    // no preceding segment to bridge from.
-    if (
-      points.length === 0 ||
-      points[0].tOffsetS <= 0 ||
-      points[0].tOffsetS > SEGMENT_BOUNDARY_GPS_GRACE_S ||
-      !trip
-    ) {
-      return points;
-    }
+    const currentPoints = gpsByFile[front.filePath] ?? [];
+    if (!trip) return currentPoints;
 
     const segmentIndex = trip.segments.findIndex((seg) => seg.id === activeSegment.id);
-    if (segmentIndex <= 0) return points;
+    if (segmentIndex <= 0) return currentPoints;
 
     const previousSegment = trip.segments[segmentIndex - 1];
     const previousFront = previousSegment.channels[0];
-    if (!previousFront) return points;
+    if (!previousFront) return currentPoints;
 
     const previousPoints = gpsByFile[previousFront.filePath] ?? [];
-    if (previousPoints.length === 0) return points;
-
-    const previousLast = previousPoints[previousPoints.length - 1];
-    const previousBoundaryGap = Math.abs(
-      previousSegment.durationS - previousLast.tOffsetS,
-    );
-    if (previousBoundaryGap > SEGMENT_BOUNDARY_GPS_GRACE_S) return points;
-
-    return [{ ...previousLast, tOffsetS: 0 }, ...points];
+    const overlap = precedingGpsOverlap(previousSegment, activeSegment, previousPoints);
+    return mergeGpsAtBoundary(overlap, currentPoints);
   }, [activeSegment, gpsByFile, trip]);
 
   // Pick which pair feeds the marker + readouts: tiered mode uses the
