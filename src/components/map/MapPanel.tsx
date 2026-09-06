@@ -104,7 +104,9 @@ function GpsMissingRibbon({
   if (!activeSegment) return null;
 
   const noGps = gpsPoints.length === 0;
-  const stale = interp?.stale === true;
+  const beforeFirstFix =
+    gpsPoints.length > 0 && interpolationTime < gpsPoints[0].tOffsetS;
+  const stale = beforeFirstFix || interp?.stale === true;
 
   if (!noGps && !stale) return null;
 
