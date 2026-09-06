@@ -354,9 +354,10 @@ fn combine_independent_witnesses(
     match (speed, heading) {
         (Some(true), Some(true)) => FieldConsistency::Contradictory,
         (Some(false), Some(false)) => FieldConsistency::Consistent,
-        (Some(true), None) | (None, Some(true)) | (Some(true), Some(false)) | (Some(false), Some(true)) => {
-            FieldConsistency::Unknown
-        }
+        (Some(true), None)
+        | (None, Some(true))
+        | (Some(true), Some(false))
+        | (Some(false), Some(true)) => FieldConsistency::Unknown,
         _ => FieldConsistency::Consistent,
     }
 }
@@ -393,10 +394,12 @@ fn speed_prefers_bridge(
     let prev_speed = prev.speed_mps?;
     let next_speed = next.speed_mps?;
 
-    Some(
-        (bridge_speed - prev_speed).abs() < (via_in_speed - prev_speed).abs()
-            && (bridge_speed - next_speed).abs() < (via_out_speed - next_speed).abs(),
-    )
+    Some(bridge_pareto_dominates(
+        (bridge_speed - prev_speed).abs(),
+        (via_in_speed - prev_speed).abs(),
+        (bridge_speed - next_speed).abs(),
+        (via_out_speed - next_speed).abs(),
+    ))
 }
 
 fn heading_prefers_bridge(
@@ -421,12 +424,27 @@ fn heading_prefers_bridge(
     let prev_heading = prev.heading_deg?;
     let next_heading = next.heading_deg?;
 
-    Some(
-        angular_distance_deg(bridge_heading, prev_heading)
-            < angular_distance_deg(via_in_heading, prev_heading)
-            && angular_distance_deg(bridge_heading, next_heading)
-                < angular_distance_deg(via_out_heading, next_heading),
-    )
+    Some(bridge_pareto_dominates(
+        angular_distance_deg(bridge_heading, prev_heading),
+        angular_distance_deg(via_in_heading, prev_heading),
+        angular_distance_deg(bridge_heading, next_heading),
+        angular_distance_deg(via_out_heading, next_heading),
+    ))
+}
+
+/// The direct bridge is a better witness when it is no worse at either
+/// neighbouring observation and strictly better at least once. Equality at one
+/// endpoint therefore does not erase independent evidence from the other one,
+/// and no epsilon or arbitrary tolerance is introduced.
+fn bridge_pareto_dominates(
+    bridge_error_a: f64,
+    via_error_a: f64,
+    bridge_error_b: f64,
+    via_error_b: f64,
+) -> bool {
+    bridge_error_a <= via_error_a
+        && bridge_error_b <= via_error_b
+        && (bridge_error_a < via_error_a || bridge_error_b < via_error_b)
 }
 
 const EARTH_RADIUS_M: f64 = 6_371_000.0;
