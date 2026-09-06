@@ -1,0 +1,70 @@
+name: VIOFO AppImage test build
+
+on:
+  push:
+    branches: ['feature/viofo-a229-pro']
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            file \
+            patchelf \
+            gstreamer1.0-libav \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly
+
+      - run: npm ci
+
+      - name: Build unsigned VIOFO test AppImage
+        shell: bash
+        run: |
+          set +e
+          NO_STRIP=true npm run tauri -- build --bundles appimage
+          build_status=$?
+          set -e
+
+          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit 2>/dev/null || true)"
+          if [ -z "$appimage" ]; then
+            echo "No AppImage was produced (tauri exit status: $build_status)." >&2
+            exit "${build_status:-1}"
+          fi
+
+          # Local feature builds are intentionally unsigned. Tauri can return a
+          # signing error after successfully bundling because the upstream
+          # updater public key is still configured; the existence of the bundle
+          # is therefore the success criterion for this test workflow.
+          mkdir -p test-artifact
+          cp "$appimage" test-artifact/Trip.Viewer_0.3.3_VIOFO-validation_amd64.AppImage
+          ls -lh test-artifact/Trip.Viewer_0.3.3_VIOFO-validation_amd64.AppImage
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: trip-viewer-viofo-validation-appimage
+          path: test-artifact/Trip.Viewer_0.3.3_VIOFO-validation_amd64.AppImage
+          if-no-files-found: error
+          retention-days: 14
