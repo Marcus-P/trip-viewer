@@ -33,5 +33,5 @@ jobs:
             gstreamer1.0-plugins-ugly
       - name: Rust format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - name: Compile and run VIOFO tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml viofo
+      - name: Compile and run GPS tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml gps::
