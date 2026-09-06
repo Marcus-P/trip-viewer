@@ -193,17 +193,22 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   }
 
   function handleMainDoubleClick() {
-    // A parent <div> fullscreen means we're in the F/I/R + GPS dashboard.
-    // Keep that mode intact; only a native single-video fullscreen should be
-    // toggled by double-clicking the primary camera.
-    if (document.fullscreenElement) {
-      if (document.fullscreenElement instanceof HTMLVideoElement) {
-        document.exitFullscreen();
-      }
+    const el = channelRefs.current.get(effectivePrimary);
+    if (!el) return;
+
+    // If a single camera is already fullscreen, pop that fullscreen layer.
+    // When it was entered from the dashboard, the dashboard remains as the
+    // underlying fullscreen element, so this returns directly to F/I/R + GPS.
+    if (document.fullscreenElement instanceof HTMLVideoElement) {
+      void document.exitFullscreen();
       return;
     }
-    const el = channelRefs.current.get(effectivePrimary);
-    el?.requestFullscreen();
+
+    // The dashboard viewing area may itself already be fullscreen. The
+    // Fullscreen API supports putting a descendant on top of that fullscreen
+    // element, so request the selected video directly instead of first leaving
+    // the dashboard. This preserves the dashboard underneath for the return.
+    void el.requestFullscreen();
   }
 
   async function toggleDashboardFullscreen() {
