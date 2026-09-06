@@ -11,6 +11,8 @@ import { HeadingReadout } from "../hud/HeadingReadout";
 import { computeTripTime } from "../../utils/tripTime";
 import "leaflet/dist/leaflet.css";
 
+const SEGMENT_BOUNDARY_GPS_GRACE_S = 2;
+
 /**
  * Keeps Leaflet's cached container size in sync with the actual DOM
  * size. Without this, fitBounds called shortly after mount can land on
@@ -169,8 +171,42 @@ export function MapPanel({ activeSegment }: Props) {
     if (!activeSegment) return [];
     const front = activeSegment.channels[0];
     if (!front) return [];
-    return gpsByFile[front.filePath] ?? [];
-  }, [activeSegment, gpsByFile]);
+    const points = gpsByFile[front.filePath] ?? [];
+
+    // A229-family clips commonly start their next one-second GPS sample just
+    // after a 3-minute file boundary. Preserve continuity across that tiny
+    // recorder boundary by seeding t=0 with the preceding segment's final GPS
+    // sample, but only when both sides are within the normal 2-second GPS gap
+    // tolerance. This does not affect a true delayed acquisition at trip start
+    // (for example the observed +87s first fix), because the first segment has
+    // no preceding segment to bridge from.
+    if (
+      points.length === 0 ||
+      points[0].tOffsetS <= 0 ||
+      points[0].tOffsetS > SEGMENT_BOUNDARY_GPS_GRACE_S ||
+      !trip
+    ) {
+      return points;
+    }
+
+    const segmentIndex = trip.segments.findIndex((seg) => seg.id === activeSegment.id);
+    if (segmentIndex <= 0) return points;
+
+    const previousSegment = trip.segments[segmentIndex - 1];
+    const previousFront = previousSegment.channels[0];
+    if (!previousFront) return points;
+
+    const previousPoints = gpsByFile[previousFront.filePath] ?? [];
+    if (previousPoints.length === 0) return points;
+
+    const previousLast = previousPoints[previousPoints.length - 1];
+    const previousBoundaryGap = Math.abs(
+      previousSegment.durationS - previousLast.tOffsetS,
+    );
+    if (previousBoundaryGap > SEGMENT_BOUNDARY_GPS_GRACE_S) return points;
+
+    return [{ ...previousLast, tOffsetS: 0 }, ...points];
+  }, [activeSegment, gpsByFile, trip]);
 
   // Pick which pair feeds the marker + readouts: tiered mode uses the
   // full trip trace indexed by concat-time; Original uses per-segment
