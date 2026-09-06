@@ -34,4 +34,4 @@ jobs:
       - name: Rust format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: Compile and run GPS tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml gps::
+        run: 'cargo test --manifest-path src-tauri/Cargo.toml gps::'
