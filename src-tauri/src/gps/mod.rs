@@ -4,6 +4,7 @@
 pub mod miltona;
 pub mod shenshu;
 pub mod viofo;
+pub mod viofo_timing;
 
 use crate::archive::{require_db, ArchiveSlot};
 use crate::error::AppError;
@@ -24,7 +25,9 @@ use tauri::State;
 ///     generic VIOFO files being sent through the Wolf Box ShenShu decoder.
 /// v4: filters isolated, physically impossible VIOFO position spikes while
 ///     preserving each file's original GPS time axis.
-pub const GPS_PARSER_VERSION: i32 = 4;
+/// v5: aligns VIOFO UTC GPS timestamps to the clip's filename start time so a
+///     delayed first GPS fix remains delayed on the video timeline.
+pub const GPS_PARSER_VERSION: i32 = 5;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
@@ -84,6 +87,34 @@ pub async fn dump_miltona_gps_debug(path: String) -> Result<String, AppError> {
     Ok(out.to_string_lossy().into_owned())
 }
 
+fn extract_viofo(path: &Path) -> Result<Vec<GpsPoint>, AppError> {
+    let mut points = viofo::extract(path)?;
+    if points.is_empty() {
+        return Ok(points);
+    }
+
+    // The VIOFO decoder historically used the first valid GPS record as t=0.
+    // That is wrong when the camera needs time to acquire a fix after startup.
+    // Align the first decoded point to the clip's actual filename start time.
+    // Timing alignment is deliberately best-effort: if metadata is malformed
+    // or the timezone cannot be inferred uniquely, keep the previous relative
+    // timing rather than discarding otherwise useful GPS data.
+    match viofo_timing::first_fix_delay_s(path) {
+        Ok(Some(delay_s)) if delay_s > 0.0 => {
+            for point in &mut points {
+                point.t_offset_s += delay_s;
+            }
+        }
+        Ok(_) => {}
+        Err(e) => eprintln!(
+            "viofo gps: timing alignment failed for {}: {e}",
+            path.display()
+        ),
+    }
+
+    Ok(points)
+}
+
 pub fn extract_for_kind(path: &Path, kind: CameraKind) -> Result<Vec<GpsPoint>, AppError> {
     match kind {
         CameraKind::WolfBox => shenshu::extract(path),
@@ -102,7 +133,7 @@ pub fn extract_for_kind(path: &Path, kind: CameraKind) -> Result<Vec<GpsPoint>, 
                 .map(crate::scan::viofo::is_viofo_filename)
                 .unwrap_or(false);
             if is_viofo {
-                viofo::extract(path)
+                extract_viofo(path)
             } else {
                 shenshu::extract(path)
             }
