@@ -286,12 +286,14 @@ export function Timeline({ onSeekTripTime }: Props) {
   return (
     <svg
       ref={svgRef}
+      data-tripviewer-timeline
       viewBox={`0 0 100 ${HEIGHT}`}
       preserveAspectRatio="none"
+      style={{ height: "var(--tripviewer-timeline-height, 3.5rem)" }}
       className={
         selectionMode
-          ? "h-14 w-full cursor-default select-none"
-          : "h-14 w-full cursor-pointer select-none"
+          ? "min-h-14 w-full cursor-default select-none"
+          : "min-h-14 w-full cursor-pointer select-none"
       }
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
