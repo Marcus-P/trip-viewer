@@ -74,8 +74,11 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
   const sourceMode = useStore((s) => s.sourceMode);
+  const isPlaying = useStore((s) => s.isPlaying);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // On first render of a segment (or when primaryChannel is null from a
   // trip/segment change), initialize the visual primary to the first channel
@@ -102,11 +105,58 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
       setDashboardFullscreen(
         Boolean(viewingArea && document.fullscreenElement === viewingArea),
       );
+      setContextMenu(null);
     };
     document.addEventListener("fullscreenchange", onFullscreenChange);
     onFullscreenChange();
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  // Replace the generic webview menu over the viewing area with the small set
+  // of actions that is useful during dashcam playback. Keep Reload available,
+  // and add playback + dashboard fullscreen so those actions remain reachable
+  // even while the normal transport bar is outside the fullscreen element.
+  useEffect(() => {
+    const viewingArea = gridRef.current?.parentElement;
+    if (!viewingArea || !activeSegment) return;
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      setContextMenu({ x: event.clientX, y: event.clientY });
+    };
+
+    viewingArea.addEventListener("contextmenu", onContextMenu);
+    return () => {
+      viewingArea.removeEventListener("contextmenu", onContextMenu);
+      setContextMenu(null);
+    };
+  }, [activeSegment]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        contextMenuRef.current &&
+        event.target instanceof Node &&
+        contextMenuRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setContextMenu(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", () => setContextMenu(null), { once: true });
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
 
   // Native fullscreen can suspend or pause video pipelines that are outside
   // the fullscreen element on WebKit-based platforms. In Original mode every
@@ -192,6 +242,13 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     };
   }
 
+  function togglePlayback() {
+    // TransportControls owns the SyncEngine instance. Dispatching this app
+    // event lets fullscreen UI use the exact same pause/play path as the
+    // ordinary transport bar and keyboard shortcut.
+    window.dispatchEvent(new Event("tripviewer:toggle-playback"));
+  }
+
   function handleMainDoubleClick() {
     const el = channelRefs.current.get(effectivePrimary);
     if (!el) return;
@@ -218,6 +275,10 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
       await document.exitFullscreen();
       return;
     }
+    if (document.fullscreenElement instanceof HTMLVideoElement) {
+      await document.exitFullscreen();
+      if (document.fullscreenElement === viewingArea) return;
+    }
     if (document.fullscreenElement) {
       await document.exitFullscreen();
     }
@@ -236,18 +297,73 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
       className="relative col-span-2 grid grid-cols-[2fr_1fr] gap-2"
       style={{ gridTemplateRows }}
     >
-      <button
-        type="button"
-        onClick={() => void toggleDashboardFullscreen()}
-        className="absolute right-2 top-2 z-20 rounded bg-black/70 px-2.5 py-1.5 text-xs font-medium text-neutral-100 opacity-70 backdrop-blur transition-opacity hover:opacity-100"
-        title={
-          dashboardFullscreen
-            ? "Exit F/I/R + GPS fullscreen"
-            : "Fullscreen F/I/R + GPS"
-        }
-      >
-        {dashboardFullscreen ? "Exit dashboard" : "F/I/R + GPS fullscreen"}
-      </button>
+      <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
+        {dashboardFullscreen && (
+          <button
+            type="button"
+            onClick={togglePlayback}
+            className="rounded bg-blue-600/90 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition-colors hover:bg-blue-500"
+            title={isPlaying ? "Pause playback" : "Resume playback"}
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void toggleDashboardFullscreen()}
+          className="rounded bg-black/70 px-2.5 py-1.5 text-xs font-medium text-neutral-100 opacity-70 backdrop-blur transition-opacity hover:opacity-100"
+          title={
+            dashboardFullscreen
+              ? "Exit F/I/R + GPS fullscreen"
+              : "Fullscreen F/I/R + GPS"
+          }
+        >
+          {dashboardFullscreen ? "Exit dashboard" : "F/I/R + GPS fullscreen"}
+        </button>
+      </div>
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 min-w-[13rem] overflow-hidden rounded-md border border-neutral-700 bg-neutral-900 py-1 shadow-xl"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              togglePlayback();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800"
+            role="menuitem"
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              void toggleDashboardFullscreen();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800"
+            role="menuitem"
+          >
+            {dashboardFullscreen
+              ? "Exit F/I/R + GPS fullscreen"
+              : "F/I/R + GPS fullscreen"}
+          </button>
+          <div className="my-1 border-t border-neutral-700" />
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="block w-full px-3 py-2 text-left text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white"
+            role="menuitem"
+          >
+            Reload
+          </button>
+        </div>
+      )}
 
       {channels.map((channel) => {
         const isPrimary = channel.label === effectivePrimary;
