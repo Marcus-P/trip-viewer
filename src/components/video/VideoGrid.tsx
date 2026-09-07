@@ -1,4 +1,11 @@
-import { CSSProperties, MutableRefObject, useEffect, useRef, useState } from "react";
+import {
+  CSSProperties,
+  MutableRefObject,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { Segment } from "../../types/model";
 import { ChannelPanel } from "./ChannelPanel";
 import { useStore } from "../../state/store";
@@ -37,6 +44,10 @@ interface Props {
    *  Stable identity across renders so useSyncEngine doesn't re-run. */
   channelRefs: MutableRefObject<Map<string, HTMLVideoElement | null>>;
   activeSegment: Segment | null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 /**
@@ -80,6 +91,14 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
+  // Layout ratios intentionally start at the existing 2:1 / 3:1 proportions.
+  // Persistence is added separately after the interaction model is validated.
+  const [primaryShare, setPrimaryShare] = useState(2 / 3);
+  const [secondarySplit, setSecondarySplit] = useState(0.5);
+  const [mapShare, setMapShare] = useState(0.25);
+  const [timelineHeightPx, setTimelineHeightPx] = useState<number | null>(null);
+  const [hasMapPanel, setHasMapPanel] = useState(false);
+
   // On first render of a segment (or when primaryChannel is null from a
   // trip/segment change), initialize the visual primary to the first channel
   // in canonical order. The sync engine keeps its own stable canonical master;
@@ -94,6 +113,42 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     const valid = activeSegment.channels.some((c) => c.label === primaryChannel);
     if (!valid) setPrimaryChannel(master);
   }, [activeSegment, primaryChannel, setPrimaryChannel]);
+
+  // The outer PlayerShell grid owns the GPS column. VideoGrid spans its first
+  // two columns, so an inline template lets this component expose a draggable
+  // video↔map boundary without changing playback ownership or the fullscreen
+  // container. When no map is present, restore PlayerShell's normal template.
+  useEffect(() => {
+    const grid = gridRef.current;
+    const viewingArea = grid?.parentElement;
+    if (!grid || !viewingArea) return;
+    const sibling = grid.nextElementSibling as HTMLElement | null;
+    const mapPresent = Boolean(sibling?.querySelector(".leaflet-container"));
+    setHasMapPanel(mapPresent);
+    if (!mapPresent) {
+      viewingArea.style.gridTemplateColumns = "";
+      return;
+    }
+
+    viewingArea.style.gridTemplateColumns =
+      `minmax(0, ${1 - mapShare}fr) 0px minmax(180px, ${mapShare}fr)`;
+  }, [activeSegment, mapShare]);
+
+  // Timeline height is inherited as a CSS custom property. This keeps the
+  // lower strip structurally identical and lets the flexing video area give
+  // up or reclaim space naturally when the user drags the horizontal handle.
+  useEffect(() => {
+    const shell = gridRef.current?.parentElement?.parentElement;
+    if (!shell) return;
+    if (timelineHeightPx === null) {
+      shell.style.removeProperty("--tripviewer-timeline-height");
+    } else {
+      shell.style.setProperty(
+        "--tripviewer-timeline-height",
+        `${timelineHeightPx}px`,
+      );
+    }
+  }, [timelineHeightPx]);
 
   // Track whether the *whole viewing area* (VideoGrid + GPS map) is the
   // browser fullscreen element. VideoGrid's parent is PlayerShell's main
@@ -249,6 +304,78 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     window.dispatchEvent(new Event("tripviewer:toggle-playback"));
   }
 
+  function startPointerDrag(
+    event: ReactPointerEvent<HTMLDivElement>,
+    cursor: "col-resize" | "row-resize",
+    onMove: (event: PointerEvent) => void,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const oldUserSelect = document.body.style.userSelect;
+    const oldCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = cursor;
+
+    const move = (pointerEvent: PointerEvent) => {
+      pointerEvent.preventDefault();
+      onMove(pointerEvent);
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      document.body.style.userSelect = oldUserSelect;
+      document.body.style.cursor = oldCursor;
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  }
+
+  function resizePrimarySecondary(event: ReactPointerEvent<HTMLDivElement>) {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    startPointerDrag(event, "col-resize", (pointerEvent) => {
+      const share = (pointerEvent.clientX - rect.left) / rect.width;
+      setPrimaryShare(clamp(share, 0.35, 0.85));
+    });
+  }
+
+  function resizeSecondaryStack(event: ReactPointerEvent<HTMLDivElement>) {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect || rect.height <= 0) return;
+    startPointerDrag(event, "row-resize", (pointerEvent) => {
+      const share = (pointerEvent.clientY - rect.top) / rect.height;
+      setSecondarySplit(clamp(share, 0.2, 0.8));
+    });
+  }
+
+  function resizeMap(event: ReactPointerEvent<HTMLDivElement>) {
+    const viewingArea = gridRef.current?.parentElement;
+    const rect = viewingArea?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    startPointerDrag(event, "col-resize", (pointerEvent) => {
+      const share = (rect.right - pointerEvent.clientX) / rect.width;
+      setMapShare(clamp(share, 0.15, 0.5));
+    });
+  }
+
+  function resizeTimeline(event: ReactPointerEvent<HTMLDivElement>) {
+    const shell = gridRef.current?.parentElement?.parentElement;
+    const timeline = shell?.querySelector(
+      "[data-tripviewer-timeline]",
+    ) as HTMLElement | null;
+    if (!shell || !timeline) return;
+    const startY = event.clientY;
+    const startHeight = timeline.getBoundingClientRect().height;
+    const maxHeight = Math.max(96, shell.getBoundingClientRect().height * 0.45);
+    startPointerDrag(event, "row-resize", (pointerEvent) => {
+      const next = startHeight + startY - pointerEvent.clientY;
+      setTimelineHeightPx(clamp(next, 56, maxHeight));
+    });
+  }
+
   function handleMainDoubleClick() {
     const el = channelRefs.current.get(effectivePrimary);
     if (!el) return;
@@ -289,13 +416,19 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   // secondaries, we need N rows. Minimum of 2 rows for aesthetic
   // symmetry when there's only 1 secondary.
   const rowCount = Math.max(secondaries.length, 2);
-  const gridTemplateRows = `repeat(${rowCount}, minmax(0, 1fr))`;
+  const gridTemplateRows =
+    secondaries.length === 2
+      ? `${secondarySplit}fr ${1 - secondarySplit}fr`
+      : `repeat(${rowCount}, minmax(0, 1fr))`;
 
   return (
     <div
       ref={gridRef}
-      className="relative col-span-2 grid grid-cols-[2fr_1fr] gap-2"
-      style={{ gridTemplateRows }}
+      className="relative col-span-2 grid gap-2"
+      style={{
+        gridTemplateColumns: `${primaryShare}fr ${1 - primaryShare}fr`,
+        gridTemplateRows,
+      }}
     >
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
         {dashboardFullscreen && (
@@ -321,6 +454,59 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
           {dashboardFullscreen ? "Exit dashboard" : "F/I/R + GPS fullscreen"}
         </button>
       </div>
+
+      {secondaries.length > 0 && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize main and secondary cameras"
+          onPointerDown={resizePrimarySecondary}
+          className="absolute bottom-0 top-0 z-30 w-3 -translate-x-1/2 cursor-col-resize"
+          style={{ left: `${primaryShare * 100}%` }}
+        >
+          <div className="mx-auto h-full w-px bg-neutral-500/0 transition-colors hover:bg-neutral-400/70" />
+        </div>
+      )}
+
+      {secondaries.length === 2 && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          title="Drag to resize the secondary cameras"
+          onPointerDown={resizeSecondaryStack}
+          className="absolute right-0 z-30 h-3 -translate-y-1/2 cursor-row-resize"
+          style={{
+            left: `${primaryShare * 100}%`,
+            top: `${secondarySplit * 100}%`,
+          }}
+        >
+          <div className="my-auto h-px w-full bg-neutral-500/0 transition-colors hover:bg-neutral-400/70" />
+        </div>
+      )}
+
+      {hasMapPanel && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize video and GPS map"
+          onPointerDown={resizeMap}
+          className="absolute -right-2 bottom-0 top-0 z-30 w-4 cursor-col-resize"
+        >
+          <div className="mx-auto h-full w-px bg-neutral-500/0 transition-colors hover:bg-neutral-400/70" />
+        </div>
+      )}
+
+      {!dashboardFullscreen && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          title="Drag to resize timeline and playback controls"
+          onPointerDown={resizeTimeline}
+          className="absolute -bottom-2 left-0 right-0 z-30 h-4 cursor-row-resize"
+        >
+          <div className="my-auto h-px w-full bg-neutral-500/0 transition-colors hover:bg-neutral-400/70" />
+        </div>
+      )}
 
       {contextMenu && (
         <div
