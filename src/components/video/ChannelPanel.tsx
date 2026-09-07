@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { useStore } from "../../state/store";
 
@@ -43,45 +36,16 @@ const MEDIA_EVENTS = [
   "error",
 ] as const;
 
-type SlotIndex = 0 | 1;
-
-interface BufferState {
-  active: SlotIndex;
-  sources: [string | null, string | null];
-}
-
 interface Props {
   label: string;
   src: string;
-  /** Next segment's source for the same channel. It is decoded in a paused,
-   *  invisible standby video so an automatic segment advance can promote an
-   *  already-ready media element instead of changing the visible video's src. */
-  preloadSrc?: string | null;
   isMaster: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
 }
 
-function otherSlot(slot: SlotIndex): SlotIndex {
-  return slot === 0 ? 1 : 0;
-}
-
-function mediaErrorText(video: HTMLVideoElement): string {
-  const code = video.error?.code ?? 0;
-  const map: Record<number, string> = {
-    1: "aborted",
-    2: "network error (failed to load)",
-    3: "decode error",
-    4: "source not supported (load or codec failure)",
-  };
-  return map[code] ?? `playback error ${code}`;
-}
-
 export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
-  function ChannelPanel(
-    { label, src, preloadSrc = null, isMaster, onClick, onDoubleClick },
-    ref,
-  ) {
+  function ChannelPanel({ label, src, isMaster, onClick, onDoubleClick }, ref) {
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
     // True while this channel is in a coverage gap (camera was off for
@@ -89,120 +53,38 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     // `<video>`; we paint black over it. Always false in Original mode.
     const gapped = useStore((s) => s.gappedChannels[label] ?? false);
     // `showLoading` is `!ready` debounced by LOADING_OVERLAY_DELAY_MS.
-    // Fast loads complete before this flips true, so the user sees a smooth
-    // cut rather than a flash of "Loading…". With the standby buffer, the
-    // normal Original-mode segment boundary should already have loadeddata.
+    // Fast loads (the common case on Windows/Chromium and on macOS now
+    // that the loopback HTTP server feeds AVFoundation moov immediately)
+    // complete before this flips true, so the user sees a smooth cut
+    // from one segment's last frame to the next segment's first frame
+    // without a flash of "Loading…". Genuinely slow loads still show it.
     const [showLoading, setShowLoading] = useState(false);
-    const slotRefs = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([
-      null,
-      null,
-    ]);
-    const [buffer, setBuffer] = useState<BufferState>(() => ({
-      active: 0,
-      sources: [src, preloadSrc && preloadSrc !== src ? preloadSrc : null],
-    }));
+    const localRef = useRef<HTMLVideoElement | null>(null);
 
-    const setSlotRef = useCallback(
-      (slot: SlotIndex) => (node: HTMLVideoElement | null) => {
-        slotRefs.current[slot] = node;
+    // Merge the forwarded ref with our local ref so we can attach debug
+    // listeners without disturbing whatever the parent is doing with the ref.
+    const setRefs = useCallback(
+      (node: HTMLVideoElement | null) => {
+        localRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
       },
-      [],
+      [ref],
     );
-
-    // Synchronize the two persistent media elements with current + next source.
-    // If the requested current source is already sitting in the standby slot,
-    // promote that DOM element without touching its src. That is the actual
-    // double-buffer handoff and preserves its prepared decoder/first frame.
-    //
-    // Native single-video fullscreen is deliberately different: replacing the
-    // fullscreen media element would make WebKit exit fullscreen. In that case
-    // keep the same active slot and accept a normal src change for that one
-    // transition. Dashboard fullscreen is a parent <div>, so it can use the
-    // seamless slot promotion normally.
-    useLayoutEffect(() => {
-      const wantedStandby = preloadSrc && preloadSrc !== src ? preloadSrc : null;
-      setBuffer((previous) => {
-        const active = previous.active;
-        const standby = otherSlot(active);
-        const activeEl = slotRefs.current[active];
-        const preserveFullscreenElement = document.fullscreenElement === activeEl;
-
-        if (preserveFullscreenElement) {
-          const nextSources: [string | null, string | null] = [
-            previous.sources[0],
-            previous.sources[1],
-          ];
-          nextSources[active] = src;
-          nextSources[standby] = wantedStandby;
-          if (
-            previous.sources[active] === nextSources[active] &&
-            previous.sources[standby] === nextSources[standby]
-          ) {
-            return previous;
-          }
-          return { active, sources: nextSources };
-        }
-
-        if (previous.sources[active] === src) {
-          if (previous.sources[standby] === wantedStandby) return previous;
-          const nextSources: [string | null, string | null] = [
-            previous.sources[0],
-            previous.sources[1],
-          ];
-          nextSources[standby] = wantedStandby;
-          return { active, sources: nextSources };
-        }
-
-        if (previous.sources[standby] === src) {
-          const nextSources: [string | null, string | null] = [
-            previous.sources[0],
-            previous.sources[1],
-          ];
-          nextSources[standby] = src;
-          nextSources[active] = wantedStandby;
-          return { active: standby, sources: nextSources };
-        }
-
-        // Non-sequential seek/jump: requested media was not preloaded. Keep
-        // the active DOM element (same behaviour as before double buffering),
-        // change its src normally, and prepare the following source in standby.
-        const nextSources: [string | null, string | null] = [
-          previous.sources[0],
-          previous.sources[1],
-        ];
-        nextSources[active] = src;
-        nextSources[standby] = wantedStandby;
-        return { active, sources: nextSources };
-      });
-    }, [src, preloadSrc]);
-
-    // Publish only the active media element to VideoGrid/useSyncEngine. Both
-    // slots remain mounted, but the sync engine must never control standby.
-    useLayoutEffect(() => {
-      const node = slotRefs.current[buffer.active];
-      if (typeof ref === "function") ref(node);
-      else if (ref) ref.current = node;
-      return () => {
-        if (typeof ref === "function") ref(null);
-        else if (ref) ref.current = null;
-      };
-    }, [buffer.active, ref]);
 
     useEffect(() => {
       setError(null);
       setReady(false);
-      const video = slotRefs.current[buffer.active];
-      if (video?.error) setError(mediaErrorText(video));
       if (DEBUG_MEDIA) {
         console.log(`[media/${label}] boundary src=…${src.slice(-50)}`);
       }
-    }, [src, label, buffer.active]);
+    }, [src, label]);
 
-    // The loading overlay covers the active <video> until loadeddata fires.
-    // A promoted standby normally already has readyState >= 2, so this resolves
-    // immediately and the old last frame cuts directly to the new first frame.
+    // The loading overlay covers the <video> until `loadeddata` fires,
+    // so the user sees "Loading…" rather than the black <video> element
+    // while the decoder is preparing the first frame.
     useEffect(() => {
-      const video = slotRefs.current[buffer.active];
+      const video = localRef.current;
       if (!video) return;
 
       const onLoaded = () => setReady(true);
@@ -212,10 +94,11 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       return () => {
         video.removeEventListener("loadeddata", onLoaded);
       };
-    }, [src, buffer.active]);
+    }, [src]);
 
-    // Debounce the overlay. If `ready` flips back to true within the delay
-    // window, the timer is cleared and the overlay never paints.
+    // Debounce the overlay. If `ready` flips back to true within the
+    // delay window (almost always, on a healthy machine), the timer is
+    // cleared and the overlay never paints.
     useEffect(() => {
       if (ready) {
         setShowLoading(false);
@@ -228,7 +111,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
 
     useEffect(() => {
       if (!DEBUG_MEDIA && !DEBUG_MEDIA_VERBOSE) return;
-      const video = slotRefs.current[buffer.active];
+      const video = localRef.current;
       if (!video) return;
 
       const mountedAt = performance.now();
@@ -242,7 +125,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         const base =
           `[media/${label}] +${dt}s ${ev.type} ` +
           `rs=${v.readyState} ns=${v.networkState} ` +
-          `t=${v.currentTime.toFixed(3)} paused=${v.paused} ended=${v.ended} ` +
+          `t=${(v.currentTime).toFixed(3)} paused=${v.paused} ended=${v.ended} ` +
           `…${tail}`;
         if (ev.type === "error") {
           const err = v.error;
@@ -275,6 +158,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           const rt = dWall > 0 ? ((dMedia / dWall) * 100).toFixed(0) : "—";
           const uptime = ((nowWall - mountedAt) / 1000).toFixed(1);
 
+          // Buffered window end (how far ahead of currentTime is decoded data).
           let bufEnd = "—";
           let bufHead = "—";
           try {
@@ -317,19 +201,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           if (DEBUG_MEDIA) video.removeEventListener(name, countHandler);
         }
       };
-    }, [label, buffer.active, src]);
-
-    const onVideoError = (video: HTMLVideoElement, isCurrent: boolean) => {
-      const code = video.error?.code ?? 0;
-      const message = video.error?.message ?? "";
-      const networkState = video.networkState;
-      console.error(
-        `[${isCurrent ? label : `${label}/preload`}] video error code=${code} ` +
-          `networkState=${networkState} src=${video.currentSrc || video.src} ` +
-          `message=${message}`,
-      );
-      if (isCurrent) setError(mediaErrorText(video));
-    };
+    }, [label]);
 
     return (
       <div
@@ -340,26 +212,33 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           (onClick || onDoubleClick) && "cursor-pointer",
         )}
       >
-        {([0, 1] as const).map((slot) => {
-          const source = buffer.sources[slot];
-          const isCurrent = slot === buffer.active;
-          return (
-            <video
-              key={slot}
-              ref={setSlotRef(slot)}
-              src={source ?? undefined}
-              className={clsx(
-                "absolute inset-0 h-full w-full object-contain",
-                isCurrent ? "z-0 opacity-100" : "pointer-events-none -z-10 opacity-0",
-              )}
-              muted={!isCurrent || !isMaster}
-              preload="auto"
-              playsInline
-              aria-hidden={!isCurrent}
-              onError={(e) => onVideoError(e.currentTarget, isCurrent)}
-            />
-          );
-        })}
+        <video
+          ref={setRefs}
+          src={src}
+          className="h-full w-full object-contain"
+          muted={!isMaster}
+          preload="auto"
+          playsInline
+          onError={(e) => {
+            const video = e.currentTarget as HTMLVideoElement;
+            const code = video.error?.code ?? 0;
+            const message = video.error?.message ?? "";
+            const networkState = video.networkState;
+            // Dump everything the browser knows so the terminal/devtools
+            // console can disambiguate "couldn't load" from "couldn't decode".
+            console.error(
+              `[${label}] video error code=${code} networkState=${networkState} ` +
+                `src=${video.currentSrc || video.src} message=${message}`,
+            );
+            const map: Record<number, string> = {
+              1: "aborted",
+              2: "network error (failed to load)",
+              3: "decode error",
+              4: "source not supported (load or codec failure)",
+            };
+            setError(map[code] ?? `playback error ${code}`);
+          }}
+        />
 
         {gapped && (
           <div className="absolute inset-0 flex items-center justify-center bg-black text-xs text-neutral-600">
