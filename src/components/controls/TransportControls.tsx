@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { SyncEngine } from "../../engine/SyncEngine";
 import type { PlaybackSlice } from "../../state/store";
 import { useStore } from "../../state/store";
@@ -75,7 +75,6 @@ export function TransportControls({ engine, onSourceChange }: Props) {
   const sourceMode = useStore((s) => s.sourceMode);
   const activeSpeedCurve = useStore((s) => s.activeSpeedCurve);
   const timelapseJobs = useStore((s) => s.timelapseJobs);
-  const [collapsed, setCollapsed] = useState(false);
   const disabled = !engine;
 
   const trip = trips.find((t) => t.id === loadedTripId);
@@ -142,7 +141,7 @@ export function TransportControls({ engine, onSourceChange }: Props) {
   const effectiveRate = tierRate * speed;
 
   return (
-    <div className="flex items-center gap-2 border-t border-neutral-800 bg-neutral-950 px-4 py-2 sm:gap-4">
+    <div className="flex flex-wrap items-center gap-2 border-t border-neutral-800 bg-neutral-950 px-4 py-2 sm:gap-4">
       <button
         onClick={onToggle}
         disabled={disabled}
@@ -151,38 +150,23 @@ export function TransportControls({ engine, onSourceChange }: Props) {
         {isPlaying ? "Pause" : "Play"}
       </button>
 
-      <button
-        type="button"
-        onClick={() => setCollapsed((value) => !value)}
-        className="shrink-0 rounded-md border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm leading-none text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
-        title={collapsed ? "Expand playback controls" : "Collapse playback controls"}
-        aria-label={collapsed ? "Expand playback controls" : "Collapse playback controls"}
-        aria-expanded={!collapsed}
-      >
-        {collapsed ? "⌃⌃" : "⌄⌄"}
-      </button>
+      <SourceControls
+        current={sourceMode}
+        options={sourceOptions}
+        onChange={onSourceChange}
+        disabled={disabled}
+      />
 
-      {!collapsed && (
-        <>
-          <SourceControls
-            current={sourceMode}
-            options={sourceOptions}
-            onChange={onSourceChange}
-            disabled={disabled}
-          />
+      <SpeedControls engine={engine} />
 
-          <SpeedControls engine={engine} />
+      <span className="shrink-0 text-[11px] text-neutral-500">
+        →{" "}
+        <span className="text-neutral-300">{effectiveRate}×</span> effective
+      </span>
 
-          <span className="shrink-0 text-[11px] text-neutral-500">
-            →{" "}
-            <span className="text-neutral-300">{effectiveRate}×</span> effective
-          </span>
-
-          <div className="ml-auto shrink-0 font-mono text-xs tabular-nums text-neutral-400">
-            {formatTime(tripTime)} / {formatTime(totalDuration)}
-          </div>
-        </>
-      )}
+      <div className="ml-auto shrink-0 font-mono text-xs tabular-nums text-neutral-400">
+        {formatTime(tripTime)} / {formatTime(totalDuration)}
+      </div>
     </div>
   );
 }
