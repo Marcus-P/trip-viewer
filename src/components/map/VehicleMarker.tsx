@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { CircleMarker, useMap } from "react-leaflet";
 import { useStore } from "../../state/store";
 import { interpolateGps } from "../../engine/interpolate";
@@ -106,18 +106,44 @@ export function VehicleMarker({
     map.setView([interp.lat, interp.lon], 15, { animate: true });
   }, [loadedTripId, isPlaying, interp, map]);
 
-  // Pan-follow whenever the marker leaves the visible area. Pan and
-  // zoom are independent — if the user has zoomed out, this just
-  // keeps following at their chosen zoom. Skipped while the user is
-  // mid-drag or mid-zoom so the auto-pan doesn't fight the gesture;
-  // the next interp tick after gesture-end will catch up if needed.
-  useEffect(() => {
+  // Keep the vehicle inside an inset pixel-safe area rather than waiting
+  // until it actually leaves the Leaflet bounds. The inset is capped on
+  // small panels so a heavily resized GPS view still has a useful interior.
+  // Crossing the inset recenters the vehicle at the user's current zoom.
+  // ResizeObserver in MapPanel calls invalidateSize(), which emits Leaflet's
+  // resize event; we run the same check there so resizing the map can trigger
+  // an immediate follow correction without waiting for the next GPS sample.
+  const keepMarkerInsideSafeArea = useCallback(() => {
     if (!interp || interp.stale) return;
     if (userInteractingRef.current) return;
-    if (!map.getBounds().contains([interp.lat, interp.lon])) {
+
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    const point = map.latLngToContainerPoint([interp.lat, interp.lon]);
+    const maxInset = 64;
+    const insetX = Math.min(maxInset, Math.max(24, size.x * 0.2));
+    const insetY = Math.min(maxInset, Math.max(24, size.y * 0.2));
+    const outsideSafeArea =
+      point.x < insetX ||
+      point.x > size.x - insetX ||
+      point.y < insetY ||
+      point.y > size.y - insetY;
+
+    if (outsideSafeArea) {
       map.panTo([interp.lat, interp.lon], { animate: true, duration: 0.3 });
     }
   }, [interp, map]);
+
+  useEffect(() => {
+    keepMarkerInsideSafeArea();
+  }, [keepMarkerInsideSafeArea]);
+
+  useEffect(() => {
+    map.on("resize", keepMarkerInsideSafeArea);
+    return () => {
+      map.off("resize", keepMarkerInsideSafeArea);
+    };
+  }, [map, keepMarkerInsideSafeArea]);
 
   if (!interp) return null;
 
