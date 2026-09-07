@@ -86,6 +86,8 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const videoPort = useStore((s) => s.videoPort);
   const sourceMode = useStore((s) => s.sourceMode);
   const isPlaying = useStore((s) => s.isPlaying);
+  const trips = useStore((s) => s.trips);
+  const loadedTripId = useStore((s) => s.loadedTripId);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
@@ -286,6 +288,22 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     channels[0]?.label;
 
   const secondaries = channels.filter((c) => c.label !== effectivePrimary);
+
+  // Original-mode continuity gets one-segment look-ahead. ChannelPanel keeps
+  // that next file in its paused standby media element. Tiered playback is one
+  // stitched file, and tombstones deliberately switch source mode instead of
+  // trying to preload a nonexistent original segment.
+  let preloadSegment: Segment | null = null;
+  if (sourceMode === "original") {
+    const activeTrip = trips.find((candidate) => candidate.id === loadedTripId);
+    const segmentIndex = activeTrip?.segments.findIndex(
+      (segment) => segment.id === activeSegment.id,
+    ) ?? -1;
+    const next = segmentIndex >= 0 ? activeTrip?.segments[segmentIndex + 1] : null;
+    if (next && next.isTombstone !== true && next.channels.length > 0) {
+      preloadSegment = next;
+    }
+  }
 
   function setRef(label: string) {
     return (node: HTMLVideoElement | null) => {
@@ -556,6 +574,9 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
         const idx = isPrimary
           ? 0
           : secondaries.findIndex((c) => c.label === channel.label);
+        const preloadChannel = preloadSegment?.channels.find(
+          (candidate) => candidate.label === channel.label,
+        );
 
         return (
           <div
@@ -566,6 +587,11 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               ref={setRef(channel.label)}
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
+              preloadSrc={
+                preloadChannel
+                  ? videoSrcFor(preloadChannel.filePath, videoPort)
+                  : null
+              }
               isMaster={isPrimary}
               onClick={isPrimary ? undefined : () => setPrimaryChannel(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
