@@ -10,6 +10,10 @@ import type { Segment } from "../../types/model";
 import { ChannelPanel } from "./ChannelPanel";
 import { useStore } from "../../state/store";
 import { videoSrcFor } from "../../utils/videoSrc";
+import {
+  getLayoutPreferences,
+  saveLayoutPreferences,
+} from "../../settings/layout";
 
 // Both Linux and macOS need the tiny loopback HTTP server
 // (src-tauri/src/video_server.rs) for <video> playback, for different
@@ -88,16 +92,32 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const isPlaying = useStore((s) => s.isPlaying);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const initialLayout = useRef(getLayoutPreferences()).current;
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-  // Layout ratios intentionally start at the existing 2:1 / 3:1 proportions.
-  // Persistence is added separately after the interaction model is validated.
-  const [primaryShare, setPrimaryShare] = useState(2 / 3);
-  const [secondarySplit, setSecondarySplit] = useState(0.5);
-  const [mapShare, setMapShare] = useState(0.25);
-  const [timelineHeightPx, setTimelineHeightPx] = useState<number | null>(null);
+  const [primaryShare, setPrimaryShare] = useState(initialLayout.primaryShare);
+  const [secondarySplit, setSecondarySplit] = useState(initialLayout.secondarySplit);
+  const [mapShare, setMapShare] = useState(initialLayout.mapShare);
+  const [timelineHeightPx, setTimelineHeightPx] = useState<number | null>(
+    initialLayout.timelineHeightPx,
+  );
   const [hasMapPanel, setHasMapPanel] = useState(false);
+
+  // Persist settled drag positions without synchronously writing localStorage
+  // on every pointermove. The short debounce resets during a drag and normally
+  // writes only once after the user releases the handle.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      saveLayoutPreferences({
+        primaryShare,
+        secondarySplit,
+        mapShare,
+        timelineHeightPx,
+      });
+    }, 150);
+    return () => window.clearTimeout(handle);
+  }, [primaryShare, secondarySplit, mapShare, timelineHeightPx]);
 
   // On first render of a segment (or when primaryChannel is null from a
   // trip/segment change), initialize the visual primary to the first channel
