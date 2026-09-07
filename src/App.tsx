@@ -40,6 +40,10 @@ import {
   type StartupSnapshot,
 } from "./ipc/startup";
 import { StartupSplash } from "./components/StartupSplash";
+import {
+  getLayoutPreferences,
+  saveLayoutPreferences,
+} from "./settings/layout";
 
 function App() {
   const trips = useStore((s) => s.trips);
@@ -59,7 +63,9 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [version, setVersion] = useState("");
   const [startup, setStartup] = useState<StartupSnapshot | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => getLayoutPreferences().sidebarCollapsed,
+  );
 
   useEffect(() => {
     getVersion().then(setVersion);
@@ -266,6 +272,14 @@ function App() {
   const startupRunning = !!(startup && !startup.done);
   const showSplash = startupRunning || libraryLoading;
 
+  function toggleSidebar() {
+    setSidebarCollapsed((value) => {
+      const next = !value;
+      saveLayoutPreferences({ sidebarCollapsed: next });
+      return next;
+    });
+  }
+
   return (
     <HevcSupportGate>
     <>
@@ -283,7 +297,7 @@ function App() {
       >
         <button
           type="button"
-          onClick={() => setSidebarCollapsed((value) => !value)}
+          onClick={toggleSidebar}
           className="absolute -right-3 top-3 z-30 flex h-7 w-7 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-sm text-neutral-300 shadow transition-colors hover:bg-neutral-800 hover:text-white"
           title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
