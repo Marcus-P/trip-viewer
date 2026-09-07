@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store";
+import { usePreferences } from "../../settings/preferences";
 import type { GpsPoint, Segment, TagCategory, Trip } from "../../types/model";
 import { CATEGORY_COLORS } from "../../utils/tagColors";
 import { computeTripTime, tripTotalDuration } from "../../utils/tripTime";
@@ -16,6 +17,62 @@ const MAX_BANDS = 3;
 const TAG_BANDS_AREA_H = TAG_BAND_H * MAX_BANDS;
 const SPEED_AREA_H = HEIGHT - SEG_BAR_H - TAG_BANDS_AREA_H - 2;
 
+interface SpeedPoint {
+  x: number;
+  speed: number;
+}
+
+interface HoverSpeed {
+  x: number;
+  speed: number | null;
+}
+
+function niceSpeedScale(maxValue: number): { max: number; step: number } {
+  // Aim for roughly four horizontal bands while keeping labels on familiar
+  // 1 / 2 / 2.5 / 5 × powers-of-ten values.
+  const safeMax = Math.max(1, maxValue);
+  const roughStep = safeMax / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  const nice =
+    normalized <= 1
+      ? 1
+      : normalized <= 2
+        ? 2
+        : normalized <= 2.5
+          ? 2.5
+          : normalized <= 5
+            ? 5
+            : 10;
+  const step = nice * magnitude;
+  return {
+    step,
+    max: Math.max(step, Math.ceil(safeMax / step) * step),
+  };
+}
+
+function speedAtFraction(points: SpeedPoint[], fraction: number): number | null {
+  if (points.length === 0) return null;
+  if (points.length === 1) return points[0].speed;
+  if (fraction <= points[0].x) return points[0].speed;
+  if (fraction >= points[points.length - 1].x) return points[points.length - 1].speed;
+
+  let low = 0;
+  let high = points.length - 1;
+  while (high - low > 1) {
+    const mid = Math.floor((low + high) / 2);
+    if (points[mid].x <= fraction) low = mid;
+    else high = mid;
+  }
+
+  const a = points[low];
+  const b = points[high];
+  const span = b.x - a.x;
+  if (span <= 0) return b.speed;
+  const t = (fraction - a.x) / span;
+  return a.speed + (b.speed - a.speed) * t;
+}
+
 // Visual stacking order for tag bands (highest priority on top).
 // Event is loudest so it renders closest to the segment bar.
 const CATEGORY_PRIORITY: TagCategory[] = [
@@ -28,6 +85,8 @@ const CATEGORY_PRIORITY: TagCategory[] = [
 
 export function Timeline({ onSeekTripTime }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverSpeed, setHoverSpeed] = useState<HoverSpeed | null>(null);
+  const { speedUnit } = usePreferences();
   const trips = useStore((s) => s.trips);
   const loadedTripId = useStore((s) => s.loadedTripId);
   const activeSegmentId = useStore((s) => s.activeSegmentId);
@@ -63,7 +122,7 @@ export function Timeline({ onSeekTripTime }: Props) {
     [trip, activeSegmentId, currentTime, sourceMode, activeSpeedCurve],
   );
 
-  const speedPoints: { x: number; speed: number }[] = useMemo(() => {
+  const speedPoints: SpeedPoint[] = useMemo(() => {
     if (!trip || totalDuration <= 0) return [];
     // Archived path: trip_gps rows store trip-stitched t_offset_s, so
     // no per-segment cumulative math is needed and the curve renders
@@ -77,7 +136,7 @@ export function Timeline({ onSeekTripTime }: Props) {
     }
     // Fallback: per-file GPS, stitched on the fly. Used for trips that
     // have originals but no timelapse encode yet.
-    const pts: { x: number; speed: number }[] = [];
+    const pts: SpeedPoint[] = [];
     let cumulative = 0;
     for (const seg of trip.segments) {
       // Master channel carries GPS; use channels[0] (Front or otherwise).
@@ -96,35 +155,67 @@ export function Timeline({ onSeekTripTime }: Props) {
     return pts;
   }, [trip, totalDuration, gpsByFile, tripGpsByTrip]);
 
-  const maxSpeed = useMemo(
-    () => Math.max(1, ...speedPoints.map((p) => p.speed)),
-    [speedPoints],
+  const speedFactor = speedUnit === "mph" ? 2.23694 : 3.6;
+  const unitLabel = speedUnit === "mph" ? "mph" : "km/h";
+
+  const maxDisplaySpeed = useMemo(
+    () => Math.max(1, ...speedPoints.map((p) => p.speed * speedFactor)),
+    [speedPoints, speedFactor],
   );
+
+  const speedScale = useMemo(
+    () => niceSpeedScale(maxDisplaySpeed),
+    [maxDisplaySpeed],
+  );
+
+  const speedTicks = useMemo(() => {
+    const ticks: number[] = [];
+    for (let value = 0; value <= speedScale.max + speedScale.step / 2; value += speedScale.step) {
+      ticks.push(value);
+    }
+    return ticks;
+  }, [speedScale]);
 
   const speedPath = useMemo(() => {
     if (speedPoints.length < 2) return "";
     return speedPoints
       .map((p, i) => {
         const x = p.x * 100;
-        const y = SPEED_AREA_H * (1 - p.speed / maxSpeed);
+        const displaySpeed = p.speed * speedFactor;
+        const y = SPEED_AREA_H * (1 - displaySpeed / speedScale.max);
         return `${i === 0 ? "M" : "L"}${x},${y}`;
       })
       .join(" ");
-  }, [speedPoints, maxSpeed]);
+  }, [speedPoints, speedFactor, speedScale.max]);
+
+  const xFraction = useCallback((clientX: number) => {
+    const svg = svgRef.current;
+    if (!svg) return 0;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return 0;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
 
   const xToTripTime = useCallback(
+    (clientX: number) => xFraction(clientX) * totalDuration,
+    [totalDuration, xFraction],
+  );
+
+  const updateHover = useCallback(
     (clientX: number) => {
-      const svg = svgRef.current;
-      if (!svg || totalDuration <= 0) return 0;
-      const rect = svg.getBoundingClientRect();
-      const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      return frac * totalDuration;
+      const fraction = xFraction(clientX);
+      const mps = speedAtFraction(speedPoints, fraction);
+      setHoverSpeed({
+        x: fraction,
+        speed: mps === null ? null : mps * speedFactor,
+      });
     },
-    [totalDuration],
+    [speedPoints, speedFactor, xFraction],
   );
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      updateHover(e.clientX);
       // In selection mode the timeline is a multi-select widget, not a
       // seek widget. Clicks are handled per-segment-rect below; the
       // SVG-level pointerdown is suppressed entirely so a click on
@@ -134,16 +225,16 @@ export function Timeline({ onSeekTripTime }: Props) {
       e.currentTarget.setPointerCapture(e.pointerId);
       onSeekTripTime(xToTripTime(e.clientX));
     },
-    [xToTripTime, onSeekTripTime, selectionMode],
+    [xToTripTime, onSeekTripTime, selectionMode, updateHover],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (selectionMode) return;
-      if (e.buttons === 0) return;
+      updateHover(e.clientX);
+      if (selectionMode || e.buttons === 0) return;
       onSeekTripTime(xToTripTime(e.clientX));
     },
-    [xToTripTime, onSeekTripTime, selectionMode],
+    [xToTripTime, onSeekTripTime, selectionMode, updateHover],
   );
 
   if (!trip || totalDuration <= 0) return null;
@@ -283,70 +374,155 @@ export function Timeline({ onSeekTripTime }: Props) {
     });
   }
 
-  return (
-    <svg
-      ref={svgRef}
-      data-tripviewer-timeline
-      viewBox={`0 0 100 ${HEIGHT}`}
-      preserveAspectRatio="none"
-      style={{ height: "var(--tripviewer-timeline-height, 3.5rem)" }}
-      className={
-        selectionMode
-          ? "min-h-14 w-full cursor-default select-none"
-          : "min-h-14 w-full cursor-pointer select-none"
-      }
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-    >
-      {/* Diagonal-hatch fill for tombstone segments (originals deleted,
-          covered by the trip's timelapse archive). preserveAspectRatio
-          is "none" so the timeline stretches arbitrarily; we use
-          patternUnits=userSpaceOnUse and a small stride so the hatch
-          density stays readable at any width. */}
-      <defs>
-        <pattern
-          id="tombstone-hatch"
-          patternUnits="userSpaceOnUse"
-          width={2}
-          height={4}
-          patternTransform="rotate(45)"
-        >
-          <rect width={2} height={4} fill="#4b5563" />
-          <rect width={1} height={4} fill="#1f2937" />
-        </pattern>
-      </defs>
+  const hoverY =
+    hoverSpeed?.speed == null
+      ? null
+      : SPEED_AREA_H * (1 - hoverSpeed.speed / speedScale.max);
 
-      {/* Speed curve */}
-      {speedPath && (
-        <path
-          d={speedPath}
-          fill="none"
-          stroke="#3b82f6"
-          strokeWidth={0.4}
-          strokeOpacity={0.6}
+  return (
+    <div
+      data-tripviewer-timeline
+      style={{ height: "var(--tripviewer-timeline-height, 3.5rem)" }}
+      className="relative min-h-14 w-full select-none"
+    >
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 100 ${HEIGHT}`}
+        preserveAspectRatio="none"
+        className={
+          selectionMode
+            ? "absolute inset-0 h-full w-full cursor-default"
+            : "absolute inset-0 h-full w-full cursor-pointer"
+        }
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => setHoverSpeed(null)}
+      >
+        {/* Diagonal-hatch fill for tombstone segments (originals deleted,
+            covered by the trip's timelapse archive). preserveAspectRatio
+            is "none" so the timeline stretches arbitrarily; we use
+            patternUnits=userSpaceOnUse and a small stride so the hatch
+            density stays readable at any width. */}
+        <defs>
+          <pattern
+            id="tombstone-hatch"
+            patternUnits="userSpaceOnUse"
+            width={2}
+            height={4}
+            patternTransform="rotate(45)"
+          >
+            <rect width={2} height={4} fill="#4b5563" />
+            <rect width={1} height={4} fill="#1f2937" />
+          </pattern>
+        </defs>
+
+        {/* Speed grid. Labels are HTML overlays below so they do not stretch
+            with preserveAspectRatio="none". */}
+        {speedTicks.map((value) => {
+          const y = SPEED_AREA_H * (1 - value / speedScale.max);
+          return (
+            <line
+              key={`speed-grid-${value}`}
+              x1={0}
+              y1={y}
+              x2={100}
+              y2={y}
+              stroke="#6b7280"
+              strokeWidth={0.35}
+              strokeOpacity={value === 0 ? 0.35 : 0.2}
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          );
+        })}
+
+        {/* Speed curve */}
+        {speedPath && (
+          <path
+            d={speedPath}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth={0.7}
+            strokeOpacity={0.8}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Segment bars */}
+        {segRects}
+
+        {/* Selection outlines (above segment bars, below playhead) */}
+        {selectionMarks}
+
+        {/* Category-colored tag bands stacked below the segment bars */}
+        {tagBands}
+
+        {/* Hover position over the speed graph. */}
+        {hoverSpeed && (
+          <line
+            x1={`${hoverSpeed.x * 100}%`}
+            y1={0}
+            x2={`${hoverSpeed.x * 100}%`}
+            y2={SPEED_AREA_H}
+            stroke="#d1d5db"
+            strokeWidth={0.5}
+            strokeOpacity={0.55}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Playhead */}
+        <line
+          x1={`${playheadX}%`}
+          y1={0}
+          x2={`${playheadX}%`}
+          y2={HEIGHT}
+          stroke="#ef4444"
+          strokeWidth={0.5}
           vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
         />
+      </svg>
+
+      {speedPath && (
+        <div className="pointer-events-none absolute inset-0 text-[9px] text-neutral-500">
+          <div className="absolute left-1 top-0 rounded bg-neutral-950/70 px-1 py-0.5 font-medium text-neutral-400">
+            {unitLabel}
+          </div>
+          {speedTicks
+            .filter((value) => value > 0)
+            .map((value) => {
+              const y = SPEED_AREA_H * (1 - value / speedScale.max);
+              return (
+                <div
+                  key={`speed-label-${value}`}
+                  className="absolute left-1 rounded bg-neutral-950/55 px-1 tabular-nums"
+                  style={{
+                    top: `${(y / HEIGHT) * 100}%`,
+                    transform: "translateY(-50%)",
+                  }}
+                >
+                  {Math.round(value)}
+                </div>
+              );
+            })}
+        </div>
       )}
 
-      {/* Segment bars */}
-      {segRects}
-
-      {/* Selection outlines (above segment bars, below playhead) */}
-      {selectionMarks}
-
-      {/* Category-colored tag bands stacked below the segment bars */}
-      {tagBands}
-
-      {/* Playhead */}
-      <line
-        x1={`${playheadX}%`}
-        y1={0}
-        x2={`${playheadX}%`}
-        y2={HEIGHT}
-        stroke="#ef4444"
-        strokeWidth={0.5}
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+      {hoverSpeed && hoverSpeed.speed !== null && hoverY !== null && (
+        <div
+          className="pointer-events-none absolute z-10 rounded bg-neutral-950/90 px-2 py-1 text-[11px] font-medium tabular-nums text-neutral-100 shadow"
+          style={{
+            left: `${Math.min(94, Math.max(6, hoverSpeed.x * 100))}%`,
+            top: `${Math.min(70, Math.max(5, (hoverY / HEIGHT) * 100))}%`,
+            transform: "translate(-50%, -110%)",
+          }}
+        >
+          {Math.round(hoverSpeed.speed)} {unitLabel}
+        </div>
+      )}
+    </div>
   );
 }
