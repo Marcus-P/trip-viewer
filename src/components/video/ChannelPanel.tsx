@@ -1,7 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { useStore } from "../../state/store";
-import { videoSrcFor } from "../../utils/videoSrc";
 
 // Diagnostic toggles. Both default off so production builds stay silent.
 //
@@ -53,29 +52,6 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     // this stretch in tiered playback). The SyncEngine holds the
     // `<video>`; we paint black over it. Always false in Original mode.
     const gapped = useStore((s) => s.gappedChannels[label] ?? false);
-
-    // Conservative one-segment look-ahead. This hidden media element only
-    // warms the browser/GStreamer cache for the next Original-mode file. It is
-    // never published through the forwarded ref and therefore cannot become a
-    // SyncEngine master/slave. The normal, already-stable segment-change path
-    // remains untouched; at the boundary the visible <video> still changes src
-    // exactly as before, but the new source has already been opened once.
-    const preloadSrc = useStore((s) => {
-      if (s.sourceMode !== "original") return null;
-      const trip = s.trips.find((candidate) => candidate.id === s.loadedTripId);
-      if (!trip) return null;
-      const currentId = s.activeSegmentId ?? trip.segments[0]?.id;
-      const index = trip.segments.findIndex((segment) => segment.id === currentId);
-      if (index < 0) return null;
-      const next = trip.segments[index + 1];
-      if (!next || next.isTombstone === true || next.channels.length === 0) {
-        return null;
-      }
-      const channel = next.channels.find((candidate) => candidate.label === label);
-      if (!channel) return null;
-      return videoSrcFor(channel.filePath, s.videoPort);
-    });
-
     // `showLoading` is `!ready` debounced by LOADING_OVERLAY_DELAY_MS.
     // Fast loads (the common case on Windows/Chromium and on macOS now
     // that the loopback HTTP server feeds AVFoundation moov immediately)
@@ -263,33 +239,6 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             setError(map[code] ?? `playback error ${code}`);
           }}
         />
-
-        {preloadSrc && preloadSrc !== src && (
-          <video
-            src={preloadSrc}
-            style={{
-              position: "absolute",
-              left: -10000,
-              top: -10000,
-              width: 1,
-              height: 1,
-              opacity: 0,
-              pointerEvents: "none",
-            }}
-            muted
-            preload="auto"
-            playsInline
-            aria-hidden="true"
-            onError={(e) => {
-              const video = e.currentTarget as HTMLVideoElement;
-              console.warn(
-                `[${label}/preload] video error code=${video.error?.code ?? 0} ` +
-                  `networkState=${video.networkState} src=${video.currentSrc || video.src} ` +
-                  `message=${video.error?.message ?? ""}`,
-              );
-            }}
-          />
-        )}
 
         {gapped && (
           <div className="absolute inset-0 flex items-center justify-center bg-black text-xs text-neutral-600">
