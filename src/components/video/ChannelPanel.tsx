@@ -47,13 +47,25 @@ interface Props {
   label: string;
   src: string;
   isMaster: boolean;
+  /** Audio comes from the canonical SyncEngine master, not necessarily the
+   *  visually enlarged camera. Keeping one stable audio clock prevents audio
+   *  from jumping onto a slave pipeline that has just been re-seeked. */
+  audioEnabled: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
   onContextMenu?: (event: ReactMouseEvent<HTMLVideoElement>) => void;
 }
 
 export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
-  function ChannelPanel({ label, src, isMaster, onClick, onDoubleClick, onContextMenu }, ref) {
+  function ChannelPanel({
+    label,
+    src,
+    isMaster,
+    audioEnabled,
+    onClick,
+    onDoubleClick,
+    onContextMenu,
+  }, ref) {
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
     // True while this channel is in a coverage gap (camera was off for
@@ -224,7 +236,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           ref={setRefs}
           src={src}
           className="h-full w-full object-contain"
-          muted={!isMaster}
+          muted={!audioEnabled}
           preload="auto"
           playsInline
           onContextMenu={onContextMenu}
