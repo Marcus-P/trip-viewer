@@ -19,6 +19,10 @@ class FakeVideo extends EventTarget {
   playDelayMs = 0;
   seekDelayMs = 0;
   rejectPlay = false;
+  muted = false;
+  defaultMuted = false;
+  volume = 1;
+  loadCalls = 0;
   private time = 0;
 
   constructor(options?: {
@@ -71,6 +75,13 @@ class FakeVideo extends EventTarget {
     this.dispatchEvent(new Event("pause"));
   }
 
+  load(): void {
+    this.loadCalls += 1;
+    this.paused = true;
+    this.seeking = false;
+    setTimeout(() => this.dispatchEvent(new Event("loadedmetadata")), 0);
+  }
+
   asMedia(): HTMLVideoElement {
     return this as unknown as HTMLVideoElement;
   }
@@ -113,6 +124,9 @@ describe("SyncEngine transport barriers", () => {
     expect(master.playbackRate).toBe(2);
     expect(a.playbackRate).toBe(2);
     expect(b.playbackRate).toBe(2);
+    expect(master.muted).toBe(true);
+    expect(a.muted).toBe(true);
+    expect(b.muted).toBe(true);
     expect(a.currentTime).toBeCloseTo(master.currentTime, 6);
     expect(b.currentTime).toBeCloseTo(master.currentTime, 6);
     expect(master.paused).toBe(false);
@@ -135,6 +149,32 @@ describe("SyncEngine transport barriers", () => {
     expect(slave.paused).toBe(true);
     expect(slave.currentTime).toBeCloseTo(master.currentTime, 6);
     expect(useStore.getState().isPlaying).toBe(false);
+
+    engine.dispose();
+  });
+
+
+  it("returning from stretched playback to 1x rebuilds the master audio pipeline", async () => {
+    const master = new FakeVideo({ currentTime: 9, seekDelayMs: 1 });
+    const slave = new FakeVideo({ currentTime: 2, seekDelayMs: 1 });
+    const engine = engineFor(master, [slave]);
+    await engine.play();
+
+    useStore.getState().setSpeed(2);
+    await engine.setSpeed(2);
+    expect(master.muted).toBe(true);
+    expect(master.volume).toBe(0);
+
+    useStore.getState().setSpeed(1);
+    await engine.setSpeed(1);
+
+    expect(master.loadCalls).toBe(1);
+    expect(master.playbackRate).toBe(1);
+    expect(master.muted).toBe(false);
+    expect(master.volume).toBe(1);
+    expect(slave.muted).toBe(true);
+    expect(slave.currentTime).toBeCloseTo(master.currentTime, 6);
+    expect(useStore.getState().isPlaying).toBe(true);
 
     engine.dispose();
   });

@@ -127,11 +127,16 @@ export function TransportControls({ engine, onSourceChange }: Props) {
     const onPlaybackResync = () => {
       engine?.resyncToMaster();
     };
+    const onPlaybackPause = () => {
+      engine?.pause();
+    };
     window.addEventListener("tripviewer:toggle-playback", onDashboardToggle);
     window.addEventListener("tripviewer:resync-playback", onPlaybackResync);
+    window.addEventListener("tripviewer:pause-playback", onPlaybackPause);
     return () => {
       window.removeEventListener("tripviewer:toggle-playback", onDashboardToggle);
       window.removeEventListener("tripviewer:resync-playback", onPlaybackResync);
+      window.removeEventListener("tripviewer:pause-playback", onPlaybackPause);
     };
   }, [engine]);
 

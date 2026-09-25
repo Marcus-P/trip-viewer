@@ -75,6 +75,12 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     const gapped = useStore((s) => s.gappedChannels[label] ?? false);
     const playbackSpeed = useStore((s) => s.speed);
     const sourceMode = useStore((s) => s.sourceMode);
+    const audioMuted = shouldMuteChannelAudio(
+      audioEnabled,
+      playbackSpeed,
+      sourceMode,
+    );
+    const audibleVolumeRef = useRef(1);
     // `showLoading` is `!ready` debounced by LOADING_OVERLAY_DELAY_MS.
     // Fast loads (the common case on Windows/Chromium and on macOS now
     // that the loopback HTTP server feeds AVFoundation moov immediately)
@@ -102,6 +108,27 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         console.log(`[media/${label}] boundary src=…${src.slice(-50)}`);
       }
     }, [src, label]);
+
+    // WebKitGTK has shown that changing the React `muted` prop alone can
+    // leave the underlying GStreamer audio branch audible across a playbackRate
+    // transition. Mirror the policy imperatively onto the actual media element
+    // as well. Volume=0 is a second independent guard; when audio is allowed
+    // again we restore the last audible volume.
+    useEffect(() => {
+      const video = localRef.current;
+      if (!video) return;
+
+      if (audioMuted) {
+        if (video.volume > 0) audibleVolumeRef.current = video.volume;
+        video.muted = true;
+        video.defaultMuted = true;
+        video.volume = 0;
+      } else {
+        video.volume = audibleVolumeRef.current;
+        video.defaultMuted = false;
+        video.muted = false;
+      }
+    }, [audioMuted, src]);
 
     // The loading overlay covers the <video> until `loadeddata` fires,
     // so the user sees "Loading…" rather than the black <video> element
@@ -239,7 +266,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           ref={setRefs}
           src={src}
           className="h-full w-full object-contain"
-          muted={shouldMuteChannelAudio(audioEnabled, playbackSpeed, sourceMode)}
+          muted={audioMuted}
           preload="auto"
           playsInline
           onContextMenu={onContextMenu}

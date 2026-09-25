@@ -145,6 +145,7 @@ export class SyncEngine {
     const speed = useStore.getState().speed;
     this.master.playbackRate = speed;
     this.slaves.forEach((s) => (s.playbackRate = speed));
+    this.applyAudioPolicy(speed);
 
     const tick: VideoFrameRequestCallback = (_now, meta) => {
       if (this.disposed) return;
@@ -430,6 +431,68 @@ export class SyncEngine {
     return Promise.all(videos.map((video) => this.waitForPendingSeek(video)));
   }
 
+  private applyAudioPolicy(rate: PlaybackSlice["speed"]): void {
+    const tiered = Boolean(this.masterCurve && this.masterCurve.length > 0);
+    const masterAudible = rate === 1 && !tiered;
+
+    // Slaves are never audio clocks. Muting them here as well as in React
+    // prevents a visual-primary change or stale DOM property from creating
+    // multiple slightly-offset audio streams ("hall"/echo).
+    for (const slave of this.slaves) {
+      slave.muted = true;
+      slave.defaultMuted = true;
+      slave.volume = 0;
+    }
+
+    if (masterAudible) {
+      this.master.defaultMuted = false;
+      this.master.muted = false;
+      if (this.master.volume === 0) this.master.volume = 1;
+    } else {
+      this.master.muted = true;
+      this.master.defaultMuted = true;
+      this.master.volume = 0;
+    }
+  }
+
+  private waitForReloadMetadata(video: HTMLVideoElement): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        video.removeEventListener("loadedmetadata", done);
+        video.removeEventListener("error", done);
+        video.removeEventListener("abort", done);
+        resolve();
+      };
+      video.addEventListener("loadedmetadata", done);
+      video.addEventListener("error", done);
+      video.addEventListener("abort", done);
+    });
+  }
+
+  private async reloadMasterAt(
+    mediaTime: number,
+    rate: PlaybackSlice["speed"],
+  ): Promise<void> {
+    if (!Number.isFinite(mediaTime)) return;
+
+    // Keep the audio branch silent while load() tears down and recreates
+    // GStreamer's pipeline.
+    this.master.muted = true;
+    this.master.defaultMuted = true;
+    this.master.volume = 0;
+
+    const metadata = this.waitForReloadMetadata(this.master);
+    this.master.load();
+    await metadata;
+
+    this.master.playbackRate = rate;
+    const duration = Number.isFinite(this.master.duration)
+      ? this.master.duration
+      : Infinity;
+    this.master.currentTime = Math.min(Math.max(0, mediaTime), duration);
+    await this.waitForPendingSeek(this.master);
+  }
+
   private startAll(): Promise<void> {
     // Start every live pipeline in the same turn of the event loop. We only
     // await the canonical master; a slow slave must not leave the UI stuck on
@@ -473,6 +536,7 @@ export class SyncEngine {
       const speed = useStore.getState().speed;
       this.master.playbackRate = speed;
       this.slaves.forEach((s) => (s.playbackRate = speed));
+      this.applyAudioPolicy(speed);
 
       // Pause→Play is a synchronization barrier for slaves only. The master is
       // the audible/canonical clock and remains the anchor.
@@ -674,6 +738,8 @@ export class SyncEngine {
     const state = useStore.getState();
     const mediaPlaying = !this.master.paused && !this.master.ended;
     const wasPlaying = this.playIntent || mediaPlaying;
+    const previousRate = this.master.playbackRate;
+    const anchorTime = this.master.currentTime;
 
     // Keep the user's transport intent stable while the pipelines are briefly
     // paused for a rate change. This makes Pause during the transition a real
@@ -681,27 +747,46 @@ export class SyncEngine {
     this.playIntent = wasPlaying;
     state.setIsPlaying(wasPlaying);
     this.pauseIntentional = true;
+
+    // Mute *before* touching playbackRate. WebKitGTK/GStreamer can emit a short
+    // piece of stretched audio during the rate transition otherwise.
+    this.master.muted = true;
+    this.master.defaultMuted = true;
+    this.master.volume = 0;
+    for (const slave of this.slaves) {
+      slave.muted = true;
+      slave.defaultMuted = true;
+      slave.volume = 0;
+    }
+
     this.master.pause();
     this.slaves.forEach((s) => s.pause());
-
-    this.master.playbackRate = rate;
     this.slaves.forEach((s) => (s.playbackRate = rate));
 
-    // Flush/re-anchor the canonical master as well as every slave. On Linux the
-    // GStreamer audio pipeline can keep a broken time-stretch state after a
-    // playbackRate change unless the master is explicitly re-seeked. The exact
-    // same media time is retained; this is a pipeline reset, not a timeline jump.
-    const anchorTime = this.master.currentTime;
-    if (Number.isFinite(anchorTime) && this.master.readyState >= 1) {
-      const duration = Number.isFinite(this.master.duration)
-        ? this.master.duration
-        : Infinity;
-      this.master.currentTime = Math.min(Math.max(0, anchorTime), duration);
+    // Returning from any stretched rate to 1x gets a fresh master pipeline.
+    // A same-time currentTime assignment was not sufficient on WebKitGTK:
+    // the audio time-stretch branch could remain in a reverberant state.
+    if (rate === 1 && previousRate !== 1) {
+      await this.reloadMasterAt(anchorTime, rate);
+    } else {
+      this.master.playbackRate = rate;
+      if (Number.isFinite(anchorTime) && this.master.readyState >= 1) {
+        const duration = Number.isFinite(this.master.duration)
+          ? this.master.duration
+          : Infinity;
+        this.master.currentTime = Math.min(Math.max(0, anchorTime), duration);
+      }
+      await this.waitForPendingSeek(this.master);
     }
-    this.resyncToMaster(rate, false);
 
-    await this.waitForPendingSeeks([this.master, ...this.slaves]);
     if (generation !== this.transportGeneration || this.disposed) return;
+
+    this.resyncToMaster(rate, false);
+    await this.waitForPendingSeeks(this.slaves);
+    if (generation !== this.transportGeneration || this.disposed) return;
+
+    // Only now expose audio again, and only for Original 1x.
+    this.applyAudioPolicy(rate);
 
     if (!wasPlaying) {
       this.playIntent = false;
