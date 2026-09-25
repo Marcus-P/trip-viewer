@@ -95,7 +95,6 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const primaryChannel = useStore((s) => s.primaryChannel);
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
-  const sourceMode = useStore((s) => s.sourceMode);
   const isPlaying = useStore((s) => s.isPlaying);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
