@@ -324,6 +324,17 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     window.dispatchEvent(new Event("tripviewer:toggle-playback"));
   }
 
+  function resyncPlayback() {
+    // Keep playback ownership inside SyncEngine. Visual viewer actions can
+    // request a one-shot re-anchor without reaching into individual videos.
+    window.dispatchEvent(new Event("tripviewer:resync-playback"));
+  }
+
+  function selectPrimary(label: string) {
+    setPrimaryChannel(label);
+    resyncPlayback();
+  }
+
   function startPointerDrag(
     event: ReactPointerEvent<HTMLDivElement>,
     cursor: "col-resize" | "row-resize",
@@ -396,23 +407,25 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     });
   }
 
-  function handleMainDoubleClick() {
+  async function handleMainDoubleClick() {
     const el = channelRefs.current.get(effectivePrimary);
     if (!el) return;
 
     // If a single camera is already fullscreen, pop that fullscreen layer.
-    // When it was entered from the dashboard, the dashboard remains as the
-    // underlying fullscreen element, so this returns directly to F/I/R + GPS.
+    // The existing fullscreenchange handler re-anchors all Original-mode
+    // channels to the camera that was actually visible in fullscreen.
     if (document.fullscreenElement instanceof HTMLVideoElement) {
-      void document.exitFullscreen();
+      await document.exitFullscreen();
       return;
     }
 
     // The dashboard viewing area may itself already be fullscreen. The
     // Fullscreen API supports putting a descendant on top of that fullscreen
     // element, so request the selected video directly instead of first leaving
-    // the dashboard. This preserves the dashboard underneath for the return.
-    void el.requestFullscreen();
+    // the dashboard. Re-anchor once after the transition so the fullscreen
+    // camera starts from the same playback position as the canonical master.
+    await el.requestFullscreen();
+    resyncPlayback();
   }
 
   async function toggleDashboardFullscreen() {
@@ -420,16 +433,21 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     if (!viewingArea) return;
     if (document.fullscreenElement === viewingArea) {
       await document.exitFullscreen();
+      resyncPlayback();
       return;
     }
     if (document.fullscreenElement instanceof HTMLVideoElement) {
       await document.exitFullscreen();
-      if (document.fullscreenElement === viewingArea) return;
+      if (document.fullscreenElement === viewingArea) {
+        resyncPlayback();
+        return;
+      }
     }
     if (document.fullscreenElement) {
       await document.exitFullscreen();
     }
     await viewingArea.requestFullscreen();
+    resyncPlayback();
   }
 
   // Row template: if primary takes full height and there are N
@@ -587,7 +605,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
               isMaster={isPrimary}
-              onClick={isPrimary ? undefined : () => setPrimaryChannel(channel.label)}
+              onClick={isPrimary ? undefined : () => selectPrimary(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
             />
           </div>
