@@ -467,8 +467,113 @@ export class SyncEngine {
     useStore.getState().setCurrentTime(clamped);
   }
 
+  /**
+   * Re-anchor every slave to the master's current playback position exactly
+   * once. This is intentionally event-driven: on WebKitGTK/macOS a
+   * currentTime assignment flushes that video's decode pipeline, so continuous
+   * drift correction is too expensive, but a one-shot re-anchor after a user
+   * action is safe and deterministic.
+   *
+   * The master itself is never seeked here, which keeps the visible anchor
+   * playing smoothly. Tiered/gappy channels are mapped through their own speed
+   * curves instead of assuming a shared file-time axis.
+   */
+  resyncToMaster(rate = useStore.getState().speed): void {
+    if (this.disposed || this.master.readyState < 1) return;
+
+    const masterT = this.master.currentTime;
+    if (!Number.isFinite(masterT)) return;
+
+    const store = useStore.getState();
+    const playing = store.isPlaying;
+    this.master.playbackRate = rate;
+
+    if (!this.masterCurve || this.masterCurve.length === 0) {
+      // Original mode: all channels share the same segment-local time axis.
+      for (let i = 0; i < this.slaves.length; i++) {
+        const slave = this.slaves[i];
+        slave.playbackRate = rate;
+        if (slave.readyState < 1) continue;
+
+        const duration = Number.isFinite(slave.duration)
+          ? slave.duration
+          : Infinity;
+        const target = Math.min(Math.max(0, masterT), duration);
+        slave.currentTime = target;
+        this.watchdogState.delete(slave);
+
+        this.slaveInGap[i] = false;
+        this.gapPaused.delete(slave);
+        store.setChannelGapped(this.slaveLabels[i], false);
+        if (playing && slave.paused && !slave.ended) {
+          slave.play().catch(() => {});
+        }
+      }
+      store.setCurrentTime(masterT);
+      return;
+    }
+
+    // Tiered mode: map the master's file-time to the shared trip clock,
+    // then map that position independently onto each channel's own file.
+    const concatT = fileToConcat(masterT, this.masterCurve);
+    for (let i = 0; i < this.slaves.length; i++) {
+      const slave = this.slaves[i];
+      slave.playbackRate = rate;
+      if (slave.readyState < 1) continue;
+
+      const curve = this.slaveCurves[i];
+      if (!curve || curve.length === 0) {
+        const duration = Number.isFinite(slave.duration)
+          ? slave.duration
+          : Infinity;
+        slave.currentTime = Math.min(Math.max(0, masterT), duration);
+        this.watchdogState.delete(slave);
+        if (playing && slave.paused && !slave.ended) {
+          slave.play().catch(() => {});
+        }
+        continue;
+      }
+
+      const cov = coverageAt(concatT, curve);
+      if (Number.isFinite(cov.fileTime)) {
+        const duration = Number.isFinite(slave.duration)
+          ? slave.duration
+          : Infinity;
+        slave.currentTime = Math.min(
+          Math.max(0, cov.fileTime),
+          duration,
+        );
+        this.watchdogState.delete(slave);
+      }
+
+      this.slaveInGap[i] = !cov.covered;
+      store.setChannelGapped(this.slaveLabels[i], !cov.covered);
+      if (cov.covered) {
+        this.gapPaused.delete(slave);
+        if (playing && slave.paused && !slave.ended) {
+          slave.play().catch(() => {});
+        }
+      } else {
+        this.gapPaused.add(slave);
+        if (!slave.paused) {
+          try {
+            slave.pause();
+          } catch {
+            /* best-effort */
+          }
+        }
+      }
+    }
+    store.setCurrentTime(masterT);
+  }
+
   setSpeed(rate: number): void {
+    // Change every rate first, then immediately re-anchor the slaves. On
+    // WebKitGTK/GStreamer the decoder pipelines can otherwise resume the new
+    // rate from slightly different positions and that offset remains because
+    // continuous drift correction is intentionally disabled there.
     this.master.playbackRate = rate;
     this.slaves.forEach((s) => (s.playbackRate = rate));
+    this.resyncToMaster(rate);
   }
 }
