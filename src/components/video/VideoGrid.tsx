@@ -94,7 +94,13 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const initialLayout = useRef(getLayoutPreferences()).current;
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [singleFullscreenLabel, setSingleFullscreenLabel] = useState<string | null>(null);
+  const singleFullscreenLabelRef = useRef<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    videoLabel: string | null;
+  } | null>(null);
 
   const [primaryShare, setPrimaryShare] = useState(initialLayout.primaryShare);
   const [secondarySplit, setSecondarySplit] = useState(initialLayout.secondarySplit);
@@ -170,34 +176,86 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     }
   }, [timelineHeightPx]);
 
-  // Track whether the *whole viewing area* (VideoGrid + GPS map) is the
-  // browser fullscreen element. VideoGrid's parent is PlayerShell's main
-  // viewing grid, so requesting fullscreen on that parent keeps F/I/R and
-  // GPS together while the ordinary transport/timeline chrome stays out.
+  // Track both fullscreen layers:
+  //  - PlayerShell viewing area = F/I/R + GPS dashboard fullscreen
+  //  - VideoGrid itself = one selected camera fullscreen
+  //
+  // Single-camera fullscreen deliberately uses the grid rather than the native
+  // <video> element. That keeps our own context menu inside the fullscreen
+  // subtree, so its action can switch between "Open" and "Exit" and actually
+  // perform both directions.
   useEffect(() => {
     const onFullscreenChange = () => {
-      const viewingArea = gridRef.current?.parentElement ?? null;
-      setDashboardFullscreen(
-        Boolean(viewingArea && document.fullscreenElement === viewingArea),
-      );
+      const current = document.fullscreenElement;
+      const grid = gridRef.current;
+      const viewingArea = grid?.parentElement ?? null;
+      setDashboardFullscreen(Boolean(viewingArea && current === viewingArea));
       setContextMenu(null);
+
+      // Still inside our single-camera fullscreen layer.
+      if (grid && current === grid) return;
+
+      const exitedLabel = singleFullscreenLabelRef.current;
+      if (!exitedLabel) return;
+
+      singleFullscreenLabelRef.current = null;
+      setSingleFullscreenLabel(null);
+
+      // On exit, preserve the camera the user actually watched as the anchor
+      // in Original mode. Tiered modes can have per-channel time axes, so they
+      // go back through SyncEngine's curve-aware one-shot resync instead.
+      if (sourceMode !== "original") {
+        resyncPlayback();
+        return;
+      }
+
+      const exitedVideo = channelRefs.current.get(exitedLabel);
+      const anchorTime = exitedVideo?.currentTime;
+      if (!Number.isFinite(anchorTime)) {
+        resyncPlayback();
+        return;
+      }
+
+      const state = useStore.getState();
+      for (const video of channelRefs.current.values()) {
+        if (!video) continue;
+        video.playbackRate = state.speed;
+        video.currentTime = anchorTime!;
+      }
+      state.setCurrentTime(anchorTime!);
+
+      if (state.isPlaying) {
+        for (const video of channelRefs.current.values()) {
+          if (!video || video.ended) continue;
+          video.play().catch(() => {});
+        }
+      }
     };
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
     onFullscreenChange();
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
+  }, [channelRefs, sourceMode]);
 
   // Replace the generic webview menu over the viewing area with the small set
-  // of actions that is useful during dashcam playback. Keep Reload available,
-  // and add playback + dashboard fullscreen so those actions remain reachable
-  // even while the normal transport bar is outside the fullscreen element.
+  // of actions that is useful during dashcam playback. Right-clicking a video
+  // records that channel so the menu can offer context-aware single-camera
+  // fullscreen in addition to dashboard fullscreen.
   useEffect(() => {
     const viewingArea = gridRef.current?.parentElement;
     if (!viewingArea || !activeSegment) return;
 
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
-      setContextMenu({ x: event.clientX, y: event.clientY });
+      const target =
+        event.target instanceof Element
+          ? (event.target.closest("[data-tripviewer-channel]") as HTMLElement | null)
+          : null;
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        videoLabel: target?.dataset.tripviewerChannel ?? null,
+      });
     };
 
     viewingArea.addEventListener("contextmenu", onContextMenu);
@@ -232,54 +290,6 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [contextMenu]);
-
-  // Native fullscreen can suspend or pause video pipelines that are outside
-  // the fullscreen element on WebKit-based platforms. In Original mode every
-  // channel shares the same segment-local time axis, so the video the user was
-  // actually watching in fullscreen is the best deterministic anchor when
-  // fullscreen ends. Reposition all channels exactly once on the
-  // `fullscreenchange` event and resume them if global playback is active.
-  //
-  // This is deliberately event-driven rather than timer-driven. Tiered modes
-  // are excluded because gappy channels can live on different file-time axes;
-  // those require the SyncEngine's curve mapping rather than direct equality.
-  useEffect(() => {
-    let fullscreenVideo: HTMLVideoElement | null = null;
-
-    const onFullscreenChange = () => {
-      const current = document.fullscreenElement;
-      if (current instanceof HTMLVideoElement) {
-        fullscreenVideo = current;
-        return;
-      }
-
-      if (!fullscreenVideo) return;
-      const exitedVideo = fullscreenVideo;
-      fullscreenVideo = null;
-
-      if (sourceMode !== "original") return;
-      const anchorTime = exitedVideo.currentTime;
-      if (!Number.isFinite(anchorTime)) return;
-
-      const state = useStore.getState();
-      for (const video of channelRefs.current.values()) {
-        if (!video) continue;
-        video.playbackRate = state.speed;
-        video.currentTime = anchorTime;
-      }
-      state.setCurrentTime(anchorTime);
-
-      if (state.isPlaying) {
-        for (const video of channelRefs.current.values()) {
-          if (!video || video.ended) continue;
-          video.play().catch(() => {});
-        }
-      }
-    };
-
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, [channelRefs, sourceMode]);
 
   if ((IS_LINUX || IS_MAC) && !videoPort) {
     return (
@@ -407,42 +417,64 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     });
   }
 
-  async function handleMainDoubleClick() {
-    const el = channelRefs.current.get(effectivePrimary);
-    if (!el) return;
+  function setSingleFullscreen(label: string | null) {
+    singleFullscreenLabelRef.current = label;
+    setSingleFullscreenLabel(label);
+  }
 
-    // If a single camera is already fullscreen, pop that fullscreen layer.
-    // The existing fullscreenchange handler re-anchors all Original-mode
-    // channels to the camera that was actually visible in fullscreen.
-    if (document.fullscreenElement instanceof HTMLVideoElement) {
+  async function toggleSingleVideoFullscreen(label: string) {
+    const grid = gridRef.current;
+    const viewingArea = grid?.parentElement;
+    if (!grid || !viewingArea) return;
+
+    // Already in single-camera fullscreen: the same action means exit.
+    if (document.fullscreenElement === grid) {
       await document.exitFullscreen();
       return;
     }
 
-    // The dashboard viewing area may itself already be fullscreen. The
-    // Fullscreen API supports putting a descendant on top of that fullscreen
-    // element, so request the selected video directly instead of first leaving
-    // the dashboard. Re-anchor once after the transition so the fullscreen
-    // camera starts from the same playback position as the canonical master.
-    await el.requestFullscreen();
-    resyncPlayback();
+    // If some unrelated fullscreen layer is active, leave it first. The
+    // dashboard layer is an ancestor of VideoGrid, so it can stay underneath
+    // while the selected video grid is pushed on top.
+    if (document.fullscreenElement && document.fullscreenElement !== viewingArea) {
+      await document.exitFullscreen();
+    }
+
+    setSingleFullscreen(label);
+    try {
+      await grid.requestFullscreen();
+      resyncPlayback();
+    } catch (error) {
+      setSingleFullscreen(null);
+      console.warn("[viewer] single-camera fullscreen failed", error);
+    }
+  }
+
+  async function handleMainDoubleClick() {
+    await toggleSingleVideoFullscreen(effectivePrimary);
   }
 
   async function toggleDashboardFullscreen() {
-    const viewingArea = gridRef.current?.parentElement;
-    if (!viewingArea) return;
+    const grid = gridRef.current;
+    const viewingArea = grid?.parentElement;
+    if (!grid || !viewingArea) return;
+
     if (document.fullscreenElement === viewingArea) {
       await document.exitFullscreen();
       resyncPlayback();
       return;
     }
-    if (document.fullscreenElement instanceof HTMLVideoElement) {
+
+    // Exit the single-camera layer first. If it was opened from the dashboard,
+    // the dashboard becomes the active fullscreen element again and we're done.
+    if (document.fullscreenElement === grid) {
       await document.exitFullscreen();
       if (document.fullscreenElement === viewingArea) {
         resyncPlayback();
         return;
       }
     }
+
     if (document.fullscreenElement) {
       await document.exitFullscreen();
     }
@@ -564,6 +596,22 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
           >
             {isPlaying ? "Pause" : "Play"}
           </button>
+          {contextMenu.videoLabel && (
+            <button
+              type="button"
+              onClick={() => {
+                const label = contextMenu.videoLabel;
+                setContextMenu(null);
+                if (label) void toggleSingleVideoFullscreen(label);
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800"
+              role="menuitem"
+            >
+              {singleFullscreenLabel
+                ? "Exit video fullscreen"
+                : "Open video fullscreen"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -595,10 +643,21 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
           ? 0
           : secondaries.findIndex((c) => c.label === channel.label);
 
+        const singleTarget = singleFullscreenLabel === channel.label;
+        const singleHidden =
+          singleFullscreenLabel !== null && !singleTarget;
+        const style: CSSProperties = singleFullscreenLabel
+          ? singleTarget
+            ? { gridColumn: "1 / -1", gridRow: "1 / -1" }
+            : { display: "none" }
+          : gridStyle(isPrimary, idx, secondaries.length, rowCount);
+
         return (
           <div
             key={channel.label}
-            style={gridStyle(isPrimary, idx, secondaries.length, rowCount)}
+            data-tripviewer-channel={channel.label}
+            style={style}
+            aria-hidden={singleHidden || undefined}
           >
             <ChannelPanel
               ref={setRef(channel.label)}
@@ -607,6 +666,17 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               isMaster={isPrimary}
               onClick={isPrimary ? undefined : () => selectPrimary(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
+              onContextMenu={(event) => {
+                // WebKitGTK otherwise shows its own media menu with a static
+                // "Switch to Fullscreen" item even while already fullscreen.
+                event.preventDefault();
+                event.stopPropagation();
+                setContextMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  videoLabel: channel.label,
+                });
+              }}
             />
           </div>
         );
