@@ -388,6 +388,10 @@ export class SyncEngine {
       const speed = useStore.getState().speed;
       this.master.playbackRate = speed;
       this.slaves.forEach((s) => (s.playbackRate = speed));
+      // Pause→Play is another natural synchronization barrier. Re-anchor
+      // once before starting the pipelines instead of letting any drift that
+      // accumulated while paused survive into the resumed playback.
+      this.resyncToMaster(speed);
       await this.master.play();
       // Don't un-pause a slave that's currently held in a coverage gap —
       // it must stay paused (black) until its gap ends. The gap loop
