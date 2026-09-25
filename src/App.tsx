@@ -7,7 +7,6 @@ import { TripList } from "./components/loader/TripList";
 import { HevcSupportGate } from "./components/video/HevcSupportGate";
 import { MainNavTabs } from "./components/MainNavTabs";
 import { PlayerShell } from "./components/video/PlayerShell";
-import { UpdateChecker } from "./components/UpdateChecker";
 import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import { ImportButton } from "./components/import/ImportButton";
 import { ImportConfirmDialog } from "./components/import/ImportConfirmDialog";
@@ -444,7 +443,6 @@ function App() {
     <ImportConfirmDialog />
     <UnknownFilesDialog />
     <ImportSummary />
-    <UpdateChecker />
     </>
     </HevcSupportGate>
   );

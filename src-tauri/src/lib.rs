@@ -100,7 +100,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(
             // `skip_initial_state` prevents the plugin's auto-restore in
@@ -126,7 +125,7 @@ pub fn run() {
                         .message(format!(
                             "Trip Viewer can't determine its data directory:\n\n{e}\n\n\
                              Please report this at \
-                             https://github.com/chrisl8/trip-viewer/issues."
+                             https://github.com/Marcus-P/trip-viewer/issues."
                         ))
                         .kind(MessageDialogKind::Error)
                         .title("Trip Viewer — Startup error")

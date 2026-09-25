@@ -4,7 +4,7 @@ description = "Multi-channel dashcam viewer with GPS tracking"
 edition = "2021"
 license = "MIT"
 name = "tripviewer"
-version = "0.3.3"
+version = "0.4.0"
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -28,7 +28,6 @@ tauri = {version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-opener = "2"
 tauri-plugin-process = "2"
-tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
 rusqlite = {version = "0.32", features = ["bundled"] }
 rusqlite_migration = "1"

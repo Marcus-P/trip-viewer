@@ -2,167 +2,152 @@
 
 # Trip Viewer
 
-**A free, open-source dashcam viewer with synchronized video and a live GPS map.**
+**Dashcam playback with synchronized multi-camera video and GPS, with native VIOFO A229 Pro 3CH support.**
 
-<a href="#windows"><img src="icon/badges/windows.svg" alt="Windows" height="28"/></a> &nbsp; <a href="#macos"><img src="icon/badges/apple.svg" alt="macOS" height="28"/></a> &nbsp; <a href="#linux"><img src="icon/badges/linux.svg" alt="Linux" height="28"/></a>
+This repository is a fork of [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer). The current fork release is focused on **Ubuntu 24.04 LTS** and has been tested with **VIOFO A229 Pro 3CH** footage.
 
 <br clear="left"/>
 
-Trip Viewer plays back footage from dashcams with one to four camera channels, keeping every channel perfectly in sync. A live OpenStreetMap view tracks your vehicle's GPS position as the video plays, with speed and heading shown on the map — a favorite feature among single-camera dashcam owners as well as multi-channel setups.
+## Download
 
-Hardware video decoding keeps playback smooth even at high resolution, and Trip Viewer runs as a lightweight native app on Windows, macOS, and Linux (~3 MB installer on Windows, signed DMG on macOS, AppImage on Linux).
+Go to this repository's [Releases](https://github.com/Marcus-P/trip-viewer/releases) page and download:
 
-![Trip Viewer screenshot showing 3-channel synchronized playback with GPS map](screenshot.png)
-
-https://github.com/user-attachments/assets/435002ee-15ad-41d4-a7eb-979f688c5d7b
-
-## How to install
-
-**Trip Viewer runs on Windows 10/11, macOS 11 (Big Sur) or later, and modern Linux distributions (tested on Ubuntu 22.04+).** No developer tools required.
-
-### Windows
-
-1. Go to the [Releases page](https://github.com/chrisl8/trip-viewer/releases)
-2. Under the latest release, download the file ending in **`_x64-setup.exe`**
-3. Run the installer — Windows may show a SmartScreen warning since the app is new and unsigned. Click **"More info"** then **"Run anyway"**
-4. Launch **Trip Viewer** from your Start Menu
-
-**One extra requirement on Windows:** Your dashcam probably records in HEVC (H.265) format. Windows needs a decoder for this. Trip Viewer will check on startup and link you to the Microsoft Store if it's missing. The [HEVC Video Extension](https://apps.microsoft.com/detail/9n4wgh0z6vhq) is a one-time install.
-
-### macOS
-
-1. Go to the [Releases page](https://github.com/chrisl8/trip-viewer/releases)
-2. Check which chip your Mac has: **Apple menu → About This Mac**
-   - **Apple M1 / M2 / M3 / M4** (or later) → download the file ending in **`_aarch64.dmg`**
-   - **Intel** → download the file ending in **`_x64.dmg`**
-3. Double-click the DMG to mount it, then drag **Trip Viewer** into the **Applications** folder
-4. Launch **Trip Viewer** from Launchpad or Applications
-
-The macOS build is code-signed and notarized by Apple, so you won't see Gatekeeper warnings on first launch. HEVC playback works out of the box — no codec extensions to install.
-
-### Linux
-
-1. Go to the [Releases page](https://github.com/chrisl8/trip-viewer/releases)
-2. Under the latest release, download the file ending in **`.AppImage`**
-3. Make it executable: `chmod +x trip-viewer_*_amd64.AppImage`
-4. Run it: `./trip-viewer_*_amd64.AppImage`
-
-**One extra requirement on Linux:** HEVC playback needs GStreamer's libav plugin. Trip Viewer will check on startup and show an install hint if it's missing. On Debian/Ubuntu:
-
-```bash
-sudo apt install gstreamer1.0-libav gstreamer1.0-plugins-bad
+```text
+Trip.Viewer_0.4.0_Ubuntu-24.04_amd64.AppImage
 ```
 
-By default on Linux, only the primary channel is shown — press **M** to enable multi-channel view. This is opt-in because on some older integrated GPUs, multiple concurrent HEVC streams can overwhelm video memory. On typical modern hardware it works fine.
+GitHub Releases are used for the distributable build, so the AppImage remains available there until the release itself is deliberately removed. It is not an expiring GitHub Actions artifact.
 
-## What it does
+### Run directly
 
-The app is organized as a top tab bar — **Player**, **Scan**, **Review**, **Timelapse**, optional **Issues**, and **Places** — with a sidebar trip list and storage summary that's always visible.
+```bash
+chmod +x Trip.Viewer_0.4.0_Ubuntu-24.04_amd64.AppImage
+./Trip.Viewer_0.4.0_Ubuntu-24.04_amd64.AppImage
+```
 
-- **Multi-channel synchronized playback (1–4 channels)** — every camera on your dashcam plays in lockstep. Click a side view to make it the main view. Double-click the main view for fullscreen.
-- **Live GPS map** — an OpenStreetMap view tracks your vehicle position in real time as the video plays, with a trail showing where you've been. The map auto-pans to follow the vehicle but holds position during your own drag/zoom gestures so you can inspect a moment without being yanked back.
-- **Speed and heading display** — real-time readouts overlaid on the map so you can see how fast you were going at any moment.
-- **Timeline with speed graph** — scrub through footage visually. The speed graph shows interesting moments (hard braking, acceleration) so you can jump right to them.
-- **Timelapse pipeline** — _(requires ffmpeg installed on your system; the app prompts for the binary the first time you use the feature.)_ Pre-render fast-playback versions of every trip at 8× (constant), 16× (slows to 1× during events), and 60× (slows to 8× during events). Event detection uses GPS-derived hard braking, hard acceleration, and turning thresholds, plus the dashcam's own event flag. Pick the tier and channel mix from the **Timelapse** tab; the Library view shows per-trip status and lets you rebuild any trip on demand. Once a trip has timelapses, you can delete the originals and keep playing the timelapse versions — see "Originals vs. timelapses" below. NVENC/NVDEC hardware encoding is used automatically when available.
-- **SD card import** — pull footage directly off your dashcam's SD card. Files are copied with SHA-256 integrity verification — with an estimated time remaining during staging — then organized into your library. The SD card is wiped after a successful verified transfer, ready to go back in your dashcam.
-- **Import from a folder** — a non-destructive variant for files already on disk (e.g., manually copied off an SD card, or from a backup). Same trip detection and library organization, but nothing is wiped.
-- **Trip detection** — automatically groups your footage into trips based on recording timestamps. No manual organization needed.
-- **Trip operations** — delete a whole trip (originals, timelapses, tags), or mark two or more trips and merge them manually if the auto-segmenter split a trip you wanted kept together.
-- **Originals vs. timelapses** — timelapses are an archival format, not a cache. Deleting a trip's originals leaves its timelapses in place; the trip stays in the library and plays back from the timelapse tier. "Delete trip…" is the only action that removes everything.
-- **Storage usage** — the sidebar shows total bytes used (originals + timelapses) and reclaimable bytes, with a one-click filter to surface the trips whose originals you can drop now that timelapses exist.
-- **Auto-tagging scan pipeline** — a background scan analyses your library and tags segments as `event` (camera event flag from the dashcam), `stationary` (GPS shows the vehicle isn't moving), `silent` / `no_audio` (quiet or missing audio track), and any saved-place matches. Run it from the **Scan** tab; progress streams inline, and a per-trip × per-scan coverage matrix shows what each scan touched.
-- **Places** — save a named location (lat/lon + radius) either manually or with one click from the player using the current segment's GPS. The next scan auto-tags any segment whose GPS track enters that place, turning "everything filmed at home" into a one-click filter. Manage them from the **Places** tab.
-- **Review view** — a full-library table with tag-based filtering and bulk actions. Mark segments as **Keep** (hidden from the default filter so repeat review sessions only surface unreviewed material), or select a batch and bulk-delete the clips you don't want. Bulk actions are scoped to the intersection of your selection and the current filter, so the action button always reflects exactly what will be deleted.
-- **In-player selection mode** — open selection mode from the tag bar above the timeline, then click — or shift-click for a range — to select segments directly on the timeline. A single bulk-delete action trashes every channel file for the whole selection. A one-segment delete button is right there too for quick cleanup as you watch.
-- **Issues view** — a classified triage list for any file the scanner couldn't ingest. Each row is tagged by reason (invalid filename, unreadable, missing `moov`, corrupt box structure, no video track, other) with per-row reveal-in-folder, copy-path, and move-to-trash actions, plus a filter-gated bulk delete. The tab only appears when there's something to triage.
-- **Deletes go to the OS recycle bin** — everything the app deletes (segments, issue files, places) goes to your system trash, so nothing is permanently gone until you empty it yourself.
-- **Window state is remembered** — the app restores its last size, position, and maximized state across launches.
-- **Keyboard shortcuts** — Space to play/pause, arrow keys to seek, brackets to change speed. Click "Keyboard shortcuts" in the sidebar footer for the full list.
-- **Auto-updates** — the app checks for new versions on startup and offers a one-click update.
+### Install for Ubuntu / pin to the Dock
 
-## Supported dashcams
+Download `install-trip-viewer-ubuntu.sh` from the same release and run:
 
-Trip Viewer auto-detects common dashcam filename formats at import time. You just point it at a folder of video files — no renaming, no manual configuration.
+```bash
+chmod +x install-trip-viewer-ubuntu.sh
+./install-trip-viewer-ubuntu.sh ./Trip.Viewer_0.4.0_Ubuntu-24.04_amd64.AppImage
+```
 
-Currently recognized formats:
+The installer copies the AppImage to a stable per-user location, installs the existing Trip Viewer icon and a desktop entry, and uses Trip Viewer's GTK application ID so GNOME can associate the running window with the launcher. Start Trip Viewer from the Ubuntu application overview once, then right-click its Dock icon and choose **Add to Favorites**.
 
-- **Wolf Box** (3-channel: front / interior / rear) — filenames like `2026_03_15_173951_02_F.MP4`. Full GPS support via the ShenShu metadata parser.
-- **Thinkware** (2-channel: front / rear) — filenames like `REC_2026_03_06_07_25_52_F.MP4` or `EVT_...` for event recordings. SD cards with Thinkware folder structure (`cont_rec/`, `evt_rec/`, etc.) are auto-detected at import. The tested Thinkware model does not record GPS, so the map panel is hidden and replaced with a compact caption — no wasted screen space. If a GPS-equipped Thinkware model turns up, GPS support can be added.
-- **Miltona MNCD60** (single-channel) — filenames like `FILE211202-151504-000406F.MOV`. GPS support via the proprietary `gps0` atom (NovaTek-family chipset), with speed readout from the embedded km/h byte. GPS coordinates were ground-truthed against seven on-screen overlay readings from a reference clip.
-- **Generic 4-channel** (best-effort) — filenames like `2026_03_06_072552_A.MP4` through `..._D.MP4` (or `_1` through `_4`). Labeled "Channel A" through "Channel D". GPS not yet implemented for this format.
+To remove that per-user integration:
 
-If your dashcam uses a different naming convention, [open an issue](https://github.com/chrisl8/trip-viewer/issues) with a few example filenames (and ideally a sample file) and I'll add support. The parser architecture is modular and new format support is a small, low-risk addition.
+```bash
+rm -rf ~/.local/opt/trip-viewer
+rm -f ~/.local/share/applications/com.tripviewer.app.desktop
+rm -f ~/.local/share/icons/hicolor/256x256/apps/trip-viewer.png
+```
 
-## Built with AI
+## Ubuntu requirements
 
-This project was built with significant help from [Claude Code](https://claude.ai/claude-code) (Anthropic's AI coding assistant). I'm a full-time software developer, and Claude Code was an excellent collaborator — it helped with architecture decisions, wrote the Rust backend and React frontend, reverse-engineered the dashcam GPS format, and built the entire SD card import pipeline. The result is a codebase I understand fully and maintain myself, with AI as a force multiplier.
+The release is built and validated on **Ubuntu 24.04 LTS x86_64**. HEVC playback uses WebKitGTK/GStreamer. Install the commonly required plugins with:
 
-If you're curious about how it was built, the [DESIGN.md](DESIGN.md) document covers the architecture decisions and tech stack in detail.
+```bash
+sudo apt update
+sudo apt install -y \
+  gstreamer1.0-libav \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly
+```
 
-## Feature requests and bug reports
+## VIOFO A229 Pro 3CH support
 
-I actively maintain this project and I'm interested in making it better. If you:
+The VIOFO implementation recognizes normal and parking recordings with the A229 Pro F/I/R naming scheme, groups the three channels, and extracts/validates embedded GPS without relying on geographic filters or fixed recording durations.
 
-- **Found a bug** — [open an issue](https://github.com/chrisl8/trip-viewer/issues) with what happened and what you expected
-- **Want a feature** — [open an issue](https://github.com/chrisl8/trip-viewer/issues) describing what you'd like. Some ideas I'm already thinking about: audio source selection, clip export, GPX track export, camera view flipping, and AI-powered footage search
-- **Have a different dashcam** — I'd love to add support for it. Open an issue with your dashcam model and, if possible, a sample file
+Examples:
 
-### If an update breaks things
+```text
+2026_0831_065229_000646F.MP4
+2026_0831_065229_000647I.MP4
+2026_0831_065229_000648R.MP4
 
-If a new release breaks something for you, uninstall it via your OS and reinstall the previous version from the [Releases page](https://github.com/chrisl8/trip-viewer/releases). Please also file a bug report. Auto-update prompts can be dismissed if you want to stay on a working version.
+2023_0821_180010_062PF.MP4
+2023_0821_180010_063PI.MP4
+2023_0821_180010_064PR.MP4
+```
+
+The release also includes:
+
+- synchronized Front / Interior / Rear playback
+- VIOFO GPS extraction with timestamp-based validation across continuous segment boundaries
+- speed graph with km/h or mph scale, grid and hover readout
+- GPS map with near-center follow behavior and resize-aware layout
+- resizable player, secondary cameras, GPS panel and timeline
+- persisted sidebar and player layout
+- single-camera fullscreen plus F/I/R + GPS dashboard fullscreen with deterministic navigation between both modes
+- one-shot re-synchronization at relevant playback/view transitions
+- stable Play/Pause behavior across speed changes and tab changes
+- audio at Original 1×; audio is intentionally muted at 0.5×, 2×, 4× and timelapse modes on Linux to avoid WebKitGTK/GStreamer time-stretch corruption
+- Player kept mounted while visiting Scan/Review/Timelapse tabs to avoid repeated WebKitGTK media-pipeline teardown
+- camera model and speed-unit preferences
+
+## Known Linux behavior
+
+A short visible interruption can occur when playback crosses from one original MP4 segment to the next. This is accepted for this release because WebKitGTK/GStreamer must initialize the next media pipeline.
+
+Audio is intentionally available only in **Original / 1×** mode. Returning to 1× rebuilds the master audio pipeline at the same playback position before sound is enabled again.
+
+The **Scan** tab runs analysis/tag scans. With **New segments only**, pressing **Start scan** can finish almost immediately when every segment has already been analyzed. This is separate from choosing/scanning a VIOFO footage folder.
+
+## Other dashcams
+
+The upstream Trip Viewer code already contains support for Wolf Box, Thinkware, Miltona MNCD60 and generic channel naming. This fork has specifically been validated for VIOFO A229 Pro 3CH on Ubuntu 24.04.
 
 ## Development
-
-If you want to build Trip Viewer from source or contribute:
 
 ### Prerequisites
 
 - Node.js 20+
-- Rust 1.70+ (via [rustup](https://rustup.rs/))
-- **Windows:** HEVC Video Extension (see [Windows install](#windows) above)
-- **macOS:** Xcode Command Line Tools (`xcode-select --install`). HEVC playback works natively via AVFoundation — no extra codecs needed. Local `npm run tauri build` produces a DMG for the host architecture only; CI uses a matrix build for both Intel and Apple Silicon.
-- **Linux:** `webkit2gtk-4.1`, `gstreamer1.0-libav`, `gstreamer1.0-plugins-bad`, plus Tauri's standard build deps (see [Tauri prerequisites](https://tauri.app/start/prerequisites/)). For full distro-specific setup — including the distrobox path for atomic distros like Bazzite/Silverblue — see [LINUX_DEV_SETUP.md](LINUX_DEV_SETUP.md).
-- **Optional — ffmpeg** for the timelapse feature. Not bundled and not required for playback or import; install from your platform's usual source (Windows: [gyan.dev builds](https://www.gyan.dev/ffmpeg/builds/) or `winget install ffmpeg`; macOS: `brew install ffmpeg`; Linux: distro package). The app prompts for the binary path the first time you open the Timelapse tab and validates it before use.
+- Rust via rustup
+- Ubuntu 24.04 build dependencies for Tauri/WebKitGTK
+- GStreamer plugins listed above
 
-### Build and run
+A typical Ubuntu development setup also needs:
 
 ```bash
-npm install
-npm run tauri dev      # Development mode (hot-reload)
-npm run tauri build    # Production build (creates installer)
+sudo apt install -y \
+  libwebkit2gtk-4.1-dev \
+  build-essential \
+  pkg-config \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  libxdo-dev \
+  patchelf
 ```
 
-First build compiles the Rust backend (~2 minutes). Subsequent builds use incremental compilation (~10 seconds).
+### Build and test
 
-### Tech stack
+```bash
+npm ci
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml
+NO_STRIP=true npm run tauri -- build --bundles appimage
+```
 
-| Layer              | Technology                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| App framework      | Tauri v2 (Rust backend, WebView2 on Windows / WKWebView on macOS / WebKitGTK 4.1 on Linux) |
-| Frontend           | React 19, TypeScript, Tailwind CSS v4, Zustand                                             |
-| Maps               | Leaflet + react-leaflet + OpenStreetMap                                                    |
-| Video sync         | `requestVideoFrameCallback` API                                                            |
-| Container parsing  | `mp4` crate (pure Rust, no ffprobe)                                                        |
-| GPS decoding       | Custom ShenShu MetaData (Wolf Box) + NovaTek gps0 atom (Miltona) parsers                   |
-| Audio analysis     | `symphonia` (pure Rust decoder, AAC / MP3 / ISO-MP4) for silence detection                 |
-| File hashing       | SHA-256 via `sha2` crate                                                                   |
-| Tag + Place store  | SQLite via `rusqlite` (bundled) + `rusqlite_migration`                                     |
-| File deletion      | `trash` crate — OS recycle bin (recoverable)                                               |
-| Timelapse encoding | ffmpeg (user-supplied, not bundled), with NVENC + NVDEC when available                     |
-| Parallelism        | `rayon` (metadata probing, scan workers, parallel timelapse rebuild)                       |
-| CI/CD              | GitHub Actions + NSIS (Windows) + DMG (macOS, dual-arch) + AppImage (Linux) + auto-updater |
+The local AppImage is written under `src-tauri/target/release/bundle/appimage/`.
 
-See [DESIGN.md](DESIGN.md) for architecture decisions and [RELEASING.md](RELEASING.md) for release instructions.
+## Release process
 
-## Support
+The Ubuntu release process is documented in [RELEASING.md](RELEASING.md). The workflow builds on Ubuntu 24.04, runs the automated tests, produces an AppImage and checksum, and creates a normal GitHub Release. This fork deliberately does **not** use the upstream auto-updater signing key.
 
-Trip Viewer is free and always will be. If it's been useful to you and you'd like to say thanks, there are two low-key ways:
+Windows packaging is intentionally deferred to a later, separate feature branch.
 
-- ⭐ **[Star the repo](https://github.com/chrisl8/trip-viewer)** — it's a signal that people are actually using it, which keeps me motivated to keep going.
-- ☕ **[Buy me a coffee](https://buymeacoffee.com/chrisl8)** — if you'd like to chip in toward development, this is the place.
+## License and attribution
 
-Either one is appreciated. Neither is expected.
+Trip Viewer source code in this repository remains under the [MIT License](LICENSE), preserving the upstream copyright and permission notice. Third-party dependencies keep their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the license inventories attached to each release.
 
-## License
+The existing Trip Viewer icon is retained from the MIT-licensed upstream repository. No separate icon-license file is present in this repository.
 
-[MIT](LICENSE)
+**VIOFO** and **A229 Pro** are used only to describe hardware compatibility. This project is not affiliated with or endorsed by VIOFO.
+
+The original Trip Viewer project and its upstream work remain credited to its original authors and contributors.
+
+Technical implementation of the VIOFO-specific work and related fork changes was generated with ChatGPT by OpenAI based on requirements, sample data, testing and validation provided by Marcus P.
