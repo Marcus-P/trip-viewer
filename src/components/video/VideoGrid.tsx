@@ -311,9 +311,10 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   // label just tells us which of the rendered panels gets the primary
   // slot — it doesn't change tree order.
   const channels = activeSegment.channels;
+  const canonicalMasterLabel = channels[0]?.label ?? null;
   const effectivePrimary =
     channels.find((c) => c.label === primaryChannel)?.label ??
-    channels[0]?.label;
+    canonicalMasterLabel;
 
   const secondaries = channels.filter((c) => c.label !== effectivePrimary);
 
@@ -664,6 +665,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
               isMaster={isPrimary}
+              audioEnabled={channel.label === canonicalMasterLabel}
               onClick={isPrimary ? undefined : () => selectPrimary(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
               onContextMenu={(event) => {
