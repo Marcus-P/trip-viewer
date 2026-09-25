@@ -114,8 +114,7 @@ export function TransportControls({ engine, onSourceChange }: Props) {
 
   const onToggle = () => {
     if (!engine) return;
-    if (isPlaying) engine.pause();
-    else void engine.play();
+    engine.togglePlayback();
   };
 
   // Dashboard/fullscreen controls live inside the fullscreen element while
@@ -123,9 +122,7 @@ export function TransportControls({ engine, onSourceChange }: Props) {
   // the same SyncEngine instead of manipulating individual <video> elements.
   useEffect(() => {
     const onDashboardToggle = () => {
-      if (!engine) return;
-      if (useStore.getState().isPlaying) engine.pause();
-      else void engine.play();
+      engine?.togglePlayback();
     };
     const onPlaybackResync = () => {
       engine?.resyncToMaster();
