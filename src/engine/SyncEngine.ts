@@ -1,4 +1,4 @@
-import { useStore } from "../state/store";
+import { useStore, type PlaybackSlice } from "../state/store";
 import { type CurveSegment, coverageAt, fileToConcat } from "../utils/speedCurve";
 
 // How often to re-evaluate coverage gaps. Gaps are seconds-to-minutes
@@ -482,7 +482,7 @@ export class SyncEngine {
    * playing smoothly. Tiered/gappy channels are mapped through their own speed
    * curves instead of assuming a shared file-time axis.
    */
-  resyncToMaster(rate = useStore.getState().speed): void {
+  resyncToMaster(rate: PlaybackSlice["speed"] = useStore.getState().speed): void {
     if (this.disposed || this.master.readyState < 1) return;
 
     const masterT = this.master.currentTime;
@@ -571,7 +571,7 @@ export class SyncEngine {
     store.setCurrentTime(masterT);
   }
 
-  setSpeed(rate: number): void {
+  setSpeed(rate: PlaybackSlice["speed"]): void {
     // Change every rate first, then immediately re-anchor the slaves. On
     // WebKitGTK/GStreamer the decoder pipelines can otherwise resume the new
     // rate from slightly different positions and that offset remains because
