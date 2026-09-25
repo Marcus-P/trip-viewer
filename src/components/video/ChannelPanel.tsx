@@ -1,4 +1,11 @@
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import clsx from "clsx";
 import { useStore } from "../../state/store";
 
@@ -42,10 +49,11 @@ interface Props {
   isMaster: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
+  onContextMenu?: (event: ReactMouseEvent<HTMLVideoElement>) => void;
 }
 
 export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
-  function ChannelPanel({ label, src, isMaster, onClick, onDoubleClick }, ref) {
+  function ChannelPanel({ label, src, isMaster, onClick, onDoubleClick, onContextMenu }, ref) {
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
     // True while this channel is in a coverage gap (camera was off for
@@ -219,6 +227,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           muted={!isMaster}
           preload="auto"
           playsInline
+          onContextMenu={onContextMenu}
           onError={(e) => {
             const video = e.currentTarget as HTMLVideoElement;
             const code = video.error?.code ?? 0;
