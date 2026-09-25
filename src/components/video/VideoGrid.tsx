@@ -14,6 +14,13 @@ import {
   getLayoutPreferences,
   saveLayoutPreferences,
 } from "../../settings/layout";
+import {
+  currentFullscreenView,
+  exitFullscreenView,
+  openFullscreenView,
+  type FullscreenStack,
+  type FullscreenView,
+} from "./fullscreenState";
 
 // Both Linux and macOS need the tiny loopback HTTP server
 // (src-tauri/src/video_server.rs) for <video> playback, for different
@@ -93,9 +100,13 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const initialLayout = useRef(getLayoutPreferences()).current;
-  const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
-  const [singleFullscreenLabel, setSingleFullscreenLabel] = useState<string | null>(null);
-  const singleFullscreenLabelRef = useRef<string | null>(null);
+  const [fullscreenStack, setFullscreenStack] = useState<FullscreenStack>([]);
+  const fullscreenStackRef = useRef<FullscreenStack>([]);
+  const fullscreenView = currentFullscreenView(fullscreenStack);
+  const dashboardFullscreen = fullscreenView?.kind === "dashboard";
+  const singleFullscreenLabel =
+    fullscreenView?.kind === "video" ? fullscreenView.label : null;
+  const fullscreenActive = fullscreenView !== null;
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -140,25 +151,40 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     if (!valid) setPrimaryChannel(master);
   }, [activeSegment, primaryChannel, setPrimaryChannel]);
 
-  // The outer PlayerShell grid owns the GPS column. VideoGrid spans its first
-  // two columns, so an inline template lets this component expose a draggable
-  // video↔map boundary without changing playback ownership or the fullscreen
-  // container. When no map is present, restore PlayerShell's normal template.
+  // The outer PlayerShell grid is the *only* browser Fullscreen API element.
+  // Logical dashboard/video fullscreen modes merely change what is rendered
+  // inside it. This avoids browser-dependent nested fullscreen stacks while
+  // preserving a deterministic back-stack in our own state machine.
   useEffect(() => {
     const grid = gridRef.current;
     const viewingArea = grid?.parentElement;
     if (!grid || !viewingArea) return;
+
     const sibling = grid.nextElementSibling as HTMLElement | null;
     const mapPresent = Boolean(sibling?.querySelector(".leaflet-container"));
     setHasMapPanel(mapPresent);
-    if (!mapPresent) {
+
+    // Restore any inline state left by the previous logical fullscreen mode.
+    grid.style.gridColumn = "";
+    if (mapPresent && sibling) sibling.style.display = "";
+
+    if (singleFullscreenLabel) {
+      grid.style.gridColumn = "1 / -1";
+      viewingArea.style.gridTemplateColumns = "minmax(0, 1fr)";
+      if (mapPresent && sibling) sibling.style.display = "none";
+    } else if (!mapPresent) {
       viewingArea.style.gridTemplateColumns = "";
-      return;
+    } else {
+      viewingArea.style.gridTemplateColumns =
+        `minmax(0, ${1 - mapShare}fr) 0px minmax(180px, ${mapShare}fr)`;
     }
 
-    viewingArea.style.gridTemplateColumns =
-      `minmax(0, ${1 - mapShare}fr) 0px minmax(180px, ${mapShare}fr)`;
-  }, [activeSegment, mapShare]);
+    return () => {
+      grid.style.gridColumn = "";
+      viewingArea.style.gridTemplateColumns = "";
+      if (mapPresent && sibling) sibling.style.display = "";
+    };
+  }, [activeSegment, mapShare, singleFullscreenLabel]);
 
   // Timeline height is inherited as a CSS custom property. This keeps the
   // lower strip structurally identical and lets the flexing video area give
@@ -176,66 +202,25 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     }
   }, [timelineHeightPx]);
 
-  // Track both fullscreen layers:
-  //  - PlayerShell viewing area = F/I/R + GPS dashboard fullscreen
-  //  - VideoGrid itself = one selected camera fullscreen
-  //
-  // Single-camera fullscreen deliberately uses the grid rather than the native
-  // <video> element. That keeps our own context menu inside the fullscreen
-  // subtree, so its action can switch between "Open" and "Exit" and actually
-  // perform both directions.
+  // Browser Escape (or any external fullscreen exit) clears the whole logical
+  // stack. Normal in-app transitions never nest Fullscreen API elements; they
+  // only push/pop logical views while the same viewing-area element remains
+  // fullscreen.
   useEffect(() => {
     const onFullscreenChange = () => {
-      const current = document.fullscreenElement;
-      const grid = gridRef.current;
-      const viewingArea = grid?.parentElement ?? null;
-      setDashboardFullscreen(Boolean(viewingArea && current === viewingArea));
+      const viewingArea = gridRef.current?.parentElement ?? null;
+      if (viewingArea && document.fullscreenElement === viewingArea) return;
+      if (fullscreenStackRef.current.length === 0) return;
+
+      fullscreenStackRef.current = [];
+      setFullscreenStack([]);
       setContextMenu(null);
-
-      // Still inside our single-camera fullscreen layer.
-      if (grid && current === grid) return;
-
-      const exitedLabel = singleFullscreenLabelRef.current;
-      if (!exitedLabel) return;
-
-      singleFullscreenLabelRef.current = null;
-      setSingleFullscreenLabel(null);
-
-      // On exit, preserve the camera the user actually watched as the anchor
-      // in Original mode. Tiered modes can have per-channel time axes, so they
-      // go back through SyncEngine's curve-aware one-shot resync instead.
-      if (sourceMode !== "original") {
-        resyncPlayback();
-        return;
-      }
-
-      const exitedVideo = channelRefs.current.get(exitedLabel);
-      const anchorTime = exitedVideo?.currentTime;
-      if (!Number.isFinite(anchorTime)) {
-        resyncPlayback();
-        return;
-      }
-
-      const state = useStore.getState();
-      for (const video of channelRefs.current.values()) {
-        if (!video) continue;
-        video.playbackRate = state.speed;
-        video.currentTime = anchorTime!;
-      }
-      state.setCurrentTime(anchorTime!);
-
-      if (state.isPlaying) {
-        for (const video of channelRefs.current.values()) {
-          if (!video || video.ended) continue;
-          video.play().catch(() => {});
-        }
-      }
+      resyncPlayback();
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
-    onFullscreenChange();
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, [channelRefs, sourceMode]);
+  }, []);
 
   // Replace the generic webview menu over the viewing area with the small set
   // of actions that is useful during dashcam playback. Right-clicking a video
@@ -418,37 +403,68 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
     });
   }
 
-  function setSingleFullscreen(label: string | null) {
-    singleFullscreenLabelRef.current = label;
-    setSingleFullscreenLabel(label);
+  function commitFullscreenStack(next: FullscreenStack) {
+    fullscreenStackRef.current = next;
+    setFullscreenStack(next);
   }
 
-  async function toggleSingleVideoFullscreen(label: string) {
-    const grid = gridRef.current;
-    const viewingArea = grid?.parentElement;
-    if (!grid || !viewingArea) return;
+  async function openLogicalFullscreen(target: FullscreenView) {
+    const viewingArea = gridRef.current?.parentElement;
+    if (!viewingArea) return;
 
-    // Already in single-camera fullscreen: the same action means exit.
-    if (document.fullscreenElement === grid) {
-      await document.exitFullscreen();
+    // Self-heal if browser fullscreen was lost before its event reached us.
+    const browserHasViewer = document.fullscreenElement === viewingArea;
+    const currentStack = browserHasViewer ? fullscreenStackRef.current : [];
+    const next = openFullscreenView(currentStack, target);
+    if (next === currentStack) return;
+
+    commitFullscreenStack(next);
+    if (!browserHasViewer) {
+      try {
+        await viewingArea.requestFullscreen();
+      } catch (error) {
+        commitFullscreenStack(currentStack);
+        console.warn("[viewer] fullscreen request failed", error);
+        return;
+      }
+    }
+    resyncPlayback();
+  }
+
+  async function exitLogicalFullscreen() {
+    const viewingArea = gridRef.current?.parentElement;
+    if (!viewingArea) return;
+
+    const currentStack = fullscreenStackRef.current;
+    if (currentStack.length === 0) return;
+    const next = exitFullscreenView(currentStack);
+
+    if (next.length > 0) {
+      commitFullscreenStack(next);
+      resyncPlayback();
       return;
     }
 
-    // If some unrelated fullscreen layer is active, leave it first. The
-    // dashboard layer is an ancestor of VideoGrid, so it can stay underneath
-    // while the selected video grid is pushed on top.
-    if (document.fullscreenElement && document.fullscreenElement !== viewingArea) {
-      await document.exitFullscreen();
+    if (document.fullscreenElement === viewingArea) {
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        console.warn("[viewer] fullscreen exit failed", error);
+      }
+      return;
     }
 
-    setSingleFullscreen(label);
-    try {
-      await grid.requestFullscreen();
-      resyncPlayback();
-    } catch (error) {
-      setSingleFullscreen(null);
-      console.warn("[viewer] single-camera fullscreen failed", error);
+    commitFullscreenStack([]);
+    resyncPlayback();
+  }
+
+  async function toggleSingleVideoFullscreen(label: string) {
+    const current = currentFullscreenView(fullscreenStackRef.current);
+    if (current?.kind === "video") {
+      await exitLogicalFullscreen();
+      return;
     }
+    await openLogicalFullscreen({ kind: "video", label });
   }
 
   async function handleMainDoubleClick() {
@@ -456,31 +472,12 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
   }
 
   async function toggleDashboardFullscreen() {
-    const grid = gridRef.current;
-    const viewingArea = grid?.parentElement;
-    if (!grid || !viewingArea) return;
-
-    if (document.fullscreenElement === viewingArea) {
-      await document.exitFullscreen();
-      resyncPlayback();
+    const current = currentFullscreenView(fullscreenStackRef.current);
+    if (current?.kind === "dashboard") {
+      await exitLogicalFullscreen();
       return;
     }
-
-    // Exit the single-camera layer first. If it was opened from the dashboard,
-    // the dashboard becomes the active fullscreen element again and we're done.
-    if (document.fullscreenElement === grid) {
-      await document.exitFullscreen();
-      if (document.fullscreenElement === viewingArea) {
-        resyncPlayback();
-        return;
-      }
-    }
-
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    }
-    await viewingArea.requestFullscreen();
-    resyncPlayback();
+    await openLogicalFullscreen({ kind: "dashboard" });
   }
 
   // Row template: if primary takes full height and there are N
@@ -497,12 +494,14 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
       ref={gridRef}
       className="relative col-span-2 grid gap-2"
       style={{
-        gridTemplateColumns: `${primaryShare}fr ${1 - primaryShare}fr`,
-        gridTemplateRows,
+        gridTemplateColumns: singleFullscreenLabel
+          ? "minmax(0, 1fr)"
+          : `${primaryShare}fr ${1 - primaryShare}fr`,
+        gridTemplateRows: singleFullscreenLabel ? "minmax(0, 1fr)" : gridTemplateRows,
       }}
     >
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
-        {dashboardFullscreen && (
+        {fullscreenActive && (
           <button
             type="button"
             onClick={togglePlayback}
@@ -526,7 +525,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
         </button>
       </div>
 
-      {secondaries.length > 0 && (
+      {!singleFullscreenLabel && secondaries.length > 0 && (
         <div
           role="separator"
           aria-orientation="vertical"
@@ -539,7 +538,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
         </div>
       )}
 
-      {secondaries.length === 2 && (
+      {!singleFullscreenLabel && secondaries.length === 2 && (
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -555,7 +554,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
         </div>
       )}
 
-      {hasMapPanel && (
+      {!singleFullscreenLabel && hasMapPanel && (
         <div
           role="separator"
           aria-orientation="vertical"
@@ -567,7 +566,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
         </div>
       )}
 
-      {!dashboardFullscreen && (
+      {!fullscreenActive && (
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -608,7 +607,7 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               className="block w-full px-3 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800"
               role="menuitem"
             >
-              {singleFullscreenLabel
+              {fullscreenView?.kind === "video"
                 ? "Exit video fullscreen"
                 : "Open video fullscreen"}
             </button>

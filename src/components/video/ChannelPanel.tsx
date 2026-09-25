@@ -8,6 +8,7 @@ import {
 } from "react";
 import clsx from "clsx";
 import { useStore } from "../../state/store";
+import { shouldMuteChannelAudio } from "./audioPolicy";
 
 // Diagnostic toggles. Both default off so production builds stay silent.
 //
@@ -72,6 +73,8 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     // this stretch in tiered playback). The SyncEngine holds the
     // `<video>`; we paint black over it. Always false in Original mode.
     const gapped = useStore((s) => s.gappedChannels[label] ?? false);
+    const playbackSpeed = useStore((s) => s.speed);
+    const sourceMode = useStore((s) => s.sourceMode);
     // `showLoading` is `!ready` debounced by LOADING_OVERLAY_DELAY_MS.
     // Fast loads (the common case on Windows/Chromium and on macOS now
     // that the loopback HTTP server feeds AVFoundation moov immediately)
@@ -236,7 +239,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           ref={setRefs}
           src={src}
           className="h-full w-full object-contain"
-          muted={!audioEnabled}
+          muted={shouldMuteChannelAudio(audioEnabled, playbackSpeed, sourceMode)}
           preload="auto"
           playsInline
           onContextMenu={onContextMenu}

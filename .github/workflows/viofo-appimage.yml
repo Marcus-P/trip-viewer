@@ -39,6 +39,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Run frontend tests
+        run: npm test
+
       - name: Build unsigned VIOFO test AppImage
         shell: bash
         run: |

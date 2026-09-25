@@ -74,6 +74,10 @@ export class SyncEngine {
   private slaveLabels: string[];
   private disposed = false;
   private pauseIntentional = false;
+  /** Canonical user intent. This remains true during an internal speed-change
+   *  pause so the button and watchdog do not mistake a synchronization barrier
+   *  for a user-requested Pause. */
+  private playIntent = false;
   /** Incremented for every transport operation so a superseded async play or
    *  speed transition can never restart playback after the user pressed Pause
    *  or selected another speed. */
@@ -272,8 +276,7 @@ export class SyncEngine {
     const m = this.master;
     const onPause = () => {
       if (this.disposed || this.pauseIntentional) return;
-      const { isPlaying } = useStore.getState();
-      if (isPlaying && m.paused && !m.ended) {
+      if (this.playIntent && m.paused && !m.ended) {
         m.play().then(() => {
           this.slaves.forEach((s, i) => {
             // Leave gap-held slaves paused — see play().
@@ -287,20 +290,25 @@ export class SyncEngine {
     this.cleanups.push(() => m.removeEventListener("pause", onPause));
   }
 
-  // Keep the UI's Play/Pause state tied to the media element that owns the
-  // canonical playback clock. In particular, do not wait for every slave's
-  // play() Promise before showing "Pause" — WebKit/GStreamer can leave one
-  // slave Promise pending even though the master and other channels are
-  // already advancing.
+  // Mirror real master events only when they agree with current user intent.
+  // A late "playing" event from a superseded play() must never flip the UI back
+  // to Pause after the user has already pressed Pause.
   private attachPlaybackStateMirror(): void {
     const onPlaying = () => {
-      if (this.disposed) return;
+      if (this.disposed || !this.playIntent || this.master.paused) return;
       useStore.getState().setIsPlaying(true);
     };
+    const onEnded = () => {
+      if (this.disposed) return;
+      this.playIntent = false;
+      useStore.getState().setIsPlaying(false);
+    };
     this.master.addEventListener("playing", onPlaying);
-    this.cleanups.push(() =>
-      this.master.removeEventListener("playing", onPlaying),
-    );
+    this.master.addEventListener("ended", onEnded);
+    this.cleanups.push(() => {
+      this.master.removeEventListener("playing", onPlaying);
+      this.master.removeEventListener("ended", onEnded);
+    });
   }
 
   // Authoritative writer of store.currentTime. The rVFC tick in start()
@@ -418,8 +426,8 @@ export class SyncEngine {
     });
   }
 
-  private waitForPendingSlaveSeeks(): Promise<void[]> {
-    return Promise.all(this.slaves.map((s) => this.waitForPendingSeek(s)));
+  private waitForPendingSeeks(videos: HTMLVideoElement[]): Promise<void[]> {
+    return Promise.all(videos.map((video) => this.waitForPendingSeek(video)));
   }
 
   private startAll(): Promise<void> {
@@ -439,19 +447,37 @@ export class SyncEngine {
     return masterStart;
   }
 
+  private stopAllAfterFailure(): void {
+    this.pauseIntentional = true;
+    try {
+      this.master.pause();
+    } catch {
+      /* best-effort */
+    }
+    for (const slave of this.slaves) {
+      try {
+        slave.pause();
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+
   async play(): Promise<void> {
     const generation = ++this.transportGeneration;
+    this.playIntent = true;
     this.pauseIntentional = false;
+    useStore.getState().setIsPlaying(true);
+
     try {
       const speed = useStore.getState().speed;
       this.master.playbackRate = speed;
       this.slaves.forEach((s) => (s.playbackRate = speed));
 
-      // Pause→Play is a synchronization barrier. Re-anchor while everything is
-      // still paused, wait for any one-shot slave seeks to settle, then start
-      // all live pipelines together.
+      // Pause→Play is a synchronization barrier for slaves only. The master is
+      // the audible/canonical clock and remains the anchor.
       this.resyncToMaster(speed, false);
-      await this.waitForPendingSlaveSeeks();
+      await this.waitForPendingSeeks(this.slaves);
       if (generation !== this.transportGeneration || this.disposed) return;
 
       await this.startAll();
@@ -459,7 +485,9 @@ export class SyncEngine {
       useStore.getState().setIsPlaying(true);
     } catch (e) {
       if (generation !== this.transportGeneration || this.disposed) return;
+      this.playIntent = false;
       useStore.getState().setIsPlaying(false);
+      this.stopAllAfterFailure();
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("SyncEngine.play failed:", e);
       useStore.getState().setError(
@@ -470,6 +498,7 @@ export class SyncEngine {
 
   pause(): void {
     ++this.transportGeneration;
+    this.playIntent = false;
     this.pauseIntentional = true;
     // Flip UI state first so every control immediately agrees with the user's
     // intent even if WebKit delivers media pause events asynchronously.
@@ -479,9 +508,8 @@ export class SyncEngine {
   }
 
   togglePlayback(): void {
-    const storePlaying = useStore.getState().isPlaying;
     const mediaPlaying = !this.master.paused && !this.master.ended;
-    if (storePlaying || mediaPlaying) this.pause();
+    if (this.playIntent || mediaPlaying) this.pause();
     else void this.play();
   }
 
@@ -644,26 +672,39 @@ export class SyncEngine {
   async setSpeed(rate: PlaybackSlice["speed"]): Promise<void> {
     const generation = ++this.transportGeneration;
     const state = useStore.getState();
-    // Use both intent and actual media state. This also repairs a stale
-    // isPlaying flag from an earlier WebKit play() race.
-    const wasPlaying =
-      state.isPlaying || (!this.master.paused && !this.master.ended);
+    const mediaPlaying = !this.master.paused && !this.master.ended;
+    const wasPlaying = this.playIntent || mediaPlaying;
 
-    // Treat a speed change as a short synchronization barrier. Pausing before
-    // the one-shot slave seeks prevents the audible master from running ahead
-    // while WebKit/GStreamer flushes and re-decodes the slave pipelines.
+    // Keep the user's transport intent stable while the pipelines are briefly
+    // paused for a rate change. This makes Pause during the transition a real
+    // cancellation rather than a race with a pending restart.
+    this.playIntent = wasPlaying;
+    state.setIsPlaying(wasPlaying);
     this.pauseIntentional = true;
     this.master.pause();
     this.slaves.forEach((s) => s.pause());
 
     this.master.playbackRate = rate;
     this.slaves.forEach((s) => (s.playbackRate = rate));
+
+    // Flush/re-anchor the canonical master as well as every slave. On Linux the
+    // GStreamer audio pipeline can keep a broken time-stretch state after a
+    // playbackRate change unless the master is explicitly re-seeked. The exact
+    // same media time is retained; this is a pipeline reset, not a timeline jump.
+    const anchorTime = this.master.currentTime;
+    if (Number.isFinite(anchorTime) && this.master.readyState >= 1) {
+      const duration = Number.isFinite(this.master.duration)
+        ? this.master.duration
+        : Infinity;
+      this.master.currentTime = Math.min(Math.max(0, anchorTime), duration);
+    }
     this.resyncToMaster(rate, false);
 
-    await this.waitForPendingSlaveSeeks();
+    await this.waitForPendingSeeks([this.master, ...this.slaves]);
     if (generation !== this.transportGeneration || this.disposed) return;
 
     if (!wasPlaying) {
+      this.playIntent = false;
       state.setIsPlaying(false);
       return;
     }
@@ -675,7 +716,9 @@ export class SyncEngine {
       useStore.getState().setIsPlaying(true);
     } catch (e) {
       if (generation !== this.transportGeneration || this.disposed) return;
+      this.playIntent = false;
       useStore.getState().setIsPlaying(false);
+      this.stopAllAfterFailure();
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("SyncEngine.setSpeed restart failed:", e);
       useStore.getState().setError(
