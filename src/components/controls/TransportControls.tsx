@@ -127,9 +127,15 @@ export function TransportControls({ engine, onSourceChange }: Props) {
       if (useStore.getState().isPlaying) engine.pause();
       else void engine.play();
     };
+    const onPlaybackResync = () => {
+      engine?.resyncToMaster();
+    };
     window.addEventListener("tripviewer:toggle-playback", onDashboardToggle);
-    return () =>
+    window.addEventListener("tripviewer:resync-playback", onPlaybackResync);
+    return () => {
       window.removeEventListener("tripviewer:toggle-playback", onDashboardToggle);
+      window.removeEventListener("tripviewer:resync-playback", onPlaybackResync);
+    };
   }, [engine]);
 
   // Effective playback rate = source-tier × speed. Always shown so
