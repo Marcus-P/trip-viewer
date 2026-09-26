@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { SyncEngine } from "../../engine/SyncEngine";
 import type { PlaybackSlice } from "../../state/store";
 import { useStore } from "../../state/store";
@@ -114,9 +114,31 @@ export function TransportControls({ engine, onSourceChange }: Props) {
 
   const onToggle = () => {
     if (!engine) return;
-    if (isPlaying) engine.pause();
-    else void engine.play();
+    engine.togglePlayback();
   };
+
+  // Dashboard/fullscreen controls live inside the fullscreen element while
+  // this transport bar lives outside it. Route those controls back through
+  // the same SyncEngine instead of manipulating individual <video> elements.
+  useEffect(() => {
+    const onDashboardToggle = () => {
+      engine?.togglePlayback();
+    };
+    const onPlaybackResync = () => {
+      engine?.resyncToMaster();
+    };
+    const onPlaybackPause = () => {
+      engine?.pause();
+    };
+    window.addEventListener("tripviewer:toggle-playback", onDashboardToggle);
+    window.addEventListener("tripviewer:resync-playback", onPlaybackResync);
+    window.addEventListener("tripviewer:pause-playback", onPlaybackPause);
+    return () => {
+      window.removeEventListener("tripviewer:toggle-playback", onDashboardToggle);
+      window.removeEventListener("tripviewer:resync-playback", onPlaybackResync);
+      window.removeEventListener("tripviewer:pause-playback", onPlaybackPause);
+    };
+  }, [engine]);
 
   // Effective playback rate = source-tier × speed. Always shown so
   // the user can see the composition every time, including 1× ×1 in

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { CircleMarker, useMap } from "react-leaflet";
 import { useStore } from "../../state/store";
 import { interpolateGps } from "../../engine/interpolate";
@@ -106,18 +106,50 @@ export function VehicleMarker({
     map.setView([interp.lat, interp.lon], 15, { animate: true });
   }, [loadedTripId, isPlaying, interp, map]);
 
-  // Pan-follow whenever the marker leaves the visible area. Pan and
-  // zoom are independent — if the user has zoomed out, this just
-  // keeps following at their chosen zoom. Skipped while the user is
-  // mid-drag or mid-zoom so the auto-pan doesn't fight the gesture;
-  // the next interp tick after gesture-end will catch up if needed.
-  useEffect(() => {
+  // Keep the vehicle close to the visual center without panning on every
+  // GPS sample. The marker may move inside a small square dead zone around
+  // the center; once it leaves that square we pan it back to the exact center
+  // at the user's current zoom. The dead-zone side is 12% of the shorter map
+  // edge, clamped to 60–100 px, so resized panels remain useful without
+  // turning follow-mode into continuous animation.
+  //
+  // ResizeObserver in MapPanel calls invalidateSize(), which emits Leaflet's
+  // resize event; we run the same check there so resizing the map can trigger
+  // an immediate follow correction without waiting for the next GPS sample.
+  const keepMarkerNearCenter = useCallback(() => {
     if (!interp || interp.stale) return;
     if (userInteractingRef.current) return;
-    if (!map.getBounds().contains([interp.lat, interp.lon])) {
-      map.panTo([interp.lat, interp.lon], { animate: true, duration: 0.3 });
+
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+
+    const point = map.latLngToContainerPoint([interp.lat, interp.lon]);
+    const centerX = size.x / 2;
+    const centerY = size.y / 2;
+    const deadZoneSide = Math.min(
+      100,
+      Math.max(60, Math.min(size.x, size.y) * 0.12),
+    );
+    const half = deadZoneSide / 2;
+    const outsideDeadZone =
+      Math.abs(point.x - centerX) > half ||
+      Math.abs(point.y - centerY) > half;
+
+    if (outsideDeadZone) {
+      map.panTo([interp.lat, interp.lon], { animate: true, duration: 0.25 });
     }
   }, [interp, map]);
+
+  useEffect(() => {
+    keepMarkerNearCenter();
+  }, [keepMarkerNearCenter]);
+
+  useEffect(() => {
+    map.on("resize", keepMarkerNearCenter);
+    return () => {
+      map.off("resize", keepMarkerNearCenter);
+    };
+  }, [map, keepMarkerNearCenter]);
 
   if (!interp) return null;
 

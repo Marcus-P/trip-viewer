@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Ubuntu build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf \
+            gstreamer1.0-libav gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+      - run: npm ci
+      - name: Frontend tests
+        run: npm test
+      - name: Frontend typecheck/build
+        run: npm run build
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build Ubuntu AppImage
+        run: NO_STRIP=true npm run tauri -- build --bundles appimage
+      - name: Validate Ubuntu desktop integration helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          TEST_HOME="${RUNNER_TEMP}/trip-viewer-home"
+          mkdir -p "$TEST_HOME"
+          HOME="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$SOURCE"
+          test -x "$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage"
+          DESKTOP="$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
+          ICON="$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
+          test -s "$DESKTOP"
+          test -s "$ICON"
+          grep -Fq "Exec=$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage" "$DESKTOP"
+          grep -Fq "Icon=trip-viewer" "$DESKTOP"
