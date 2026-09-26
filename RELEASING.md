@@ -33,8 +33,9 @@ Work in a feature branch. Before merging to `main`:
 1. update the four version locations listed above
 2. update `RELEASE_VERSION`
 3. update `RELEASE_NOTES.md`
-4. run `npm ci`, `npm test`, `cargo test --manifest-path src-tauri/Cargo.toml`, and `NO_STRIP=true npm run tauri -- build --bundles appimage`
-5. merge the tested branch to `main`
+4. run `npm ci`, `npm test`, `npm audit --omit=dev --audit-level=high`, `cargo test --manifest-path src-tauri/Cargo.toml`, and `NO_STRIP=true npm run tauri -- build --bundles appimage`
+5. validate the Ubuntu installer/launcher helper against the built AppImage
+6. merge the tested branch to `main`
 
 If `RELEASE_VERSION` did not change, no release is created.
 

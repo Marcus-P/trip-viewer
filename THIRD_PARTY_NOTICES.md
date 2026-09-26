@@ -2,7 +2,7 @@
 
 Trip Viewer itself is distributed under the repository's [MIT License](LICENSE). The MIT license does not relicense third-party software. Every dependency keeps its own license.
 
-This file is an engineering/license inventory, not legal advice and not a warranty of legal compliance. Each GitHub Release also contains generated Node and Rust dependency inventories with exact package versions and declared license expressions.
+This file is an engineering/license inventory, not legal advice and not a warranty of legal compliance. Each GitHub Release also contains generated Node and Rust dependency inventories with exact package versions and declared license expressions, plus archives of the license/notice texts found in the resolved runtime packages.
 
 ## Frontend runtime dependencies
 
@@ -17,7 +17,7 @@ The exact versions are pinned by `package-lock.json`.
 | React Leaflet / @react-leaflet/core | Hippocratic License 2.1 |
 | Tauri JavaScript API/plugins used by the app | MIT and/or Apache-2.0 |
 
-React Leaflet 5.0.0 declares **Hippocratic-2.1**, not MIT. Its license terms therefore apply to redistribution and use of that component independently of Trip Viewer's MIT license:
+React Leaflet 5.0.0 declares **Hippocratic-2.1**, not MIT. Its license terms therefore apply to redistribution and use of that component independently of Trip Viewer's MIT license. The release workflow verifies that the React Leaflet and @react-leaflet/core license texts are present and includes them in the Node runtime license-text archive:
 https://github.com/PaulLeCam/react-leaflet/blob/master/LICENSE.md
 
 Leaflet's license:
