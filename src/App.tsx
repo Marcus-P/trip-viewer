@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { TripLoader } from "./components/loader/TripLoader";
+import { TripLoader, useArchiveAutoScan } from "./components/loader/TripLoader";
 import { TripList } from "./components/loader/TripList";
 import { HevcSupportGate } from "./components/video/HevcSupportGate";
 import { MainNavTabs } from "./components/MainNavTabs";
@@ -65,6 +65,8 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => getLayoutPreferences().sidebarCollapsed,
   );
+  // Must run regardless of sidebar state: the splash below waits for it.
+  useArchiveAutoScan();
 
   useEffect(() => {
     getVersion().then(setVersion);

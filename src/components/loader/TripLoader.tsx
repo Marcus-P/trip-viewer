@@ -9,28 +9,39 @@ import { useStore } from "../../state/store";
  * it to an archive root, opens (or creates) `<root>/.tripviewer/tripviewer.db`,
  * and persists `last_archive` so the next launch reopens automatically.
  *
- * On mount, if the backend already has an archive open (auto-reopened
- * from `last_archive`), we kick off the initial scan so the sidebar
- * populates without an extra click.
+ * The initial auto-scan of an auto-reopened archive lives in
+ * `useArchiveAutoScan`, which App calls unconditionally: this component
+ * is unmounted while the sidebar is collapsed, and the startup splash
+ * waits for that scan, so it must not depend on the sidebar being open.
  */
+async function scanArchive(folder: string) {
+  const { setStatus, setError, setScanResult } = useStore.getState();
+  setStatus("loading");
+  setError(null);
+  try {
+    const result = await scanFolder(folder);
+    setScanResult(result);
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Auto-scan on startup when the backend already had an archive open
+ *  (typical case: user reopened the app, last_archive was reachable). */
+export function useArchiveAutoScan() {
+  const currentRoot = useStore((s) => s.currentArchive?.root);
+  useEffect(() => {
+    if (currentRoot && useStore.getState().status === "idle") {
+      void scanArchive(currentRoot);
+    }
+  }, [currentRoot]);
+}
+
 export function TripLoader() {
   const status = useStore((s) => s.status);
-  const setStatus = useStore((s) => s.setStatus);
   const setError = useStore((s) => s.setError);
-  const setScanResult = useStore((s) => s.setScanResult);
   const currentArchive = useStore((s) => s.currentArchive);
   const setCurrentArchive = useStore((s) => s.setCurrentArchive);
-
-  async function scanCurrent(folder: string) {
-    setStatus("loading");
-    setError(null);
-    try {
-      const result = await scanFolder(folder);
-      setScanResult(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
 
   async function onPick() {
     const folder = await pickFolder();
@@ -38,20 +49,11 @@ export function TripLoader() {
     try {
       const info = await openArchive(folder);
       setCurrentArchive(info);
-      await scanCurrent(info.root);
+      await scanArchive(info.root);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
-
-  // Auto-scan on mount when the backend already had an archive open
-  // (typical case: user reopened the app, last_archive was reachable).
-  useEffect(() => {
-    if (currentArchive && status === "idle") {
-      void scanCurrent(currentArchive.root);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentArchive?.root]);
 
   const isLoading = status === "loading";
   const display = isLoading
