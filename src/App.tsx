@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { TripLoader } from "./components/loader/TripLoader";
+import { TripLoader, useArchiveAutoScan } from "./components/loader/TripLoader";
 import { TripList } from "./components/loader/TripList";
 import { HevcSupportGate } from "./components/video/HevcSupportGate";
 import { MainNavTabs } from "./components/MainNavTabs";
@@ -59,6 +59,8 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [version, setVersion] = useState("");
   const [startup, setStartup] = useState<StartupSnapshot | null>(null);
+  // Scan independently of sidebar/component mounting.
+  useArchiveAutoScan();
 
   useEffect(() => {
     getVersion().then(setVersion);
