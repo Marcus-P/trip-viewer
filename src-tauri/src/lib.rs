@@ -2,6 +2,8 @@ mod app_settings;
 mod archive;
 mod db;
 mod error;
+#[cfg(target_os = "linux")]
+pub mod linux_media_env;
 pub mod gps;
 mod import;
 mod issues;
