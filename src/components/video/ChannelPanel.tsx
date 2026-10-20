@@ -105,6 +105,9 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     const localRef = useRef<HTMLVideoElement | null>(null);
     const recoveryAttemptsRef = useRef(0);
     const recoveryTimerRef = useRef<number | null>(null);
+    const recoverySeekTimerRef = useRef<number | null>(null);
+    const recoverySeekCleanupRef = useRef<(() => void) | null>(null);
+    const recoveryTargetTimeRef = useRef<number | null>(null);
     const recoveringRef = useRef(false);
 
     // Merge the forwarded ref with our local ref so we can attach debug
@@ -123,7 +126,14 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         window.clearTimeout(recoveryTimerRef.current);
         recoveryTimerRef.current = null;
       }
+      if (recoverySeekTimerRef.current !== null) {
+        window.clearTimeout(recoverySeekTimerRef.current);
+        recoverySeekTimerRef.current = null;
+      }
+      recoverySeekCleanupRef.current?.();
+      recoverySeekCleanupRef.current = null;
       recoveryAttemptsRef.current = 0;
+      recoveryTargetTimeRef.current = null;
       recoveringRef.current = false;
       setError(null);
       setReady(false);
@@ -135,6 +145,12 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           window.clearTimeout(recoveryTimerRef.current);
           recoveryTimerRef.current = null;
         }
+        if (recoverySeekTimerRef.current !== null) {
+          window.clearTimeout(recoverySeekTimerRef.current);
+          recoverySeekTimerRef.current = null;
+        }
+        recoverySeekCleanupRef.current?.();
+        recoverySeekCleanupRef.current = null;
       };
     }, [src, label]);
 
@@ -166,12 +182,61 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       const video = localRef.current;
       if (!video) return;
 
-      const onLoaded = () => {
+      const finishRecovery = () => {
+        recoverySeekCleanupRef.current?.();
+        recoverySeekCleanupRef.current = null;
+        if (recoverySeekTimerRef.current !== null) {
+          window.clearTimeout(recoverySeekTimerRef.current);
+          recoverySeekTimerRef.current = null;
+        }
+        recoveryTargetTimeRef.current = null;
+        recoveringRef.current = false;
         setReady(true);
         setError(null);
-        if (recoveringRef.current) {
-          recoveringRef.current = false;
-          window.dispatchEvent(new Event("tripviewer:media-recovered"));
+        window.dispatchEvent(new Event("tripviewer:media-recovered"));
+      };
+
+      const onLoaded = () => {
+        if (!recoveringRef.current) {
+          setReady(true);
+          setError(null);
+          return;
+        }
+
+        // load() resets currentTime to 0. Preserve the pre-error position so a
+        // successful pipeline recovery cannot silently jump the canonical
+        // master (and therefore all cameras) back to the segment start.
+        const target = recoveryTargetTimeRef.current;
+        if (
+          target === null ||
+          !Number.isFinite(target) ||
+          Math.abs(video.currentTime - target) < 0.05
+        ) {
+          finishRecovery();
+          return;
+        }
+
+        const duration = Number.isFinite(video.duration)
+          ? video.duration
+          : Infinity;
+        const clamped = Math.min(Math.max(0, target), duration);
+
+        const onSeeked = () => finishRecovery();
+        video.addEventListener("seeked", onSeeked, { once: true });
+        recoverySeekCleanupRef.current = () =>
+          video.removeEventListener("seeked", onSeeked);
+        recoverySeekTimerRef.current = window.setTimeout(
+          finishRecovery,
+          3000,
+        );
+        try {
+          video.currentTime = clamped;
+        } catch (seekError) {
+          console.warn(
+            `[${label}] media recovery seek failed:`,
+            seekError,
+          );
+          finishRecovery();
         }
       };
       video.addEventListener("loadeddata", onLoaded);
@@ -323,6 +388,11 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             const recoverable = code === 2 || code === 3 || code === 4;
             if (recoverable && recoveryAttemptsRef.current < 2) {
               recoveryAttemptsRef.current += 1;
+              if (!recoveringRef.current) {
+                recoveryTargetTimeRef.current = Number.isFinite(video.currentTime)
+                  ? video.currentTime
+                  : 0;
+              }
               recoveringRef.current = true;
               setReady(false);
               setError(null);
