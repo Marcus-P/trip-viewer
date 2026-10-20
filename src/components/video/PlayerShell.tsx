@@ -227,7 +227,7 @@ export function PlayerShell() {
   }, [activeSegmentForVideo?.id]);
 
   const handleChannelMediaError = useCallback(
-    (label: string, message: string) => {
+    (label: string, message: string, cached: boolean) => {
       const state = useStore.getState();
       const failed = new Set(failedChannelLabelsRef.current);
       if (failed.has(label)) return;
@@ -261,7 +261,7 @@ export function PlayerShell() {
       // Rebuild the persisted trip trace once, excluding every failed camera
       // in this segment. The backend can then select another healthy channel
       // as the GPS provider and persists that repaired track for later runs.
-      if (state.sourceMode === "original" && state.loadedTripId) {
+      if (!cached && state.sourceMode === "original" && state.loadedTripId) {
         const currentTrip = state.trips.find(
           (candidate) => candidate.id === state.loadedTripId,
         );
