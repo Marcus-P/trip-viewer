@@ -55,6 +55,10 @@ interface Props {
    *  Stable identity across renders so useSyncEngine doesn't re-run. */
   channelRefs: MutableRefObject<Map<string, HTMLVideoElement | null>>;
   activeSegment: Segment | null;
+  /** Current SyncEngine clock/master label. May differ from the canonical
+   *  front channel after a per-camera decode failure. */
+  syncMasterLabel: string | null;
+  onChannelMediaError?: (label: string, message: string) => void;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -91,7 +95,12 @@ function gridStyle(
   return { gridColumn: 2, gridRow: secondaryIndex + 1 };
 }
 
-export function VideoGrid({ channelRefs, activeSegment }: Props) {
+export function VideoGrid({
+  channelRefs,
+  activeSegment,
+  syncMasterLabel,
+  onChannelMediaError,
+}: Props) {
   const primaryChannel = useStore((s) => s.primaryChannel);
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
@@ -663,7 +672,8 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
               isMaster={isPrimary}
-              audioEnabled={channel.label === canonicalMasterLabel}
+              audioEnabled={channel.label === (syncMasterLabel ?? canonicalMasterLabel)}
+              onMediaError={onChannelMediaError}
               onClick={isPrimary ? undefined : () => selectPrimary(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
               onContextMenu={(event) => {
