@@ -245,9 +245,7 @@ pub async fn ensure_trip_gps(
         })
         .collect();
 
-    let points = tauri::async_runtime::spawn_blocking(move || extract_best_trip_gps(&sources))
-        .await
-        .map_err(|e| AppError::Internal(format!("trip GPS worker failed: {e}")))?;
+    let points = extract_best_trip_gps(&sources);
 
     let conn = db
         .lock()
