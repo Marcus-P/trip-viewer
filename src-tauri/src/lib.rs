@@ -262,6 +262,7 @@ pub fn run() {
             metadata::probe_file,
             gps::extract_gps,
             gps::extract_gps_batch,
+            gps::ensure_trip_gps,
             gps::load_trip_gps,
             import::discover_sources,
             import::start_import,
