@@ -389,8 +389,15 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             if (recoverable && recoveryAttemptsRef.current < 2) {
               recoveryAttemptsRef.current += 1;
               if (!recoveringRef.current) {
-                recoveryTargetTimeRef.current = Number.isFinite(video.currentTime)
-                  ? video.currentTime
+                // The canonical master owns store.currentTime. Some WebKit
+                // failures reset the element's currentTime before onError
+                // runs, so prefer the last authoritative store position for
+                // that channel; slaves keep their own local media time.
+                const rememberedTime = audioEnabled
+                  ? useStore.getState().currentTime
+                  : video.currentTime;
+                recoveryTargetTimeRef.current = Number.isFinite(rememberedTime)
+                  ? rememberedTime
                   : 0;
               }
               recoveringRef.current = true;
