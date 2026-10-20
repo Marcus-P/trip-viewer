@@ -584,14 +584,16 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
               ? `${map[code] ?? `playback error ${code}`}: ${message}`
               : map[code] ?? `playback error ${code}`;
 
-            // Do not guess how many seconds to skip and do not repeatedly
-            // reload a deterministic bad bitstream. Hold this channel in a
-            // stable failed state for the current source while the remaining
-            // healthy cameras keep playing. The next segment/source change
-            // clears the panel and retries normally.
-            setReady(false);
-            setError(displayMessage);
-            onMediaError?.(label, displayMessage);
+            // Probe failures are expected while a channel is isolated. The
+            // recovery loop owns their backoff and must not repeatedly rebuild
+            // the SyncEngine or create duplicate DB ranges.
+            if (probingRef.current) return;
+
+            markFailed(
+              displayMessage,
+              useStore.getState().currentTime,
+              true,
+            );
           }}
         />
 
