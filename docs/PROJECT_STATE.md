@@ -27,7 +27,7 @@ A follow-up thank-you/comment to `gubiq` is intentionally deferred until PR #3 i
 - PR: #3, **Stabilize WebKit multi-camera seeking and recovery**
 - Branch: `fix/webkit-sync-stability`
 - Base: `main`
-- Current CI at the time of this hand-off is green, including frontend tests/build, Rust tests, dependency audit, Ubuntu AppImage build, and desktop integration validation.
+- CI before the follow-up audit was reported green, including the Ubuntu AppImage build. The follow-up changes below require fresh CI; local cloud validation is recorded separately.
 
 ### Playback synchronization work already implemented
 
@@ -80,6 +80,32 @@ The branch now contains follow-up support for channel-local recovery and persist
 The earlier “guess and skip 2/5 seconds” recovery strategy is obsolete and should not be reintroduced.
 
 The channel-local failover behavior has been manually validated. The newer adaptive rejoin/cache behavior should still be treated as needing explicit real-world validation unless a later entry records that test.
+
+
+### Follow-up audit: media health and GPS persistence (2026-10-20)
+
+The audit preserved the already user-validated per-camera degradation and the Linux libva/DMABuf workarounds. The persistent trip-select GPS path, generic failover, adaptive delay values, and size/mtime health lookup already existed; they were extended rather than reimplemented.
+
+Corrections:
+- Recovery uses a separate muted probe pipeline. Repeated failures no longer reload/seek the visible failed camera; that pipeline is retried only after the background probe succeeds.
+- A probe accepts a new video frame callback or an increase in presented-frame counters. WebKitGTK under Xvfb was observed to decode/present frames without delivering the callback. Readiness events and a moving clock alone are insufficient evidence.
+- Source changes cancel outstanding probes and their frame listeners/timers. A normal `load()` abort of the previous resource is no longer treated as failure of the new probe.
+- Closed cached ranges suppress probes while the playhead remains inside them. Probes outside them retain exponential backoff; continued failures outside a recorded range are persisted as new open ranges. A backward seek before a failure cannot close that later interval.
+- Cached health is read before attaching the visible media source. Recovery updates the session's open interval as well as the DB, avoiding immediate re-isolation from a stale in-memory range.
+- Batched independent failures and rejoin preserve the promoted clock. Recovery remains possible while transport is paused after every camera has failed; a same-segment timeline seek can update that paused recovery target even without an active engine.
+- Migration 0015 adds `trip_gps.source_signature`. The normal `ensure_trip_gps` cache check combines parser version with segment ordering/durations, archive-relative paths, file size/mtime, and matching persisted media-health intervals. Current cache hits stat files and read DB metadata; they do not parse MP4 contents. Parser version remains v8 because the decoder semantics did not change.
+- Persisted partial or full camera failures exclude that file from the segment's GPS candidates; healthy siblings still compete on usable GPS quality. Repaired/replaced fingerprints invalidate the old exclusion and GPS cache.
+- Archived GPS is retained when originals are unavailable, including stale-parser/forced-refresh cases and archived spans of mixed trips. GPS-less/tombstone segment durations remain on the trip time axis.
+- Concurrent frontend GPS refreshes are serialized per trip so earlier failure responses cannot overwrite later, more complete exclusions.
+
+Cloud validation:
+- `npm test`: 54 tests passed.
+- `npm run build`: passed. Existing mixed-import and chunk-size warnings remain intentionally deferred.
+- `cargo test --manifest-path src-tauri/Cargo.toml --locked`: 318 passed, one existing test ignored, no failures. Coverage includes persistent DB reopen, parser/size/mtime/health invalidation, archived spans, camera isolation, recovery cancellation and backoff.
+- `NO_STRIP=true npm run tauri -- build --bundles appimage`: passed on Debian 13 using workspace-local native dependencies and the bundler's extraction mode. This is local Linux build evidence, not a new Ubuntu 24.04 CI result or a release upload.
+- Headless WebKit smoke: the real app rendered, Tauri IPC responded, a scratch archive opened/closed, and a synthetic H.264 clip successfully passed the background decode probe. The cloud's read-only system paths required local runtime relocation helpers; those are environment setup, not application changes.
+
+Still requires the final real-world user test: isolate a corrupt channel while healthy cameras remain synchronized, verify temporary recovery/rejoin without changing the promoted clock, cross a segment boundary, restart and reuse known health/GPS caches, and confirm GPS fallback to a healthy sibling. The synthetic smoke does not replace this test. PR #3 must remain unmerged pending fresh CI and explicit user confirmation.
 
 ## GPS architecture
 

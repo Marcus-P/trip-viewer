@@ -49,6 +49,10 @@ export interface TripGpsSegmentRequest {
   channels: TripGpsChannelRequest[];
 }
 
+// Serialize refreshes for the same trip. Several cameras can fail in the same
+// turn; an older response must not overwrite a later, more complete exclusion.
+const tripGpsPending = new Map<string, Promise<GpsPoint[]>>();
+
 /**
  * Load the persisted trip GPS when it is current. Otherwise extract the trip
  * once from the available camera files, persist it, and return the result.
@@ -64,7 +68,6 @@ export function ensureTripGps(
   force = false,
 ): Promise<GpsPoint[]> {
   const segments: TripGpsSegmentRequest[] = trip.segments
-    .filter((segment) => !segment.isTombstone && segment.gpsSupported)
     .map((segment) => {
       const excluded = new Set(excludedLabelsBySegment[segment.id] ?? []);
       return {
@@ -72,7 +75,7 @@ export function ensureTripGps(
         durationS: segment.durationS,
         cameraKind: segment.cameraKind,
         channels: segment.channels
-          .filter((channel) => !excluded.has(channel.label))
+          .filter((channel) => !segment.isTombstone && segment.gpsSupported && !excluded.has(channel.label))
           .map((channel) => ({
             label: channel.label,
             path: channel.filePath,
@@ -80,11 +83,15 @@ export function ensureTripGps(
       };
     });
 
-  return invoke<GpsPoint[]>("ensure_trip_gps", {
-    tripId: trip.id,
-    segments,
-    force,
-  });
+  const previous = tripGpsPending.get(trip.id) ?? Promise.resolve([]);
+  const pending = previous.catch(() => []).then(() => invoke<GpsPoint[]>("ensure_trip_gps", {
+    tripId: trip.id, segments, force,
+  }));
+  tripGpsPending.set(trip.id, pending);
+  void pending.finally(() => {
+    if (tripGpsPending.get(trip.id) === pending) tripGpsPending.delete(trip.id);
+  }).catch(() => {});
+  return pending;
 }
 
 /**

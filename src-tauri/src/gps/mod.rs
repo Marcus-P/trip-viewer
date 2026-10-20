@@ -114,9 +114,7 @@ fn batch_quality(item: &BatchGps, duration_s: f64) -> (usize, i64) {
         BatchGps::Viofo { timed, .. } => timed
             .iter()
             .filter(|p| {
-                p.point.fix_ok
-                    && p.point.t_offset_s >= 0.0
-                    && p.point.t_offset_s <= duration_s
+                p.point.fix_ok && p.point.t_offset_s >= 0.0 && p.point.t_offset_s <= duration_s
             })
             .map(|p| p.point.t_offset_s)
             .collect(),
@@ -124,8 +122,7 @@ fn batch_quality(item: &BatchGps, duration_s: f64) -> (usize, i64) {
     if offsets.is_empty() {
         return (0, 0);
     }
-    let span_ms =
-        ((offsets[offsets.len() - 1] - offsets[0]).max(0.0) * 1000.0) as i64;
+    let span_ms = ((offsets[offsets.len() - 1] - offsets[0]).max(0.0) * 1000.0) as i64;
     (offsets.len(), span_ms)
 }
 
@@ -164,8 +161,7 @@ pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<Gp
         }
     }
 
-    let mut batch_only: Vec<BatchGps> =
-        selected.into_iter().map(|(_, item)| item).collect();
+    let mut batch_only: Vec<BatchGps> = selected.into_iter().map(|(_, item)| item).collect();
     validate_viofo_batch_boundaries(&mut batch_only);
 
     let mut out = Vec::new();
@@ -218,40 +214,127 @@ pub async fn ensure_trip_gps(
     slot: State<'_, ArchiveSlot>,
 ) -> Result<Vec<GpsPoint>, AppError> {
     let db = require_db(&slot)?;
-    let force = force.unwrap_or(false);
-
-    if !force {
-        let conn = db
-            .lock()
-            .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
-        if crate::db::trip_gps::has_current(&conn, &trip_id, GPS_PARSER_VERSION)? {
-            return Ok(crate::db::trip_gps::load(&conn, &trip_id)?.unwrap_or_default());
-        }
-    }
-
-    if segments.is_empty() {
-        let conn = db
-            .lock()
-            .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
-        return Ok(crate::db::trip_gps::load(&conn, &trip_id)?.unwrap_or_default());
-    }
-
-    let sources: Vec<TripGpsSegmentSource> = segments
-        .into_iter()
-        .map(|segment| TripGpsSegmentSource {
-            duration_s: segment.duration_s,
-            camera_kind: segment.camera_kind,
-            paths: segment.channels.into_iter().map(|c| c.path).collect(),
-        })
-        .collect();
-
-    let points = extract_best_trip_gps(&sources);
-
     let conn = db
         .lock()
         .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
-    crate::db::trip_gps::upsert(&conn, &trip_id, &points, GPS_PARSER_VERSION)?;
+    ensure_trip_gps_cached(
+        &conn,
+        db.archive_root(),
+        &trip_id,
+        &segments,
+        force.unwrap_or(false),
+    )
+}
+
+/// Serialize cache validation and publication with media-health writes. Only
+/// stat and DB metadata are needed on a cache hit; no MP4 parser is invoked.
+fn ensure_trip_gps_cached(
+    conn: &rusqlite::Connection,
+    archive_root: &Path,
+    trip_id: &str,
+    segments: &[TripGpsSegmentRequest],
+    force: bool,
+) -> Result<Vec<GpsPoint>, AppError> {
+    use crate::db::trip_gps;
+    let cached = trip_gps::load(conn, trip_id)?;
+    let (signature, sources, available) = trip_gps_sources(conn, archive_root, segments)?;
+    // A parser upgrade, force refresh, or missing files must never erase the
+    // only surviving GPS for an archive-only trip.
+    if !available.iter().any(|exists| *exists) {
+        return Ok(cached.unwrap_or_default());
+    }
+    if !force
+        && trip_gps::has_current(conn, trip_id, GPS_PARSER_VERSION)?
+        && trip_gps::source_signature(conn, trip_id)?.as_deref() == Some(&signature)
+    {
+        return Ok(cached.unwrap_or_default());
+    }
+    let mut points = extract_best_trip_gps(&sources);
+    // Preserve archived spans in mixed trips too. Empty/no-GPS segments still
+    // contribute their duration, so later segments keep their trip time axis.
+    if let Some(cached) = cached {
+        let mut cursor = 0.0;
+        for (index, source) in sources.iter().enumerate() {
+            let end = cursor + source.duration_s;
+            if !available[index] {
+                points.retain(|p| p.t_offset_s < cursor || p.t_offset_s >= end);
+                points.extend(
+                    cached
+                        .iter()
+                        .filter(|p| p.t_offset_s >= cursor && p.t_offset_s < end)
+                        .cloned(),
+                );
+            }
+            cursor = end;
+        }
+        points.sort_by(|a, b| a.t_offset_s.total_cmp(&b.t_offset_s));
+    }
+    // Atomically publish both payload and provenance; a failed statement must
+    // not leave a new payload carrying an old signature.
+    let tx = conn.unchecked_transaction()?;
+    trip_gps::upsert(&tx, trip_id, &points, GPS_PARSER_VERSION)?;
+    tx.execute(
+        "UPDATE trip_gps SET source_signature = ?2 WHERE trip_id = ?1",
+        rusqlite::params![trip_id, signature],
+    )?;
+    tx.commit()?;
     Ok(points)
+}
+
+fn trip_gps_sources(
+    conn: &rusqlite::Connection,
+    archive_root: &Path,
+    segments: &[TripGpsSegmentRequest],
+) -> Result<(String, Vec<TripGpsSegmentSource>, Vec<bool>), AppError> {
+    use crate::media_health;
+    let mut signature = Vec::new();
+    let mut sources = Vec::new();
+    let mut available = Vec::new();
+    for segment in segments {
+        let mut paths = Vec::new();
+        let mut has_original = false;
+        let mut files = Vec::new();
+        for channel in &segment.channels {
+            let path = Path::new(&channel.path);
+            let stored = media_health::stored_path(path, archive_root);
+            let fingerprint = media_health::fingerprint(path).ok();
+            let mut ranges = Vec::<(i64, Option<i64>)>::new();
+            if let Some((size, modified)) = fingerprint {
+                has_original = true;
+                let mut stmt = conn.prepare(
+                    "SELECT start_ms, end_ms FROM media_health_ranges
+                     WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
+                     ORDER BY start_ms, end_ms",
+                )?;
+                ranges = stmt
+                    .query_map(rusqlite::params![stored, size, modified], |r| {
+                        Ok((r.get(0)?, r.get(1)?))
+                    })?
+                    .collect::<Result<_, _>>()?;
+                // Even partial video corruption makes a sibling the safer GPS
+                // provider for this segment. Never assume GPS implies health.
+                if ranges.is_empty() {
+                    paths.push(channel.path.clone());
+                }
+            }
+            files.push((stored, fingerprint, ranges));
+        }
+        signature.push(serde_json::json!([
+            segment.segment_id,
+            segment.duration_s,
+            segment.camera_kind,
+            files
+        ]));
+        available.push(has_original);
+        sources.push(TripGpsSegmentSource {
+            duration_s: segment.duration_s,
+            camera_kind: segment.camera_kind,
+            paths,
+        });
+    }
+    let signature = serde_json::to_string(&signature)
+        .map_err(|e| AppError::Internal(format!("GPS source signature: {e}")))?;
+    Ok((signature, sources, available))
 }
 
 /// Load archived trip-stitched GPS from the DB. Returns an empty vec
@@ -475,6 +558,210 @@ pub fn extract_for_kind(path: &Path, kind: CameraKind) -> Result<Vec<GpsPoint>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cache_fixture(root: &Path) -> (crate::db::DbHandle, Vec<TripGpsSegmentRequest>) {
+        let db = crate::db::open_in_memory().unwrap();
+        db.lock().unwrap().execute(
+            "INSERT INTO trips (id, start_time_ms, end_time_ms, camera_kind, gps_supported, last_seen_ms)
+             VALUES ('trip', 0, 60000, 'generic', 1, 0)", []).unwrap();
+        let channels = ["front", "interior", "rear"]
+            .into_iter()
+            .map(|label| {
+                let path = root.join(format!("{label}.mp4"));
+                std::fs::write(&path, b"not an MP4").unwrap();
+                TripGpsChannelRequest {
+                    label: label.into(),
+                    path: path.to_string_lossy().into(),
+                }
+            })
+            .collect();
+        (
+            db,
+            vec![TripGpsSegmentRequest {
+                segment_id: "seg".into(),
+                duration_s: 60.0,
+                camera_kind: CameraKind::Generic,
+                channels,
+            }],
+        )
+    }
+
+    fn seed_cached(conn: &rusqlite::Connection, root: &Path, segments: &[TripGpsSegmentRequest]) {
+        let signature = trip_gps_sources(conn, root, segments).unwrap().0;
+        crate::db::trip_gps::upsert(
+            conn,
+            "trip",
+            &[timed(1000, 1.0, 1.0, 0.0).point],
+            GPS_PARSER_VERSION,
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE trip_gps SET source_signature = ?1 WHERE trip_id = 'trip'",
+            [signature],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn current_cache_survives_restart_without_reading_mp4_contents() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, segments) = cache_fixture(root.path());
+        let conn = db.lock().unwrap();
+        seed_cached(&conn, root.path(), &segments);
+        // The files contain invalid MP4 bytes. Re-extraction would return empty.
+        assert_eq!(
+            ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, false)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, false)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn gps_cache_provenance_survives_database_reopen_and_preserves_archived_spans() {
+        let root = tempfile::tempdir().unwrap();
+        let (_, mut segments) = cache_fixture(root.path());
+        let path = root.path().join("cache.sqlite");
+        {
+            let db = crate::db::open_at_path(&path, root.path()).unwrap();
+            let conn = db.lock().unwrap();
+            conn.execute("INSERT INTO trips (id, start_time_ms, end_time_ms, camera_kind, gps_supported, last_seen_ms)
+                VALUES ('trip', 0, 120000, 'generic', 1, 0)", []).unwrap();
+            seed_cached(&conn, root.path(), &segments);
+        }
+        let db = crate::db::open_at_path(&path, root.path()).unwrap();
+        let conn = db.lock().unwrap();
+        assert_eq!(
+            ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, false)
+                .unwrap()
+                .len(),
+            1
+        );
+        // First segment has since been archived. Its cached point must survive
+        // rebuilding a later original segment, with the original trip offset.
+        segments[0].channels.clear();
+        segments.push(TripGpsSegmentRequest {
+            segment_id: "later".into(),
+            duration_s: 60.0,
+            camera_kind: CameraKind::Generic,
+            channels: vec![TripGpsChannelRequest {
+                label: "Rear".into(),
+                path: root.path().join("rear.mp4").to_string_lossy().into(),
+            }],
+        });
+        let points = ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, false).unwrap();
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].t_offset_s, 1.0);
+        assert_eq!(
+            crate::db::trip_gps::load(&conn, "trip")
+                .unwrap()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn size_mtime_parser_and_health_each_invalidate_gps_cache() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, segments) = cache_fixture(root.path());
+        let conn = db.lock().unwrap();
+        for change in 0..4 {
+            seed_cached(&conn, root.path(), &segments);
+            match change {
+                0 => std::fs::write(
+                    &segments[0].channels[0].path,
+                    b"replacement with different size",
+                )
+                .unwrap(),
+                1 => {
+                    std::fs::File::options()
+                        .write(true)
+                        .open(&segments[0].channels[0].path)
+                        .unwrap()
+                        .set_times(std::fs::FileTimes::new().set_modified(
+                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(1234),
+                        ))
+                        .unwrap()
+                }
+                2 => {
+                    conn.execute("UPDATE trip_gps SET parser_version = 1", [])
+                        .unwrap();
+                }
+                _ => {
+                    let path = Path::new(&segments[0].channels[0].path);
+                    let (size, modified) = crate::media_health::fingerprint(path).unwrap();
+                    conn.execute("INSERT INTO media_health_ranges (file_path, file_size, modified_ms, start_ms, error_kind, updated_at_ms)
+                        VALUES (?1, ?2, ?3, 1000, 'decode', 0)",
+                        rusqlite::params![crate::media_health::stored_path(path, root.path()), size, modified]).unwrap();
+                }
+            }
+            assert!(
+                ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, false)
+                    .unwrap()
+                    .is_empty(),
+                "change {change}"
+            );
+        }
+    }
+
+    #[test]
+    fn partial_health_failure_excludes_only_matching_camera_fingerprint() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, segments) = cache_fixture(root.path());
+        let conn = db.lock().unwrap();
+        let path = Path::new(&segments[0].channels[0].path);
+        let (size, modified) = crate::media_health::fingerprint(path).unwrap();
+        conn.execute("INSERT INTO media_health_ranges (file_path, file_size, modified_ms, start_ms, end_ms, error_kind, updated_at_ms)
+            VALUES (?1, ?2, ?3, 1000, 2000, 'decode', 0)",
+            rusqlite::params![crate::media_health::stored_path(path, root.path()), size, modified]).unwrap();
+        let (_, sources, _) = trip_gps_sources(&conn, root.path(), &segments).unwrap();
+        assert_eq!(
+            sources[0].paths,
+            segments[0].channels[1..]
+                .iter()
+                .map(|c| c.path.clone())
+                .collect::<Vec<_>>()
+        );
+        std::fs::write(path, b"repaired replacement").unwrap();
+        assert_eq!(
+            trip_gps_sources(&conn, root.path(), &segments).unwrap().1[0]
+                .paths
+                .len(),
+            3
+        );
+    }
+
+    #[test]
+    fn archive_only_keeps_gps_even_with_old_parser_and_force_refresh() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, segments) = cache_fixture(root.path());
+        let conn = db.lock().unwrap();
+        seed_cached(&conn, root.path(), &segments);
+        conn.execute("UPDATE trip_gps SET parser_version = 1", [])
+            .unwrap();
+        for channel in &segments[0].channels {
+            std::fs::remove_file(&channel.path).unwrap();
+        }
+        assert_eq!(
+            ensure_trip_gps_cached(&conn, root.path(), "trip", &segments, true)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            ensure_trip_gps_cached(&conn, root.path(), "trip", &[], true)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
 
     fn timed(ms: i64, lon: f64, speed_mps: f64, heading_deg: f64) -> viofo::TimedGpsPoint {
         let utc = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
