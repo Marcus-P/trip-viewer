@@ -233,12 +233,28 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     );
 
     useEffect(() => {
+      sourceEpochRef.current += 1;
+      failedRef.current = false;
+      probingRef.current = false;
       setError(null);
       setReady(false);
+      setHealthRanges([]);
       if (DEBUG_MEDIA) {
         console.log(`[media/${label}] boundary src=…${src.slice(-50)}`);
       }
-    }, [src, label]);
+
+      let cancelled = false;
+      void loadMediaHealth([filePath])
+        .then((ranges) => {
+          if (!cancelled) setHealthRanges(ranges);
+        })
+        .catch((healthError) => {
+          console.warn(`[media/${label}] health cache load failed:`, healthError);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [src, filePath, label]);
 
     // WebKitGTK has shown that changing the React `muted` prop alone can
     // leave the underlying GStreamer audio branch audible across a playbackRate
@@ -269,6 +285,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       if (!video) return;
 
       const onLoaded = () => {
+        if (failedRef.current) return;
         setReady(true);
         setError(null);
       };
@@ -279,6 +296,149 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         video.removeEventListener("loadeddata", onLoaded);
       };
     }, [src]);
+
+    const markFailed = useCallback(
+      (
+        displayMessage: string,
+        failureTime: number,
+        persist = true,
+      ) => {
+        if (failedRef.current) return;
+        failedRef.current = true;
+        setReady(false);
+        setError(displayMessage);
+        onMediaError?.(label, displayMessage);
+        if (persist) {
+          void recordMediaFailure(filePath, failureTime, displayMessage).catch(
+            (healthError) => {
+              console.warn(
+                `[media/${label}] health cache failure write failed:`,
+                healthError,
+              );
+            },
+          );
+        }
+      },
+      [filePath, label, onMediaError],
+    );
+
+    // If this exact file fingerprint has a known bad interval, isolate the
+    // channel before WebKit spends CPU rediscovering the same decode failure.
+    // Closed ranges recover at their recorded end; open ranges still get the
+    // exponential probe loop below because their end is not known yet.
+    useEffect(() => {
+      if (healthRanges.length === 0) return;
+      const handle = window.setInterval(() => {
+        if (failedRef.current) return;
+        const t = useStore.getState().currentTime;
+        const known = healthRanges.find(
+          (range) =>
+            t >= range.startS &&
+            (range.endS === null || t < range.endS),
+        );
+        if (!known) return;
+        markFailed(
+          `known media failure: ${known.errorKind}`,
+          known.startS,
+          false,
+        );
+      }, 250);
+      return () => window.clearInterval(handle);
+    }, [healthRanges, markFailed]);
+
+    // Once isolated, probe only this failed camera while the healthy cameras
+    // keep playing. Probe intervals grow 1s -> 2s -> 4s -> 8s -> 16s -> 30s.
+    // A cached closed range suppresses probing until its known end, which saves
+    // decoder work on repeat views.
+    useEffect(() => {
+      if (!error) return;
+      const video = localRef.current;
+      if (!video) return;
+
+      const epoch = sourceEpochRef.current;
+      let cancelled = false;
+
+      const run = async () => {
+        let attempt = 0;
+        while (
+          !cancelled &&
+          failedRef.current &&
+          epoch === sourceEpochRef.current
+        ) {
+          const nowT = useStore.getState().currentTime;
+          const known = healthRanges.find(
+            (range) =>
+              nowT >= range.startS &&
+              (range.endS === null || nowT < range.endS),
+          );
+
+          if (known?.endS !== null && known?.endS !== undefined) {
+            // We already know this interval's end from a prior viewing. Wait
+            // for the healthy master to cross it, then verify once.
+            if (nowT < known.endS) {
+              await delay(250);
+              continue;
+            }
+          } else {
+            const delayMs =
+              RECOVERY_DELAYS_MS[
+                Math.min(attempt, RECOVERY_DELAYS_MS.length - 1)
+              ];
+            await delay(delayMs);
+          }
+
+          if (
+            cancelled ||
+            !failedRef.current ||
+            epoch !== sourceEpochRef.current
+          ) {
+            return;
+          }
+
+          // If playback is paused the target is not moving; repeatedly probing
+          // the same known-bad frame wastes work. Keep the current backoff.
+          if (!useStore.getState().isPlaying) {
+            await delay(500);
+            continue;
+          }
+
+          const target = useStore.getState().currentTime;
+          probingRef.current = true;
+          const ok = await probeVideoAt(video, target);
+          probingRef.current = false;
+
+          if (
+            cancelled ||
+            epoch !== sourceEpochRef.current ||
+            !failedRef.current
+          ) {
+            return;
+          }
+
+          if (ok) {
+            failedRef.current = false;
+            setError(null);
+            setReady(true);
+            void recordMediaRecovery(filePath, target).catch((healthError) => {
+              console.warn(
+                `[media/${label}] health cache recovery write failed:`,
+                healthError,
+              );
+            });
+            onMediaRecovered?.(label);
+            return;
+          }
+
+          attempt += 1;
+        }
+      };
+
+      void run();
+      return () => {
+        cancelled = true;
+        probingRef.current = false;
+      };
+    }, [error, filePath, healthRanges, label, onMediaRecovered]);
 
     // Debounce the overlay. If `ready` flips back to true within the
     // delay window (almost always, on a healthy machine), the timer is
