@@ -344,9 +344,16 @@ export class SyncEngine {
         const needsResume = slave.paused;
         if (!needsResume && drift <= REANCHOR_DRIFT_S) continue;
 
-        const last = this.reconcileActionAt.get(slave) ?? 0;
-        if (now - last < REANCHOR_COOLDOWN_MS) continue;
+        const last = this.reconcileActionAt.get(slave);
+        if (last !== undefined && now - last < REANCHOR_COOLDOWN_MS) continue;
         this.reconcileActionAt.set(slave, now);
+
+        const resume = () =>
+          slave.play().catch((e) => {
+            if (!(e instanceof DOMException && e.name === "AbortError")) {
+              console.warn("[sync] reconciler: slave play() rejected:", e);
+            }
+          });
 
         if (drift > REANCHOR_DRIFT_S) {
           console.warn(
@@ -356,14 +363,11 @@ export class SyncEngine {
           );
           slave.currentTime = target;
           this.watchdogState.delete(slave);
-        }
-
-        if (needsResume) {
-          slave.play().catch((e) => {
-            if (!(e instanceof DOMException && e.name === "AbortError")) {
-              console.warn("[sync] reconciler: slave play() rejected:", e);
-            }
-          });
+          if (needsResume) {
+            void this.waitForPendingSeek(slave).then(resume);
+          }
+        } else if (needsResume) {
+          void resume();
         }
       }
     }, REANCHOR_INTERVAL_MS);
