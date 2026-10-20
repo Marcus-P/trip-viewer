@@ -183,6 +183,10 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       if (!video) return;
 
       const finishRecovery = () => {
+        if (recoveryTimerRef.current !== null) {
+          window.clearTimeout(recoveryTimerRef.current);
+          recoveryTimerRef.current = null;
+        }
         recoverySeekCleanupRef.current?.();
         recoverySeekCleanupRef.current = null;
         if (recoverySeekTimerRef.current !== null) {
