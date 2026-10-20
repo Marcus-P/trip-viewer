@@ -32,7 +32,9 @@ use tauri::State;
 ///     camera-neutral consistency layer before they can become route anchors.
 /// v7: gives VIOFO boundary records neighbouring GPS evidence from the adjacent
 ///     segment when the embedded UTC cadence itself proves local continuity.
-pub const GPS_PARSER_VERSION: i32 = 7;
+/// v8: caches trip GPS for ordinary playback and can choose a healthy sibling
+///     camera as the GPS source for each segment instead of assuming Front.
+pub const GPS_PARSER_VERSION: i32 = 8;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
@@ -42,6 +44,29 @@ pub const GPS_PARSER_VERSION: i32 = 7;
 pub struct GpsRequest {
     pub path: String,
     pub camera_kind: CameraKind,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripGpsChannelRequest {
+    pub label: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripGpsSegmentRequest {
+    pub segment_id: String,
+    pub duration_s: f64,
+    pub camera_kind: CameraKind,
+    pub channels: Vec<TripGpsChannelRequest>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TripGpsSegmentSource {
+    pub duration_s: f64,
+    pub camera_kind: CameraKind,
+    pub paths: Vec<String>,
 }
 
 #[tauri::command]
