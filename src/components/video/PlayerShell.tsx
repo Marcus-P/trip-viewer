@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSyncEngine } from "../../engine/useSyncEngine";
 import { useStore } from "../../state/store";
 import type { Channel, Segment } from "../../types/model";
@@ -51,6 +51,13 @@ export function PlayerShell() {
   const channelRefs = useRef<Map<string, HTMLVideoElement | null>>(new Map());
   const shouldAutoPlay = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
+  // Media failures are scoped to the current source/segment. A failed camera
+  // stays visible with its error overlay but is removed from the active
+  // SyncEngine so healthy cameras can continue. The next source gets a fresh
+  // attempt automatically.
+  const [failedChannelLabels, setFailedChannelLabels] = useState<Set<string>>(
+    () => new Set(),
+  );
   // True when we entered the current tier mode automatically because
   // playback (or a seek, or a trip load) crossed into a tombstone span
   // in Original mode. The flip-back effect uses this to switch back
@@ -178,11 +185,48 @@ export function PlayerShell() {
     return m;
   }, [sourceMode, trip, timelapseJobs]);
 
+  const syncChannelLabels = useMemo(
+    () => channelLabels.filter((label) => !failedChannelLabels.has(label)),
+    [channelLabels, failedChannelLabels],
+  );
+  const syncMasterLabel = syncChannelLabels[0] ?? null;
+
   const engine = useSyncEngine(
     channelRefs,
-    channelLabels,
+    syncChannelLabels,
     activeSegmentForVideo?.id ?? null,
     channelCurves,
+  );
+
+  // A segment/source boundary is the natural retry point. We never guess a
+  // number of seconds to skip inside a corrupt file; the failed channel stays
+  // isolated until a genuinely new source is loaded.
+  useEffect(() => {
+    setFailedChannelLabels(new Set());
+  }, [activeSegmentForVideo?.id]);
+
+  const handleChannelMediaError = useCallback(
+    (label: string, message: string) => {
+      const state = useStore.getState();
+
+      // Preserve the logical position and play intent before rebuilding the
+      // engine without the failed channel. If the canonical front camera dies,
+      // Interior/Rear can become the new clock without a trip-wide stop.
+      pendingSeekRef.current = state.currentTime;
+      if (state.isPlaying) shouldAutoPlay.current = true;
+
+      setFailedChannelLabels((prev) => {
+        if (prev.has(label)) return prev;
+        const next = new Set(prev);
+        next.add(label);
+        return next;
+      });
+
+      console.warn(
+        `[player] ${label} removed from sync for current source: ${message}`,
+      );
+    },
+    [],
   );
 
   /**
@@ -348,7 +392,7 @@ export function PlayerShell() {
     if (sourceMode !== "original") {
       // Tiered mode still gets an "ended" event (the single file
       // finished). Stop playback but don't try to advance segments.
-      const masterLabel = activeSegmentForVideo.channels[0]?.label;
+      const masterLabel = syncMasterLabel;
       if (!masterLabel) return;
       const master = channelRefs.current.get(masterLabel);
       if (!master) return;
@@ -357,7 +401,7 @@ export function PlayerShell() {
       return () => master.removeEventListener("ended", onEnded);
     }
 
-    const masterLabel = activeSegmentForVideo.channels[0]?.label;
+    const masterLabel = syncMasterLabel;
     if (!masterLabel) return;
     const master = channelRefs.current.get(masterLabel);
     if (!master) return;
@@ -418,7 +462,7 @@ export function PlayerShell() {
     // deps), so adding it to the deps array doesn't churn the effect;
     // it just satisfies exhaustive-deps for the closure.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSegmentForVideo, sourceMode]);
+  }, [activeSegmentForVideo, sourceMode, syncMasterLabel]);
 
   // Restore position before playback after a segment/source transition.
   // Starting playback first and seeking immediately afterwards races two
@@ -628,6 +672,8 @@ export function PlayerShell() {
         <VideoGrid
           channelRefs={channelRefs}
           activeSegment={activeSegmentForVideo}
+          syncMasterLabel={syncMasterLabel}
+          onChannelMediaError={handleChannelMediaError}
         />
         {showMap && <MapPanel activeSegment={activeSegmentForUi} />}
         <DriftHud />
