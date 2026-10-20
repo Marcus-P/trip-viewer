@@ -317,11 +317,6 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             // stable failed state for the current source while the remaining
             // healthy cameras keep playing. The next segment/source change
             // clears the panel and retries normally.
-            try {
-              video.pause();
-            } catch {
-              // best-effort; the media pipeline may already be terminal
-            }
             setReady(false);
             setError(displayMessage);
             onMediaError?.(label, displayMessage);
