@@ -86,6 +86,105 @@ enum BatchGps {
     },
 }
 
+fn extract_batch_item(path: &str, camera_kind: CameraKind) -> BatchGps {
+    let path_obj = Path::new(path);
+    if matches!(camera_kind, CameraKind::Generic) && is_viofo_path(path_obj) {
+        let timed = extract_viofo_timed(path_obj).unwrap_or_default();
+        BatchGps::Viofo {
+            file_path: path.to_string(),
+            timed,
+        }
+    } else {
+        let points = extract_for_kind(path_obj, camera_kind).unwrap_or_default();
+        BatchGps::Plain(GpsBatchItem {
+            file_path: path.to_string(),
+            points,
+        })
+    }
+}
+
+fn batch_quality(item: &BatchGps, duration_s: f64) -> (usize, i64) {
+    let offsets: Vec<f64> = match item {
+        BatchGps::Plain(item) => item
+            .points
+            .iter()
+            .filter(|p| p.fix_ok && p.t_offset_s >= 0.0 && p.t_offset_s <= duration_s)
+            .map(|p| p.t_offset_s)
+            .collect(),
+        BatchGps::Viofo { timed, .. } => timed
+            .iter()
+            .filter(|p| {
+                p.point.fix_ok
+                    && p.point.t_offset_s >= 0.0
+                    && p.point.t_offset_s <= duration_s
+            })
+            .map(|p| p.point.t_offset_s)
+            .collect(),
+    };
+    if offsets.is_empty() {
+        return (0, 0);
+    }
+    let span_ms =
+        ((offsets[offsets.len() - 1] - offsets[0]).max(0.0) * 1000.0) as i64;
+    (offsets.len(), span_ms)
+}
+
+fn batch_into_points(item: BatchGps) -> Vec<GpsPoint> {
+    match item {
+        BatchGps::Plain(item) => item.points,
+        BatchGps::Viofo { timed, .. } => timed.into_iter().map(|item| item.point).collect(),
+    }
+}
+
+/// Extract and stitch one trip while allowing each segment to pick the camera
+/// file with the strongest usable GPS trace. Candidate order is the tie-breaker,
+/// so a healthy canonical Front remains preferred when all cameras are equal.
+pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<GpsPoint> {
+    let mut selected: Vec<(f64, BatchGps)> = Vec::with_capacity(segments.len());
+
+    for segment in segments {
+        let mut best: Option<((usize, i64), BatchGps)> = None;
+        for path in &segment.paths {
+            let item = extract_batch_item(path, segment.camera_kind);
+            let quality = batch_quality(&item, segment.duration_s);
+            if best.as_ref().map(|(q, _)| quality > *q).unwrap_or(true) {
+                best = Some((quality, item));
+            }
+        }
+        if let Some((_, item)) = best {
+            selected.push((segment.duration_s, item));
+        } else {
+            selected.push((
+                segment.duration_s,
+                BatchGps::Plain(GpsBatchItem {
+                    file_path: String::new(),
+                    points: Vec::new(),
+                }),
+            ));
+        }
+    }
+
+    let mut batch_only: Vec<BatchGps> =
+        selected.into_iter().map(|(_, item)| item).collect();
+    validate_viofo_batch_boundaries(&mut batch_only);
+
+    let mut out = Vec::new();
+    let mut cursor = 0.0;
+    for (segment, item) in segments.iter().zip(batch_only.into_iter()) {
+        for p in batch_into_points(item) {
+            if p.t_offset_s < 0.0 || p.t_offset_s > segment.duration_s {
+                continue;
+            }
+            out.push(GpsPoint {
+                t_offset_s: cursor + p.t_offset_s,
+                ..p
+            });
+        }
+        cursor += segment.duration_s;
+    }
+    out
+}
+
 #[tauri::command]
 pub async fn extract_gps_batch(requests: Vec<GpsRequest>) -> Result<Vec<GpsBatchItem>, AppError> {
     let mut extracted: Vec<BatchGps> = requests
