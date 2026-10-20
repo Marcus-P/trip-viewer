@@ -107,6 +107,12 @@ Cloud validation:
 
 Still requires the final real-world user test: isolate a corrupt channel while healthy cameras remain synchronized, verify temporary recovery/rejoin without changing the promoted clock, cross a segment boundary, restart and reuse known health/GPS caches, and confirm GPS fallback to a healthy sibling. The synthetic smoke does not replace this test. PR #3 must remain unmerged pending fresh CI and explicit user confirmation.
 
+### Obtaining the local Ubuntu test version
+
+Publishing the Codex environment does not update an installed desktop app. CI now uploads a downloadable test artifact after the Ubuntu build and desktop-integration checks pass. Open the latest successful CI run for `fix/webkit-sync-stability` (or PR #3) and download its `Trip-Viewer-Ubuntu-24.04-<commit>` artifact. Artifacts are retained for 30 days and require a GitHub login to download.
+
+Extract the ZIP, run `sha256sum -c SHA256SUMS.txt`, and launch the included `Trip.Viewer_*_test-*_Ubuntu-24.04_amd64.AppImage` after making it executable. The filename and `BUILD_INFO.txt` identify the tested commit; the in-app version remains 0.4.0 until a separate stable release. The installer helper is included if the user wants to replace their launcher installation after testing. This path neither merges PR #3 nor creates a stable GitHub Release.
+
 ## GPS architecture
 
 GPS should be treated as trip data, not as a Front-camera-only feature.
