@@ -7,6 +7,12 @@ import {
   useState,
 } from "react";
 import clsx from "clsx";
+import {
+  loadMediaHealth,
+  recordMediaFailure,
+  recordMediaRecovery,
+  type MediaHealthRange,
+} from "../../ipc/mediaHealth";
 import { useStore } from "../../state/store";
 import { shouldMuteChannelAudio } from "./audioPolicy";
 
@@ -58,9 +64,108 @@ const MEDIA_EVENTS = [
   "error",
 ] as const;
 
+const RECOVERY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const;
+const RECOVERY_PROBE_TIMEOUT_MS = 5000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/**
+ * Probe one failed media element at the current master time without rejoining
+ * it to the SyncEngine. A successful decoded frame is stronger evidence than
+ * seeked/canplay alone, both of which WebKitGTK can emit before a bad GOP fails.
+ */
+function probeVideoAt(
+  video: HTMLVideoElement,
+  targetTime: number,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let frameCallbackId: number | null = null;
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener("loadedmetadata", onMetadata);
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("error", onFailure);
+      video.removeEventListener("abort", onFailure);
+      if (
+        frameCallbackId !== null &&
+        typeof video.cancelVideoFrameCallback === "function"
+      ) {
+        video.cancelVideoFrameCallback(frameCallbackId);
+      }
+    };
+
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        video.pause();
+      } catch {
+        // best-effort
+      }
+      resolve(ok);
+    };
+
+    const onFailure = () => finish(false);
+
+    const waitForFrame = () => {
+      if (typeof video.requestVideoFrameCallback === "function") {
+        frameCallbackId = video.requestVideoFrameCallback(() => finish(true));
+      } else {
+        window.setTimeout(
+          () => finish(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA),
+          150,
+        );
+      }
+    };
+
+    const onSeeked = () => {
+      video
+        .play()
+        .then(waitForFrame)
+        .catch(() => finish(false));
+    };
+
+    const onMetadata = () => {
+      const duration = Number.isFinite(video.duration)
+        ? video.duration
+        : Infinity;
+      const clamped = Math.min(Math.max(0, targetTime), duration);
+      try {
+        video.currentTime = clamped;
+        if (!video.seeking) {
+          queueMicrotask(onSeeked);
+        }
+      } catch {
+        finish(false);
+      }
+    };
+
+    const timeout = window.setTimeout(
+      () => finish(false),
+      RECOVERY_PROBE_TIMEOUT_MS,
+    );
+    video.addEventListener("loadedmetadata", onMetadata, { once: true });
+    video.addEventListener("seeked", onSeeked, { once: true });
+    video.addEventListener("error", onFailure, { once: true });
+    video.addEventListener("abort", onFailure, { once: true });
+
+    try {
+      video.load();
+    } catch {
+      finish(false);
+    }
+  });
+}
+
 interface Props {
   label: string;
   src: string;
+  filePath: string;
   isMaster: boolean;
   /** Audio comes from the canonical SyncEngine master, not necessarily the
    *  visually enlarged camera. Keeping one stable audio clock prevents audio
@@ -73,18 +178,21 @@ interface Props {
    *  failed channel from the active SyncEngine while keeping the panel mounted
    *  with its error overlay. A new source/segment gets a clean retry. */
   onMediaError?: (label: string, message: string) => void;
+  onMediaRecovered?: (label: string) => void;
 }
 
 export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
   function ChannelPanel({
     label,
     src,
+    filePath,
     isMaster,
     audioEnabled,
     onClick,
     onDoubleClick,
     onContextMenu,
     onMediaError,
+    onMediaRecovered,
   }, ref) {
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
@@ -107,7 +215,11 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     // from one segment's last frame to the next segment's first frame
     // without a flash of "Loading…". Genuinely slow loads still show it.
     const [showLoading, setShowLoading] = useState(false);
+    const [healthRanges, setHealthRanges] = useState<MediaHealthRange[]>([]);
     const localRef = useRef<HTMLVideoElement | null>(null);
+    const failedRef = useRef(false);
+    const probingRef = useRef(false);
+    const sourceEpochRef = useRef(0);
 
     // Merge the forwarded ref with our local ref so we can attach debug
     // listeners without disturbing whatever the parent is doing with the ref.
