@@ -21,8 +21,22 @@ import { shouldMuteChannelAudio } from "./audioPolicy";
 //   DEBUG_MEDIA_VERBOSE  — per-event stream (~20 events/sec during stutter on
 //                          WebKitGTK). Turn on only for short captures when
 //                          you need event ordering.
-const DEBUG_MEDIA = false;
-const DEBUG_MEDIA_VERBOSE = false;
+function mediaDebugEnabled(key: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// Runtime toggles: set these in the WebView console and reload the app:
+//   localStorage.setItem("tripviewer.debug.media", "1")
+//   localStorage.setItem("tripviewer.debug.media.verbose", "1")
+const DEBUG_MEDIA = mediaDebugEnabled("tripviewer.debug.media");
+const DEBUG_MEDIA_VERBOSE = mediaDebugEnabled(
+  "tripviewer.debug.media.verbose",
+);
 
 const MEDIA_EVENTS = [
   "loadstart",
@@ -89,6 +103,9 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     // without a flash of "Loading…". Genuinely slow loads still show it.
     const [showLoading, setShowLoading] = useState(false);
     const localRef = useRef<HTMLVideoElement | null>(null);
+    const recoveryAttemptsRef = useRef(0);
+    const recoveryTimerRef = useRef<number | null>(null);
+    const recoveringRef = useRef(false);
 
     // Merge the forwarded ref with our local ref so we can attach debug
     // listeners without disturbing whatever the parent is doing with the ref.
@@ -102,11 +119,23 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     );
 
     useEffect(() => {
+      if (recoveryTimerRef.current !== null) {
+        window.clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+      recoveryAttemptsRef.current = 0;
+      recoveringRef.current = false;
       setError(null);
       setReady(false);
       if (DEBUG_MEDIA) {
         console.log(`[media/${label}] boundary src=…${src.slice(-50)}`);
       }
+      return () => {
+        if (recoveryTimerRef.current !== null) {
+          window.clearTimeout(recoveryTimerRef.current);
+          recoveryTimerRef.current = null;
+        }
+      };
     }, [src, label]);
 
     // WebKitGTK has shown that changing the React `muted` prop alone can
@@ -137,7 +166,14 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       const video = localRef.current;
       if (!video) return;
 
-      const onLoaded = () => setReady(true);
+      const onLoaded = () => {
+        setReady(true);
+        setError(null);
+        if (recoveringRef.current) {
+          recoveringRef.current = false;
+          window.dispatchEvent(new Event("tripviewer:media-recovered"));
+        }
+      };
       video.addEventListener("loadeddata", onLoaded);
       if (video.readyState >= 2) setReady(true);
 
@@ -275,19 +311,50 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             const code = video.error?.code ?? 0;
             const message = video.error?.message ?? "";
             const networkState = video.networkState;
-            // Dump everything the browser knows so the terminal/devtools
-            // console can disambiguate "couldn't load" from "couldn't decode".
             console.error(
               `[${label}] video error code=${code} networkState=${networkState} ` +
                 `src=${video.currentSrc || video.src} message=${message}`,
             );
+
+            // WebKitGTK/GStreamer can leave a media element in an error state
+            // after a seek/segment transition even though the source itself is
+            // valid. Retry the same source at most twice. Once loadeddata fires,
+            // the SyncEngine is asked to re-anchor all cameras.
+            const recoverable = code === 2 || code === 3 || code === 4;
+            if (recoverable && recoveryAttemptsRef.current < 2) {
+              recoveryAttemptsRef.current += 1;
+              recoveringRef.current = true;
+              setReady(false);
+              setError(null);
+              const delay = recoveryAttemptsRef.current === 1 ? 200 : 600;
+              if (recoveryTimerRef.current !== null) {
+                window.clearTimeout(recoveryTimerRef.current);
+              }
+              recoveryTimerRef.current = window.setTimeout(() => {
+                recoveryTimerRef.current = null;
+                try {
+                  video.load();
+                } catch (reloadError) {
+                  console.warn(
+                    `[${label}] media recovery load() failed:`,
+                    reloadError,
+                  );
+                }
+              }, delay);
+              return;
+            }
+
             const map: Record<number, string> = {
               1: "aborted",
               2: "network error (failed to load)",
               3: "decode error",
               4: "source not supported (load or codec failure)",
             };
-            setError(map[code] ?? `playback error ${code}`);
+            setError(
+              message
+                ? `${map[code] ?? `playback error ${code}`}: ${message}`
+                : map[code] ?? `playback error ${code}`,
+            );
           }}
         />
 
