@@ -8,6 +8,7 @@ pub mod gps;
 mod import;
 mod issues;
 mod metadata;
+mod media_health;
 mod migration_v2;
 mod model;
 mod paths;
@@ -264,6 +265,9 @@ pub fn run() {
             gps::extract_gps_batch,
             gps::ensure_trip_gps,
             gps::load_trip_gps,
+            media_health::load_media_health,
+            media_health::record_media_failure,
+            media_health::record_media_recovery,
             import::discover_sources,
             import::start_import,
             import::start_folder_import,
