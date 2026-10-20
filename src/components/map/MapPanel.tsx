@@ -212,14 +212,15 @@ export function MapPanel({ activeSegment }: Props) {
     // than per-file extraction even when originals exist.
     const archived = loadedTripId ? tripGpsByTrip[loadedTripId] : undefined;
     if (archived && archived.length > 0) return archived;
-    // Fallback: stitch on the fly from per-file GPS (untimelapsed trips).
+    // Legacy/in-memory fallback. Prefer whichever camera in the segment
+    // actually has GPS rather than assuming the canonical Front channel.
     const all: GpsPoint[] = [];
     let cumulativeOffset = 0;
     for (const seg of trip.segments) {
-      // Master channel (first in canonical order) carries GPS.
-      const front = seg.channels[0];
-      if (!front) continue;
-      const pts = gpsByFile[front.filePath];
+      const provider = seg.channels.find(
+        (channel) => (gpsByFile[channel.filePath]?.length ?? 0) > 0,
+      );
+      const pts = provider ? gpsByFile[provider.filePath] : undefined;
       if (pts) {
         for (const p of pts) {
           all.push({ ...p, tOffsetS: cumulativeOffset + p.tOffsetS });
@@ -232,22 +233,63 @@ export function MapPanel({ activeSegment }: Props) {
 
   const segmentGpsPoints: GpsPoint[] = useMemo(() => {
     if (!activeSegment) return [];
-    const front = activeSegment.channels[0];
-    if (!front) return [];
-    const currentPoints = gpsByFile[front.filePath] ?? [];
-    if (!trip) return currentPoints;
+    if (!trip) return [];
 
-    const segmentIndex = trip.segments.findIndex((seg) => seg.id === activeSegment.id);
+    const segmentIndex = trip.segments.findIndex(
+      (segment) => segment.id === activeSegment.id,
+    );
+    if (segmentIndex < 0) return [];
+
+    // Prefer the persisted trip-wide cache even in Original mode. Convert the
+    // trip-time offsets back onto this segment's local axis. This removes the
+    // old need to re-parse every source MP4 whenever the app is restarted.
+    const archived = loadedTripId ? tripGpsByTrip[loadedTripId] : undefined;
+    if (archived) {
+      let segmentStart = 0;
+      for (let i = 0; i < segmentIndex; i++) {
+        segmentStart += trip.segments[i].durationS;
+      }
+      const segmentEnd = segmentStart + activeSegment.durationS;
+      return archived
+        .filter(
+          (point) =>
+            point.tOffsetS >= segmentStart && point.tOffsetS <= segmentEnd,
+        )
+        .map((point) => ({
+          ...point,
+          tOffsetS: point.tOffsetS - segmentStart,
+        }));
+    }
+
+    // Compatibility fallback for an extraction that has not yet reached the
+    // DB. Use the first camera with usable GPS, not necessarily Front.
+    const provider = activeSegment.channels.find(
+      (channel) => (gpsByFile[channel.filePath]?.length ?? 0) > 0,
+    );
+    const currentPoints = provider ? gpsByFile[provider.filePath] ?? [] : [];
+
     if (segmentIndex <= 0) return currentPoints;
 
     const previousSegment = trip.segments[segmentIndex - 1];
-    const previousFront = previousSegment.channels[0];
-    if (!previousFront) return currentPoints;
+    const previousProvider = previousSegment.channels.find(
+      (channel) => (gpsByFile[channel.filePath]?.length ?? 0) > 0,
+    );
+    if (!previousProvider) return currentPoints;
 
-    const previousPoints = gpsByFile[previousFront.filePath] ?? [];
-    const overlap = precedingGpsOverlap(previousSegment, activeSegment, previousPoints);
+    const previousPoints = gpsByFile[previousProvider.filePath] ?? [];
+    const overlap = precedingGpsOverlap(
+      previousSegment,
+      activeSegment,
+      previousPoints,
+    );
     return mergeGpsAtBoundary(overlap, currentPoints);
-  }, [activeSegment, gpsByFile, trip]);
+  }, [
+    activeSegment,
+    gpsByFile,
+    loadedTripId,
+    trip,
+    tripGpsByTrip,
+  ]);
 
   // Pick which pair feeds the marker + readouts: tiered mode uses the
   // full trip trace indexed by concat-time; Original uses per-segment
