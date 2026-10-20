@@ -86,6 +86,7 @@ const CATEGORY_PRIORITY: TagCategory[] = [
 export function Timeline({ onSeekTripTime }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverSpeed, setHoverSpeed] = useState<HoverSpeed | null>(null);
+  const [dragTripTime, setDragTripTime] = useState<number | null>(null);
   const { speedUnit } = usePreferences();
   const trips = useStore((s) => s.trips);
   const loadedTripId = useStore((s) => s.loadedTripId);
@@ -217,29 +218,45 @@ export function Timeline({ onSeekTripTime }: Props) {
     (e: React.PointerEvent) => {
       updateHover(e.clientX);
       // In selection mode the timeline is a multi-select widget, not a
-      // seek widget. Clicks are handled per-segment-rect below; the
-      // SVG-level pointerdown is suppressed entirely so a click on
-      // empty timeline space (between segments, on the speed curve)
-      // doesn't accidentally seek and break the user's selection flow.
+      // seek widget. Clicks are handled per-segment-rect below.
       if (selectionMode) return;
+
+      // WebKitGTK/GStreamer turns currentTime assignments into full pipeline
+      // flushes. Preview the drag locally and perform exactly one real seek
+      // when the pointer is released instead of seeking on every pointermove.
       e.currentTarget.setPointerCapture(e.pointerId);
-      onSeekTripTime(xToTripTime(e.clientX));
+      setDragTripTime(xToTripTime(e.clientX));
     },
-    [xToTripTime, onSeekTripTime, selectionMode, updateHover],
+    [xToTripTime, selectionMode, updateHover],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
       updateHover(e.clientX);
       if (selectionMode || e.buttons === 0) return;
-      onSeekTripTime(xToTripTime(e.clientX));
+      setDragTripTime(xToTripTime(e.clientX));
     },
-    [xToTripTime, onSeekTripTime, selectionMode, updateHover],
+    [xToTripTime, selectionMode, updateHover],
   );
+
+  const finishTimelineSeek = useCallback(
+    (e: React.PointerEvent) => {
+      if (selectionMode || dragTripTime === null) return;
+      const target = xToTripTime(e.clientX);
+      setDragTripTime(null);
+      onSeekTripTime(target);
+    },
+    [dragTripTime, onSeekTripTime, selectionMode, xToTripTime],
+  );
+
+  const cancelTimelineSeek = useCallback(() => {
+    setDragTripTime(null);
+  }, []);
 
   if (!trip || totalDuration <= 0) return null;
 
-  const playheadX = (tripTime / totalDuration) * 100;
+  const displayedTripTime = dragTripTime ?? tripTime;
+  const playheadX = (displayedTripTime / totalDuration) * 100;
   // Archive-only trips have empty segments — render a single full-width
   // tombstone-hatched bar so the playhead has visual context.
   const archiveOnly = trip.segments.length === 0;
@@ -396,6 +413,8 @@ export function Timeline({ onSeekTripTime }: Props) {
         }
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerUp={finishTimelineSeek}
+        onPointerCancel={cancelTimelineSeek}
         onPointerLeave={() => setHoverSpeed(null)}
       >
         {/* Diagonal-hatch fill for tombstone segments (originals deleted,
