@@ -38,6 +38,23 @@ const DEBUG_MEDIA_VERBOSE = mediaDebugEnabled(
   "tripviewer.debug.media.verbose",
 );
 
+// A deterministic decode failure at the same timestamp is usually not fixed by
+// reloading the exact same frame/GOP. First retry in place for transient
+// failures; later attempts skip forward far enough to reach a later keyframe.
+// Tiered files compress many trip-seconds into one media-second, so use smaller
+// source-time skips there.
+function recoverySkipSeconds(
+  attempt: number,
+  sourceMode: "original" | "8x" | "16x" | "60x",
+): number {
+  const original = [0, 2, 5];
+  const tiered = [0, 0.25, 1];
+  const table = sourceMode === "original" ? original : tiered;
+  return table[Math.min(attempt - 1, table.length - 1)];
+}
+
+const MAX_MEDIA_RECOVERY_ATTEMPTS = 3;
+
 const MEDIA_EVENTS = [
   "loadstart",
   "loadedmetadata",
@@ -105,9 +122,9 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     const localRef = useRef<HTMLVideoElement | null>(null);
     const recoveryAttemptsRef = useRef(0);
     const recoveryTimerRef = useRef<number | null>(null);
-    const recoverySeekTimerRef = useRef<number | null>(null);
-    const recoverySeekCleanupRef = useRef<(() => void) | null>(null);
     const recoveryTargetTimeRef = useRef<number | null>(null);
+    const recoveryResumeRef = useRef(false);
+    const recoverySkipRef = useRef(0);
     const recoveringRef = useRef(false);
 
     // Merge the forwarded ref with our local ref so we can attach debug
@@ -126,14 +143,10 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         window.clearTimeout(recoveryTimerRef.current);
         recoveryTimerRef.current = null;
       }
-      if (recoverySeekTimerRef.current !== null) {
-        window.clearTimeout(recoverySeekTimerRef.current);
-        recoverySeekTimerRef.current = null;
-      }
-      recoverySeekCleanupRef.current?.();
-      recoverySeekCleanupRef.current = null;
       recoveryAttemptsRef.current = 0;
       recoveryTargetTimeRef.current = null;
+      recoveryResumeRef.current = false;
+      recoverySkipRef.current = 0;
       recoveringRef.current = false;
       setError(null);
       setReady(false);
@@ -145,12 +158,10 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           window.clearTimeout(recoveryTimerRef.current);
           recoveryTimerRef.current = null;
         }
-        if (recoverySeekTimerRef.current !== null) {
-          window.clearTimeout(recoverySeekTimerRef.current);
-          recoverySeekTimerRef.current = null;
-        }
-        recoverySeekCleanupRef.current?.();
-        recoverySeekCleanupRef.current = null;
+        recoveryTargetTimeRef.current = null;
+        recoveryResumeRef.current = false;
+        recoverySkipRef.current = 0;
+        recoveringRef.current = false;
       };
     }, [src, label]);
 
@@ -187,17 +198,37 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           window.clearTimeout(recoveryTimerRef.current);
           recoveryTimerRef.current = null;
         }
-        recoverySeekCleanupRef.current?.();
-        recoverySeekCleanupRef.current = null;
-        if (recoverySeekTimerRef.current !== null) {
-          window.clearTimeout(recoverySeekTimerRef.current);
-          recoverySeekTimerRef.current = null;
-        }
+
+        const targetTime = recoveryTargetTimeRef.current;
+        const resume = recoveryResumeRef.current;
+        const skippedSeconds = recoverySkipRef.current;
+        const attempt = recoveryAttemptsRef.current;
+
         recoveryTargetTimeRef.current = null;
+        recoveryResumeRef.current = false;
+        recoverySkipRef.current = 0;
         recoveringRef.current = false;
         setReady(true);
         setError(null);
-        window.dispatchEvent(new Event("tripviewer:media-recovered"));
+
+        // Let the SyncEngine perform the actual seek for ALL cameras. Doing a
+        // local seek here would make a recovered slave diverge from the master,
+        // and doing it to the master before the engine sees the event can race
+        // the other pipelines. The event carries the authoritative master-axis
+        // target captured before load() reset the failed element to zero.
+        if (targetTime !== null && Number.isFinite(targetTime)) {
+          window.dispatchEvent(
+            new CustomEvent("tripviewer:media-recovered", {
+              detail: {
+                label,
+                targetTime,
+                resume,
+                skippedSeconds,
+                attempt,
+              },
+            }),
+          );
+        }
       };
 
       const onLoaded = () => {
@@ -206,50 +237,16 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           setError(null);
           return;
         }
-
-        // load() resets currentTime to 0. Preserve the pre-error position so a
-        // successful pipeline recovery cannot silently jump the canonical
-        // master (and therefore all cameras) back to the segment start.
-        const target = recoveryTargetTimeRef.current;
-        if (
-          target === null ||
-          !Number.isFinite(target) ||
-          Math.abs(video.currentTime - target) < 0.05
-        ) {
-          finishRecovery();
-          return;
-        }
-
-        const duration = Number.isFinite(video.duration)
-          ? video.duration
-          : Infinity;
-        const clamped = Math.min(Math.max(0, target), duration);
-
-        const onSeeked = () => finishRecovery();
-        video.addEventListener("seeked", onSeeked, { once: true });
-        recoverySeekCleanupRef.current = () =>
-          video.removeEventListener("seeked", onSeeked);
-        recoverySeekTimerRef.current = window.setTimeout(
-          finishRecovery,
-          3000,
-        );
-        try {
-          video.currentTime = clamped;
-        } catch (seekError) {
-          console.warn(
-            `[${label}] media recovery seek failed:`,
-            seekError,
-          );
-          finishRecovery();
-        }
+        finishRecovery();
       };
+
       video.addEventListener("loadeddata", onLoaded);
       if (video.readyState >= 2) setReady(true);
 
       return () => {
         video.removeEventListener("loadeddata", onLoaded);
       };
-    }, [src]);
+    }, [src, label]);
 
     // Debounce the overlay. If `ready` flips back to true within the
     // delay window (almost always, on a healthy machine), the timer is
@@ -386,28 +383,51 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             );
 
             // WebKitGTK/GStreamer can leave a media element in an error state
-            // after a seek/segment transition even though the source itself is
-            // valid. Retry the same source at most twice. Once loadeddata fires,
-            // the SyncEngine is asked to re-anchor all cameras.
+            // after a seek or while decoding a damaged GOP. A deterministic
+            // failure at the same timestamp will simply fail again if we reload
+            // and seek to the exact same frame, so recovery escalates:
+            //   1) retry same position
+            //   2) skip to a later GOP
+            //   3) skip farther if necessary
+            // The SyncEngine applies the target to every camera so sync is
+            // preserved instead of letting one recovered element free-run.
             const recoverable = code === 2 || code === 3 || code === 4;
-            if (recoverable && recoveryAttemptsRef.current < 2) {
+            if (
+              recoverable &&
+              recoveryAttemptsRef.current < MAX_MEDIA_RECOVERY_ATTEMPTS
+            ) {
               recoveryAttemptsRef.current += 1;
-              if (!recoveringRef.current) {
-                // The canonical master owns store.currentTime. Some WebKit
-                // failures reset the element's currentTime before onError
-                // runs, so prefer the last authoritative store position for
-                // that channel; slaves keep their own local media time.
-                const rememberedTime = audioEnabled
-                  ? useStore.getState().currentTime
-                  : video.currentTime;
-                recoveryTargetTimeRef.current = Number.isFinite(rememberedTime)
-                  ? rememberedTime
-                  : 0;
-              }
+              const state = useStore.getState();
+              const skipSeconds = recoverySkipSeconds(
+                recoveryAttemptsRef.current,
+                state.sourceMode,
+              );
+              const rememberedMasterTime = Number.isFinite(state.currentTime)
+                ? state.currentTime
+                : 0;
+
+              recoveryTargetTimeRef.current =
+                rememberedMasterTime + skipSeconds;
+              recoveryResumeRef.current =
+                state.isPlaying || (!video.paused && !video.ended);
+              recoverySkipRef.current = skipSeconds;
               recoveringRef.current = true;
               setReady(false);
               setError(null);
-              const delay = recoveryAttemptsRef.current === 1 ? 200 : 600;
+
+              console.warn(
+                `[${label}] media recovery attempt ${recoveryAttemptsRef.current}/${MAX_MEDIA_RECOVERY_ATTEMPTS}` +
+                  (skipSeconds > 0
+                    ? ` — skipping ${skipSeconds}s past failed decode point`
+                    : " — retrying same position"),
+              );
+
+              const delay =
+                recoveryAttemptsRef.current === 1
+                  ? 200
+                  : recoveryAttemptsRef.current === 2
+                    ? 500
+                    : 800;
               if (recoveryTimerRef.current !== null) {
                 window.clearTimeout(recoveryTimerRef.current);
               }
