@@ -372,14 +372,22 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
               (range.endS === null || nowT < range.endS),
           );
 
-          if (known?.endS !== null && known?.endS !== undefined) {
+          const cachedClosedFailure =
+            error.startsWith("known media failure:") &&
+            known?.endS !== null &&
+            known?.endS !== undefined;
+
+          if (cachedClosedFailure) {
             // We already know this interval's end from a prior viewing. Wait
-            // for the healthy master to cross it, then verify once.
-            if (nowT < known.endS) {
+            // for the healthy master to cross it, then verify immediately.
+            if (nowT < known.endS!) {
               await delay(250);
               continue;
             }
-          } else {
+          } else if (
+            !error.startsWith("known media failure:") ||
+            known?.endS === null
+          ) {
             const delayMs =
               RECOVERY_DELAYS_MS[
                 Math.min(attempt, RECOVERY_DELAYS_MS.length - 1)
