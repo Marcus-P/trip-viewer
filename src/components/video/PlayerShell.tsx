@@ -60,6 +60,12 @@ export function PlayerShell() {
     () => new Set(),
   );
   const failedChannelLabelsRef = useRef<Set<string>>(new Set());
+  // Once the canonical master fails, keep the promoted healthy camera as the
+  // clock for the rest of this source. A recovered Front rejoins as a slave
+  // rather than forcing another mid-segment master swap.
+  const [stickySyncMasterLabel, setStickySyncMasterLabel] = useState<
+    string | null
+  >(null);
   // True when we entered the current tier mode automatically because
   // playback (or a seek, or a trip load) crossed into a tombstone span
   // in Original mode. The flip-back effect uses this to switch back
@@ -187,10 +193,21 @@ export function PlayerShell() {
     return m;
   }, [sourceMode, trip, timelapseJobs]);
 
-  const syncChannelLabels = useMemo(
-    () => channelLabels.filter((label) => !failedChannelLabels.has(label)),
-    [channelLabels, failedChannelLabels],
-  );
+  const syncChannelLabels = useMemo(() => {
+    const healthy = channelLabels.filter(
+      (label) => !failedChannelLabels.has(label),
+    );
+    if (
+      stickySyncMasterLabel &&
+      healthy.includes(stickySyncMasterLabel)
+    ) {
+      return [
+        stickySyncMasterLabel,
+        ...healthy.filter((label) => label !== stickySyncMasterLabel),
+      ];
+    }
+    return healthy;
+  }, [channelLabels, failedChannelLabels, stickySyncMasterLabel]);
   const syncMasterLabel = syncChannelLabels[0] ?? null;
 
   const engine = useSyncEngine(
@@ -206,22 +223,34 @@ export function PlayerShell() {
   useEffect(() => {
     failedChannelLabelsRef.current = new Set();
     setFailedChannelLabels(new Set());
+    setStickySyncMasterLabel(null);
   }, [activeSegmentForVideo?.id]);
 
   const handleChannelMediaError = useCallback(
     (label: string, message: string) => {
       const state = useStore.getState();
-
-      // Preserve the logical position and play intent before rebuilding the
-      // engine without the failed channel. If the canonical front camera dies,
-      // Interior/Rear can become the new clock without a trip-wide stop.
-      pendingSeekRef.current = state.currentTime;
-      if (state.isPlaying) shouldAutoPlay.current = true;
-
       const failed = new Set(failedChannelLabelsRef.current);
       if (failed.has(label)) return;
       failed.add(label);
       failedChannelLabelsRef.current = failed;
+
+      const healthy = channelLabels.filter((candidate) => !failed.has(candidate));
+
+      // Preserve logical position and play intent while the engine rebuilds
+      // without this camera. If the failed channel owned the clock, promote
+      // the next healthy channel and keep it sticky for this source.
+      pendingSeekRef.current = state.currentTime;
+      if (state.isPlaying && healthy.length > 0) {
+        shouldAutoPlay.current = true;
+      } else if (healthy.length === 0) {
+        shouldAutoPlay.current = false;
+        state.setIsPlaying(false);
+      }
+
+      if (label === syncMasterLabel && healthy.length > 0) {
+        setStickySyncMasterLabel(healthy[0]);
+      }
+
       setFailedChannelLabels(new Set(failed));
 
       console.warn(
@@ -230,9 +259,8 @@ export function PlayerShell() {
 
       // GPS must not remain tied to a camera file we just proved is damaged.
       // Rebuild the persisted trip trace once, excluding every failed camera
-      // in this segment. The backend can then select Interior/Rear (or another
-      // future channel) as the GPS provider and saves that choice in trip_gps,
-      // so subsequent launches reuse it without another extraction pass.
+      // in this segment. The backend can then select another healthy channel
+      // as the GPS provider and persists that repaired track for later runs.
       if (state.sourceMode === "original" && state.loadedTripId) {
         const currentTrip = state.trips.find(
           (candidate) => candidate.id === state.loadedTripId,
@@ -253,16 +281,28 @@ export function PlayerShell() {
               }));
             })
             .catch((error) => {
-              console.error(
-                "[player] GPS failover refresh failed:",
-                error,
-              );
+              console.error("[player] GPS failover refresh failed:", error);
             });
         }
       }
     },
-    [],
+    [channelLabels, syncMasterLabel],
   );
+
+  const handleChannelMediaRecovered = useCallback((label: string) => {
+    const failed = new Set(failedChannelLabelsRef.current);
+    if (!failed.delete(label)) return;
+    failedChannelLabelsRef.current = failed;
+
+    const state = useStore.getState();
+    pendingSeekRef.current = state.currentTime;
+    if (state.isPlaying) shouldAutoPlay.current = true;
+    setFailedChannelLabels(new Set(failed));
+
+    console.info(
+      `[player] ${label} recovered and will rejoin sync at ${state.currentTime.toFixed(2)}s`,
+    );
+  }, []);
 
   /**
    * Swap playback source. Preserves trip-time and play state: we
@@ -709,6 +749,7 @@ export function PlayerShell() {
           activeSegment={activeSegmentForVideo}
           syncMasterLabel={syncMasterLabel}
           onChannelMediaError={handleChannelMediaError}
+          onChannelMediaRecovered={handleChannelMediaRecovered}
         />
         {showMap && <MapPanel activeSegment={activeSegmentForUi} />}
         <DriftHud />
