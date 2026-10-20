@@ -58,7 +58,11 @@ interface Props {
   /** Current SyncEngine clock/master label. May differ from the canonical
    *  front channel after a per-camera decode failure. */
   syncMasterLabel: string | null;
-  onChannelMediaError?: (label: string, message: string) => void;
+  onChannelMediaError?: (
+    label: string,
+    message: string,
+    cached: boolean,
+  ) => void;
   onChannelMediaRecovered?: (label: string) => void;
 }
 
