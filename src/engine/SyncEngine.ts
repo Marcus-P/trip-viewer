@@ -538,7 +538,7 @@ export class SyncEngine {
       const finish = (reason?: string) => {
         if (settled) return;
         settled = true;
-        window.clearTimeout(timeout);
+        globalThis.clearTimeout(timeout);
         video.removeEventListener("seeked", onSeeked);
         video.removeEventListener("error", onError);
         video.removeEventListener("emptied", onEmptied);
@@ -548,7 +548,7 @@ export class SyncEngine {
       const onSeeked = () => finish();
       const onError = () => finish("media error");
       const onEmptied = () => finish("media emptied");
-      const timeout = window.setTimeout(
+      const timeout = globalThis.setTimeout(
         () => finish(`${SEEK_WAIT_TIMEOUT_MS}ms timeout`),
         SEEK_WAIT_TIMEOUT_MS,
       );
@@ -592,7 +592,7 @@ export class SyncEngine {
       const finish = (reason?: string) => {
         if (settled) return;
         settled = true;
-        window.clearTimeout(timeout);
+        globalThis.clearTimeout(timeout);
         video.removeEventListener("loadedmetadata", onLoaded);
         video.removeEventListener("error", onError);
         video.removeEventListener("abort", onAbort);
@@ -602,7 +602,7 @@ export class SyncEngine {
       const onLoaded = () => finish();
       const onError = () => finish("media error");
       const onAbort = () => finish("abort");
-      const timeout = window.setTimeout(
+      const timeout = globalThis.setTimeout(
         () => finish(`${METADATA_WAIT_TIMEOUT_MS}ms timeout`),
         METADATA_WAIT_TIMEOUT_MS,
       );
