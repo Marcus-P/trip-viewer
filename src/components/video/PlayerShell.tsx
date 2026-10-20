@@ -420,17 +420,26 @@ export function PlayerShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSegmentForVideo, sourceMode]);
 
-  // Auto-play after segment advance, cross-segment seek, or source switch.
+  // Restore position before playback after a segment/source transition.
+  // Starting playback first and seeking immediately afterwards races two
+  // WebKit/GStreamer pipeline flushes and can leave one camera wedged or
+  // permanently offset.
   useEffect(() => {
     if (!engine) return;
-    if (shouldAutoPlay.current) {
-      shouldAutoPlay.current = false;
-      void engine.play();
-    }
-    if (pendingSeekRef.current !== null) {
-      engine.seek(pendingSeekRef.current);
-      pendingSeekRef.current = null;
-    }
+
+    const pendingSeek = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    const autoPlay = shouldAutoPlay.current;
+    shouldAutoPlay.current = false;
+
+    void (async () => {
+      if (pendingSeek !== null) {
+        await engine.seek(pendingSeek, { resume: false });
+      }
+      if (autoPlay) {
+        await engine.play();
+      }
+    })();
   }, [engine]);
 
   // In tiered mode the engine's tick writes file-time to
@@ -521,7 +530,7 @@ export function PlayerShell() {
         }
         const currentSegId = activeSegmentId ?? trip.segments[0]?.id;
         if (target.activeSegmentId === currentSegId) {
-          engine?.seek(target.segmentLocalTime);
+          void engine?.seek(target.segmentLocalTime);
         } else {
           pendingSeekRef.current = target.segmentLocalTime;
           if (isPlaying) shouldAutoPlay.current = true;
@@ -535,7 +544,7 @@ export function PlayerShell() {
         // current segment for tags; useEffect above will also fire on
         // the currentTime change, so this write + engine.seek keeps
         // everything consistent.
-        engine?.seek(target.fileTime);
+        void engine?.seek(target.fileTime);
         if (target.virtualActiveSegmentId) {
           useStore.setState({ activeSegmentId: target.virtualActiveSegmentId });
         }
