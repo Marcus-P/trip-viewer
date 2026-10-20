@@ -59,6 +59,7 @@ interface Props {
    *  front channel after a per-camera decode failure. */
   syncMasterLabel: string | null;
   onChannelMediaError?: (label: string, message: string) => void;
+  onChannelMediaRecovered?: (label: string) => void;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -100,6 +101,7 @@ export function VideoGrid({
   activeSegment,
   syncMasterLabel,
   onChannelMediaError,
+  onChannelMediaRecovered,
 }: Props) {
   const primaryChannel = useStore((s) => s.primaryChannel);
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
@@ -671,9 +673,11 @@ export function VideoGrid({
               ref={setRef(channel.label)}
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
+              filePath={channel.filePath}
               isMaster={isPrimary}
               audioEnabled={channel.label === (syncMasterLabel ?? canonicalMasterLabel)}
               onMediaError={onChannelMediaError}
+              onMediaRecovered={onChannelMediaRecovered}
               onClick={isPrimary ? undefined : () => selectPrimary(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
               onContextMenu={(event) => {
