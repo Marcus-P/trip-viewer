@@ -130,13 +130,24 @@ export function TransportControls({ engine, onSourceChange }: Props) {
     const onPlaybackPause = () => {
       engine?.pause();
     };
+    const onMediaRecovered = () => {
+      if (!engine) return;
+      // A ChannelPanel just rebuilt a WebKit/GStreamer pipeline after a
+      // transient media error. Re-anchor it before resuming the trip.
+      engine.resyncToMaster();
+      if (useStore.getState().isPlaying) {
+        void engine.play();
+      }
+    };
     window.addEventListener("tripviewer:toggle-playback", onDashboardToggle);
     window.addEventListener("tripviewer:resync-playback", onPlaybackResync);
     window.addEventListener("tripviewer:pause-playback", onPlaybackPause);
+    window.addEventListener("tripviewer:media-recovered", onMediaRecovered);
     return () => {
       window.removeEventListener("tripviewer:toggle-playback", onDashboardToggle);
       window.removeEventListener("tripviewer:resync-playback", onPlaybackResync);
       window.removeEventListener("tripviewer:pause-playback", onPlaybackPause);
+      window.removeEventListener("tripviewer:media-recovered", onMediaRecovered);
     };
   }, [engine]);
 
