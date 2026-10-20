@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSyncEngine } from "../../engine/useSyncEngine";
+import { ensureTripGps } from "../../ipc/gps";
 import { useStore } from "../../state/store";
 import type { Channel, Segment } from "../../types/model";
 import {
@@ -58,6 +59,7 @@ export function PlayerShell() {
   const [failedChannelLabels, setFailedChannelLabels] = useState<Set<string>>(
     () => new Set(),
   );
+  const failedChannelLabelsRef = useRef<Set<string>>(new Set());
   // True when we entered the current tier mode automatically because
   // playback (or a seek, or a trip load) crossed into a tombstone span
   // in Original mode. The flip-back effect uses this to switch back
@@ -202,6 +204,7 @@ export function PlayerShell() {
   // number of seconds to skip inside a corrupt file; the failed channel stays
   // isolated until a genuinely new source is loaded.
   useEffect(() => {
+    failedChannelLabelsRef.current = new Set();
     setFailedChannelLabels(new Set());
   }, [activeSegmentForVideo?.id]);
 
@@ -215,16 +218,48 @@ export function PlayerShell() {
       pendingSeekRef.current = state.currentTime;
       if (state.isPlaying) shouldAutoPlay.current = true;
 
-      setFailedChannelLabels((prev) => {
-        if (prev.has(label)) return prev;
-        const next = new Set(prev);
-        next.add(label);
-        return next;
-      });
+      const failed = new Set(failedChannelLabelsRef.current);
+      if (failed.has(label)) return;
+      failed.add(label);
+      failedChannelLabelsRef.current = failed;
+      setFailedChannelLabels(new Set(failed));
 
       console.warn(
         `[player] ${label} removed from sync for current source: ${message}`,
       );
+
+      // GPS must not remain tied to a camera file we just proved is damaged.
+      // Rebuild the persisted trip trace once, excluding every failed camera
+      // in this segment. The backend can then select Interior/Rear (or another
+      // future channel) as the GPS provider and saves that choice in trip_gps,
+      // so subsequent launches reuse it without another extraction pass.
+      if (state.sourceMode === "original" && state.loadedTripId) {
+        const currentTrip = state.trips.find(
+          (candidate) => candidate.id === state.loadedTripId,
+        );
+        const segmentId =
+          state.activeSegmentId ?? currentTrip?.segments[0]?.id ?? null;
+        if (currentTrip && segmentId) {
+          const excluded = {
+            [segmentId]: Array.from(failed),
+          };
+          void ensureTripGps(currentTrip, excluded, true)
+            .then((points) => {
+              useStore.setState((latest) => ({
+                tripGpsByTrip: {
+                  ...latest.tripGpsByTrip,
+                  [currentTrip.id]: points,
+                },
+              }));
+            })
+            .catch((error) => {
+              console.error(
+                "[player] GPS failover refresh failed:",
+                error,
+              );
+            });
+        }
+      }
     },
     [],
   );
