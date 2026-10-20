@@ -189,22 +189,7 @@ pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<Gp
 pub async fn extract_gps_batch(requests: Vec<GpsRequest>) -> Result<Vec<GpsBatchItem>, AppError> {
     let mut extracted: Vec<BatchGps> = requests
         .par_iter()
-        .map(|req| {
-            let path = Path::new(&req.path);
-            if matches!(req.camera_kind, CameraKind::Generic) && is_viofo_path(path) {
-                let timed = extract_viofo_timed(path).unwrap_or_default();
-                BatchGps::Viofo {
-                    file_path: req.path.clone(),
-                    timed,
-                }
-            } else {
-                let points = extract_for_kind(path, req.camera_kind).unwrap_or_default();
-                BatchGps::Plain(GpsBatchItem {
-                    file_path: req.path.clone(),
-                    points,
-                })
-            }
-        })
+        .map(|req| extract_batch_item(&req.path, req.camera_kind))
         .collect();
 
     validate_viofo_batch_boundaries(&mut extracted);
@@ -219,6 +204,56 @@ pub async fn extract_gps_batch(requests: Vec<GpsRequest>) -> Result<Vec<GpsBatch
             },
         })
         .collect())
+}
+
+/// Return cached trip GPS when current; otherwise extract it once from the
+/// supplied segment/channel candidates, persist it in trip_gps, and return it.
+/// force=true is used after a runtime media failure so a known-bad camera can
+/// be excluded for that segment and the persisted track can heal immediately.
+#[tauri::command]
+pub async fn ensure_trip_gps(
+    trip_id: String,
+    segments: Vec<TripGpsSegmentRequest>,
+    force: Option<bool>,
+    slot: State<'_, ArchiveSlot>,
+) -> Result<Vec<GpsPoint>, AppError> {
+    let db = require_db(&slot)?;
+    let force = force.unwrap_or(false);
+
+    if !force {
+        let conn = db
+            .lock()
+            .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
+        if crate::db::trip_gps::has_current(&conn, &trip_id, GPS_PARSER_VERSION)? {
+            return Ok(crate::db::trip_gps::load(&conn, &trip_id)?.unwrap_or_default());
+        }
+    }
+
+    if segments.is_empty() {
+        let conn = db
+            .lock()
+            .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
+        return Ok(crate::db::trip_gps::load(&conn, &trip_id)?.unwrap_or_default());
+    }
+
+    let sources: Vec<TripGpsSegmentSource> = segments
+        .into_iter()
+        .map(|segment| TripGpsSegmentSource {
+            duration_s: segment.duration_s,
+            camera_kind: segment.camera_kind,
+            paths: segment.channels.into_iter().map(|c| c.path).collect(),
+        })
+        .collect();
+
+    let points = tauri::async_runtime::spawn_blocking(move || extract_best_trip_gps(&sources))
+        .await
+        .map_err(|e| AppError::Internal(format!("trip GPS worker failed: {e}")))?;
+
+    let conn = db
+        .lock()
+        .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
+    crate::db::trip_gps::upsert(&conn, &trip_id, &points, GPS_PARSER_VERSION)?;
+    Ok(points)
 }
 
 /// Load archived trip-stitched GPS from the DB. Returns an empty vec
