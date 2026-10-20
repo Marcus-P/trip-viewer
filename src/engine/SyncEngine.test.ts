@@ -271,4 +271,68 @@ describe("SyncEngine transport barriers", () => {
 
     engine.dispose();
   });
+
+  it("treats an active seek as a pause-seek-resume barrier", async () => {
+    const master = new FakeVideo({ currentTime: 5, seekDelayMs: 12 });
+    const a = new FakeVideo({ currentTime: 2, seekDelayMs: 10 });
+    const b = new FakeVideo({ currentTime: 8, seekDelayMs: 8 });
+    const engine = engineFor(master, [a, b]);
+
+    await engine.play();
+    const seeking = engine.seek(42);
+    await sleep(2);
+
+    expect(master.paused).toBe(true);
+    expect(a.paused).toBe(true);
+    expect(b.paused).toBe(true);
+
+    await seeking;
+
+    expect(master.currentTime).toBeCloseTo(42, 6);
+    expect(a.currentTime).toBeCloseTo(42, 6);
+    expect(b.currentTime).toBeCloseTo(42, 6);
+    expect(master.paused).toBe(false);
+    expect(a.paused).toBe(false);
+    expect(b.paused).toBe(false);
+    expect(useStore.getState().isPlaying).toBe(true);
+
+    engine.dispose();
+  });
+
+  it("can seek without resuming for segment handoff", async () => {
+    const master = new FakeVideo({ currentTime: 4, seekDelayMs: 2 });
+    const slave = new FakeVideo({ currentTime: 1, seekDelayMs: 2 });
+    const engine = engineFor(master, [slave]);
+
+    await engine.play();
+    await engine.seek(17, { resume: false });
+
+    expect(master.currentTime).toBeCloseTo(17, 6);
+    expect(slave.currentTime).toBeCloseTo(17, 6);
+    expect(master.paused).toBe(true);
+    expect(slave.paused).toBe(true);
+    expect(useStore.getState().isPlaying).toBe(false);
+
+    engine.dispose();
+  });
+
+  it("lets only the newest overlapping seek resume playback", async () => {
+    const master = new FakeVideo({ currentTime: 1, seekDelayMs: 20 });
+    const slave = new FakeVideo({ currentTime: 1, seekDelayMs: 20 });
+    const engine = engineFor(master, [slave]);
+
+    await engine.play();
+    const first = engine.seek(10);
+    await sleep(2);
+    const second = engine.seek(30);
+    await Promise.all([first, second]);
+
+    expect(master.currentTime).toBeCloseTo(30, 6);
+    expect(slave.currentTime).toBeCloseTo(30, 6);
+    expect(master.paused).toBe(false);
+    expect(slave.paused).toBe(false);
+    expect(useStore.getState().isPlaying).toBe(true);
+
+    engine.dispose();
+  });
 });
