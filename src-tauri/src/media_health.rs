@@ -17,7 +17,7 @@ pub struct MediaHealthRange {
     pub error_kind: String,
 }
 
-fn fingerprint(path: &Path) -> Result<(i64, i64), AppError> {
+pub(crate) fn fingerprint(path: &Path) -> Result<(i64, i64), AppError> {
     let meta = std::fs::metadata(path)?;
     let size = i64::try_from(meta.len())
         .map_err(|_| AppError::Internal("media file size exceeds i64".into()))?;
@@ -30,7 +30,7 @@ fn fingerprint(path: &Path) -> Result<(i64, i64), AppError> {
     Ok((size, modified_ms))
 }
 
-fn stored_path(path: &Path, archive_root: &Path) -> String {
+pub(crate) fn stored_path(path: &Path, archive_root: &Path) -> String {
     crate::paths::to_archive_relative(path, archive_root)
         .unwrap_or_else(|_| path.to_string_lossy().into_owned())
 }
@@ -48,35 +48,34 @@ pub async fn load_media_health(
 
     let mut out = Vec::new();
     for original in paths {
-        let path = Path::new(&original);
-        let Ok((size, modified_ms)) = fingerprint(path) else {
-            continue;
-        };
-        let stored = stored_path(path, &archive_root);
-        let mut stmt = conn.prepare(
-            "SELECT start_ms, end_ms, error_kind
-             FROM media_health_ranges
-             WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
-             ORDER BY start_ms ASC",
-        )?;
-        let rows = stmt.query_map(params![stored, size, modified_ms], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, Option<i64>>(1)?,
-                r.get::<_, String>(2)?,
-            ))
-        })?;
-        for row in rows {
-            let (start_ms, end_ms, error_kind) = row?;
-            out.push(MediaHealthRange {
-                path: original.clone(),
-                start_s: start_ms as f64 / 1000.0,
-                end_s: end_ms.map(|v| v as f64 / 1000.0),
-                error_kind,
-            });
-        }
+        out.extend(load_file_health(&conn, &original, &archive_root)?);
     }
     Ok(out)
+}
+
+fn load_file_health(
+    conn: &rusqlite::Connection,
+    original: &str,
+    archive_root: &Path,
+) -> Result<Vec<MediaHealthRange>, AppError> {
+    let path = Path::new(original);
+    let Ok((size, modified_ms)) = fingerprint(path) else {
+        return Ok(Vec::new());
+    };
+    let stored = stored_path(path, archive_root);
+    let mut stmt = conn.prepare(
+        "SELECT start_ms, end_ms, error_kind FROM media_health_ranges
+         WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3 ORDER BY start_ms ASC",
+    )?;
+    let rows = stmt.query_map(params![stored, size, modified_ms], |r| {
+        Ok(MediaHealthRange {
+            path: original.to_string(),
+            start_s: r.get::<_, i64>(0)? as f64 / 1000.0,
+            end_s: r.get::<_, Option<i64>>(1)?.map(|v| v as f64 / 1000.0),
+            error_kind: r.get(2)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 #[tauri::command]
@@ -102,6 +101,26 @@ pub async fn record_media_failure(
         .lock()
         .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
 
+    persist_failure(
+        &conn,
+        &stored,
+        size,
+        modified_ms,
+        start_ms,
+        &error_kind,
+        now,
+    )
+}
+
+fn persist_failure(
+    conn: &rusqlite::Connection,
+    stored: &str,
+    size: i64,
+    modified_ms: i64,
+    start_ms: i64,
+    error_kind: &str,
+    now: i64,
+) -> Result<(), AppError> {
     let open_id: Option<i64> = conn
         .query_row(
             "SELECT id
@@ -157,15 +176,26 @@ pub async fn record_media_recovery(
         .lock()
         .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
 
+    persist_recovery(&conn, &stored, size, modified_ms, end_ms, now)
+}
+
+fn persist_recovery(
+    conn: &rusqlite::Connection,
+    stored: &str,
+    size: i64,
+    modified_ms: i64,
+    end_ms: i64,
+    now: i64,
+) -> Result<(), AppError> {
     let open: Option<(i64, i64)> = conn
         .query_row(
             "SELECT id, start_ms
              FROM media_health_ranges
              WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
-               AND end_ms IS NULL
+               AND end_ms IS NULL AND start_ms <= ?4
              ORDER BY start_ms DESC
              LIMIT 1",
-            params![stored, size, modified_ms],
+            params![stored, size, modified_ms, end_ms],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .optional()?;
@@ -179,4 +209,65 @@ pub async fn record_media_recovery(
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn independent_camera_ranges_close_persist_and_invalidate_on_replacement() {
+        let root = tempfile::tempdir().unwrap();
+        let db = crate::db::open_in_memory().unwrap();
+        let conn = db.lock().unwrap();
+        for name in ["front.mp4", "rear.mp4"] {
+            let path = root.path().join(name);
+            std::fs::write(&path, b"media").unwrap();
+            let (size, modified) = fingerprint(&path).unwrap();
+            persist_failure(&conn, name, size, modified, 89000, "decode", 1).unwrap();
+            persist_failure(&conn, name, size, modified, 90000, "decode", 2).unwrap();
+            let loaded = load_file_health(&conn, path.to_str().unwrap(), root.path()).unwrap();
+            assert_eq!(loaded.len(), 1);
+            assert_eq!(loaded[0].start_s, 89.0);
+            assert_eq!(loaded[0].end_s, None);
+        }
+        let front = root.path().join("front.mp4");
+        let (size, modified) = fingerprint(&front).unwrap();
+        // A backward seek to a healthy frame must not close a later failure.
+        persist_recovery(&conn, "front.mp4", size, modified, 10000, 3).unwrap();
+        assert_eq!(
+            load_file_health(&conn, front.to_str().unwrap(), root.path()).unwrap()[0].end_s,
+            None
+        );
+        persist_recovery(&conn, "front.mp4", size, modified, 100000, 4).unwrap();
+        assert_eq!(
+            load_file_health(&conn, front.to_str().unwrap(), root.path()).unwrap()[0].end_s,
+            Some(100.0)
+        );
+        let rear = root.path().join("rear.mp4");
+        assert_eq!(
+            load_file_health(&conn, rear.to_str().unwrap(), root.path()).unwrap()[0].end_s,
+            None
+        );
+        std::fs::write(&front, b"repaired, different size").unwrap();
+        assert!(
+            load_file_health(&conn, front.to_str().unwrap(), root.path())
+                .unwrap()
+                .is_empty()
+        );
+        let (size, modified) = fingerprint(&rear).unwrap();
+        persist_recovery(&conn, "rear.mp4", size, modified, 110000, 5).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&rear)
+            .unwrap()
+            .set_times(
+                std::fs::FileTimes::new()
+                    .set_modified(UNIX_EPOCH + std::time::Duration::from_secs(123)),
+            )
+            .unwrap();
+        assert!(load_file_health(&conn, rear.to_str().unwrap(), root.path())
+            .unwrap()
+            .is_empty());
+    }
 }

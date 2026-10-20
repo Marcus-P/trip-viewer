@@ -28,6 +28,7 @@ import { Timeline } from "../timeline/Timeline";
 import { WelcomePanel } from "../welcome/WelcomePanel";
 import { decideShowMap } from "./decideShowMap";
 import { VideoGrid } from "./VideoGrid";
+import { healthyLineup } from "./channelHealth";
 
 /** Map the backend's F/I/R channel code to the frontend's canonical
  *  label. Tier synthesis uses this to build Channel objects whose
@@ -60,6 +61,7 @@ export function PlayerShell() {
     () => new Set(),
   );
   const failedChannelLabelsRef = useRef<Set<string>>(new Set());
+  const stickyMasterRef = useRef<string | null>(null);
   // Once the canonical master fails, keep the promoted healthy camera as the
   // clock for the rest of this source. A recovered Front rejoins as a slave
   // rather than forcing another mid-segment master swap.
@@ -194,19 +196,7 @@ export function PlayerShell() {
   }, [sourceMode, trip, timelapseJobs]);
 
   const syncChannelLabels = useMemo(() => {
-    const healthy = channelLabels.filter(
-      (label) => !failedChannelLabels.has(label),
-    );
-    if (
-      stickySyncMasterLabel &&
-      healthy.includes(stickySyncMasterLabel)
-    ) {
-      return [
-        stickySyncMasterLabel,
-        ...healthy.filter((label) => label !== stickySyncMasterLabel),
-      ];
-    }
-    return healthy;
+    return healthyLineup(channelLabels, failedChannelLabels, stickySyncMasterLabel);
   }, [channelLabels, failedChannelLabels, stickySyncMasterLabel]);
   const syncMasterLabel = syncChannelLabels[0] ?? null;
 
@@ -218,12 +208,13 @@ export function PlayerShell() {
   );
 
   // A segment/source boundary is the natural retry point. We never guess a
-  // number of seconds to skip inside a corrupt file; the failed channel stays
-  // isolated until a genuinely new source is loaded.
+  // number of seconds to skip inside a corrupt file. Background recovery can
+  // rejoin cameras sooner, while a new source resets every channel's state.
   useEffect(() => {
     failedChannelLabelsRef.current = new Set();
     setFailedChannelLabels(new Set());
     setStickySyncMasterLabel(null);
+    stickyMasterRef.current = null;
   }, [activeSegmentForVideo?.id]);
 
   const handleChannelMediaError = useCallback(
@@ -234,7 +225,7 @@ export function PlayerShell() {
       failed.add(label);
       failedChannelLabelsRef.current = failed;
 
-      const healthy = channelLabels.filter((candidate) => !failed.has(candidate));
+      const healthy = healthyLineup(channelLabels, failed, stickyMasterRef.current);
 
       // Preserve logical position and play intent while the engine rebuilds
       // without this camera. If the failed channel owned the clock, promote
@@ -247,9 +238,8 @@ export function PlayerShell() {
         state.setIsPlaying(false);
       }
 
-      if (label === syncMasterLabel && healthy.length > 0) {
-        setStickySyncMasterLabel(healthy[0]);
-      }
+      stickyMasterRef.current = healthy[0] ?? null;
+      setStickySyncMasterLabel(stickyMasterRef.current);
 
       setFailedChannelLabels(new Set(failed));
 
@@ -286,13 +276,16 @@ export function PlayerShell() {
         }
       }
     },
-    [channelLabels, syncMasterLabel],
+    [channelLabels],
   );
 
   const handleChannelMediaRecovered = useCallback((label: string) => {
     const failed = new Set(failedChannelLabelsRef.current);
     if (!failed.delete(label)) return;
     failedChannelLabelsRef.current = failed;
+    const healthy = healthyLineup(channelLabels, failed, stickyMasterRef.current);
+    stickyMasterRef.current = healthy[0] ?? null;
+    setStickySyncMasterLabel(stickyMasterRef.current);
 
     const state = useStore.getState();
     pendingSeekRef.current = state.currentTime;
@@ -302,7 +295,7 @@ export function PlayerShell() {
     console.info(
       `[player] ${label} recovered and will rejoin sync at ${state.currentTime.toFixed(2)}s`,
     );
-  }, []);
+  }, [channelLabels]);
 
   /**
    * Swap playback source. Preserves trip-time and play state: we
@@ -649,7 +642,8 @@ export function PlayerShell() {
         }
         const currentSegId = activeSegmentId ?? trip.segments[0]?.id;
         if (target.activeSegmentId === currentSegId) {
-          void engine?.seek(target.segmentLocalTime);
+          if (engine) void engine.seek(target.segmentLocalTime);
+          else useStore.getState().setCurrentTime(target.segmentLocalTime);
         } else {
           pendingSeekRef.current = target.segmentLocalTime;
           if (isPlaying) shouldAutoPlay.current = true;

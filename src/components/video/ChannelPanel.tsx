@@ -64,102 +64,10 @@ const MEDIA_EVENTS = [
   "error",
 ] as const;
 
-const RECOVERY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000] as const;
-const RECOVERY_PROBE_TIMEOUT_MS = 5000;
+import { probeVideoAt, recoveryDelayMs } from "./mediaRecovery";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-/**
- * Probe one failed media element at the current master time without rejoining
- * it to the SyncEngine. A successful decoded frame is stronger evidence than
- * seeked/canplay alone, both of which WebKitGTK can emit before a bad GOP fails.
- */
-function probeVideoAt(
-  video: HTMLVideoElement,
-  targetTime: number,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-    let frameCallbackId: number | null = null;
-
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      video.removeEventListener("loadedmetadata", onMetadata);
-      video.removeEventListener("seeked", onSeeked);
-      video.removeEventListener("error", onFailure);
-      video.removeEventListener("abort", onFailure);
-      if (
-        frameCallbackId !== null &&
-        typeof video.cancelVideoFrameCallback === "function"
-      ) {
-        video.cancelVideoFrameCallback(frameCallbackId);
-      }
-    };
-
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      try {
-        video.pause();
-      } catch {
-        // best-effort
-      }
-      resolve(ok);
-    };
-
-    const onFailure = () => finish(false);
-
-    const waitForFrame = () => {
-      if (typeof video.requestVideoFrameCallback === "function") {
-        frameCallbackId = video.requestVideoFrameCallback(() => finish(true));
-      } else {
-        window.setTimeout(
-          () => finish(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA),
-          150,
-        );
-      }
-    };
-
-    const onSeeked = () => {
-      video
-        .play()
-        .then(waitForFrame)
-        .catch(() => finish(false));
-    };
-
-    const onMetadata = () => {
-      const duration = Number.isFinite(video.duration)
-        ? video.duration
-        : Infinity;
-      const clamped = Math.min(Math.max(0, targetTime), duration);
-      try {
-        video.currentTime = clamped;
-        if (!video.seeking) {
-          queueMicrotask(onSeeked);
-        }
-      } catch {
-        finish(false);
-      }
-    };
-
-    const timeout = window.setTimeout(
-      () => finish(false),
-      RECOVERY_PROBE_TIMEOUT_MS,
-    );
-    video.addEventListener("loadedmetadata", onMetadata, { once: true });
-    video.addEventListener("seeked", onSeeked, { once: true });
-    video.addEventListener("error", onFailure, { once: true });
-    video.addEventListener("abort", onFailure, { once: true });
-
-    try {
-      video.load();
-    } catch {
-      finish(false);
-    }
-  });
 }
 
 interface Props {
@@ -220,6 +128,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
     const failedRef = useRef(false);
     const probingRef = useRef(false);
     const sourceEpochRef = useRef(0);
+    const failureRangeRef = useRef<MediaHealthRange | undefined>(undefined);
 
     // Merge the forwarded ref with our local ref so we can attach debug
     // listeners without disturbing whatever the parent is doing with the ref.
@@ -239,6 +148,13 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       setError(null);
       setReady(false);
       setHealthRanges([]);
+      const video = localRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+      failureRangeRef.current = undefined;
       if (DEBUG_MEDIA) {
         console.log(`[media/${label}] boundary src=…${src.slice(-50)}`);
       }
@@ -246,10 +162,23 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       let cancelled = false;
       void loadMediaHealth([filePath])
         .then((ranges) => {
-          if (!cancelled) setHealthRanges(ranges);
+          if (!cancelled) {
+            setHealthRanges(ranges);
+            const t = useStore.getState().currentTime;
+            const known = ranges.find((range) => t >= range.startS && (range.endS === null || t < range.endS));
+            if (known) {
+              failureRangeRef.current = known;
+              failedRef.current = true;
+              const message = `known media failure: ${known.errorKind}`;
+              setError(message);
+              onMediaError?.(label, message, true);
+            }
+            if (!known && localRef.current) localRef.current.src = src;
+          }
         })
         .catch((healthError) => {
           console.warn(`[media/${label}] health cache load failed:`, healthError);
+          if (!cancelled && localRef.current) localRef.current.src = src;
         });
       return () => {
         cancelled = true;
@@ -305,6 +234,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       ) => {
         if (failedRef.current) return;
         failedRef.current = true;
+        localRef.current?.pause();
         setReady(false);
         setError(displayMessage);
         onMediaError?.(label, displayMessage, !persist);
@@ -337,6 +267,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             (range.endS === null || t < range.endS),
         );
         if (!known) return;
+        failureRangeRef.current = known;
         markFailed(
           `known media failure: ${known.errorKind}`,
           known.startS,
@@ -357,44 +288,25 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
 
       const epoch = sourceEpochRef.current;
       let cancelled = false;
+      const abort = new AbortController();
+      // Keep repeated decoder resets off the visible failed pipeline. A tiny
+      // rendered, muted element permits WebKit frame callbacks in background.
+      const probe = document.createElement("video");
+      probe.src = src;
+      probe.muted = true;
+      probe.playsInline = true;
+      probe.style.cssText = "position:fixed;top:0;left:0;z-index:2147483647;width:1px;height:1px;opacity:0.01;pointer-events:none";
+      probe.setAttribute("aria-hidden", "true");
+      document.body.appendChild(probe);
 
       const run = async () => {
         let attempt = 0;
-        while (
-          !cancelled &&
-          failedRef.current &&
-          epoch === sourceEpochRef.current
-        ) {
+        while (!cancelled && failedRef.current && epoch === sourceEpochRef.current) {
           const nowT = useStore.getState().currentTime;
-          const known = healthRanges.find(
-            (range) =>
-              nowT >= range.startS &&
-              (range.endS === null || nowT < range.endS),
-          );
-
-          const cachedClosedFailure =
-            error.startsWith("known media failure:") &&
-            known?.endS !== null &&
-            known?.endS !== undefined;
-
-          if (cachedClosedFailure) {
-            // We already know this interval's end from a prior viewing. Wait
-            // for the healthy master to cross it, then verify immediately.
-            if (nowT < known.endS!) {
-              await delay(250);
-              continue;
-            }
-          } else if (
-            !error.startsWith("known media failure:") ||
-            known?.endS === null
-          ) {
-            const delayMs =
-              RECOVERY_DELAYS_MS[
-                Math.min(attempt, RECOVERY_DELAYS_MS.length - 1)
-              ];
-            await delay(delayMs);
-          }
-
+          const known = failureRangeRef.current;
+          await delay(recoveryDelayMs(attempt, nowT, known));
+          const currentT = useStore.getState().currentTime;
+          if (known?.endS != null && currentT >= known.startS && currentT < known.endS) continue;
           if (
             cancelled ||
             !failedRef.current ||
@@ -403,17 +315,16 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             return;
           }
 
-          // If playback is paused the target is not moving; repeatedly probing
-          // the same known-bad frame wastes work. Keep the current backoff.
-          if (!useStore.getState().isPlaying) {
-            await delay(500);
-            continue;
-          }
-
+          // Also probe when every camera failed and transport is paused;
+          // otherwise the final failure would deadlock recovery forever.
           const target = useStore.getState().currentTime;
-          probingRef.current = true;
-          const ok = await probeVideoAt(video, target);
-          probingRef.current = false;
+          let ok = await probeVideoAt(probe, target, abort.signal);
+          if (ok && !cancelled && epoch === sourceEpochRef.current) {
+            probingRef.current = true;
+            if (video.getAttribute("src") !== src) video.src = src;
+            ok = await probeVideoAt(video, useStore.getState().currentTime, abort.signal);
+            probingRef.current = false;
+          }
 
           if (
             cancelled ||
@@ -427,7 +338,12 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             failedRef.current = false;
             setError(null);
             setReady(true);
-            void recordMediaRecovery(filePath, target).catch((healthError) => {
+            const recoveredAt = video.currentTime;
+            setHealthRanges((ranges) => ranges.map((range) =>
+              range.endS === null && range.startS <= recoveredAt
+                ? { ...range, endS: recoveredAt } : range));
+            failureRangeRef.current = undefined;
+            void recordMediaRecovery(filePath, recoveredAt).catch((healthError) => {
               console.warn(
                 `[media/${label}] health cache recovery write failed:`,
                 healthError,
@@ -437,6 +353,20 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             return;
           }
 
+          // A previously closed range is only a hint: if decoding still fails
+          // outside it, persist the newly observed failure rather than making
+          // the next session rediscover the continuation again.
+          if (known?.endS != null) {
+            const continued: MediaHealthRange = {
+              path: filePath, startS: target, endS: null, errorKind: known.errorKind,
+            };
+            failureRangeRef.current = continued;
+            setHealthRanges((ranges) => [...ranges, continued]);
+            void recordMediaFailure(filePath, target, known.errorKind).catch((healthError) => {
+              console.warn(`[media/${label}] continued failure write failed:`, healthError);
+            });
+          }
+
           attempt += 1;
         }
       };
@@ -444,9 +374,14 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       void run();
       return () => {
         cancelled = true;
+        abort.abort();
+        probe.pause();
+        probe.removeAttribute("src");
+        probe.load();
+        probe.remove();
         probingRef.current = false;
       };
-    }, [error, filePath, healthRanges, label, onMediaRecovered]);
+    }, [error, filePath, src, label, onMediaRecovered]);
 
     // Debounce the overlay. If `ready` flips back to true within the
     // delay window (almost always, on a healthy machine), the timer is
@@ -566,7 +501,6 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       >
         <video
           ref={setRefs}
-          src={src}
           className="h-full w-full object-contain"
           muted={audioMuted}
           preload="auto"
