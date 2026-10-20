@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSyncEngine } from "../../engine/useSyncEngine";
-import { ensureTripGps } from "../../ipc/gps";
+import { prepareTripGps } from "../../state/gpsPreparation";
 import { useStore } from "../../state/store";
 import type { Channel, Segment } from "../../types/model";
 import {
@@ -261,15 +261,7 @@ export function PlayerShell() {
           const excluded = {
             [segmentId]: Array.from(failed),
           };
-          void ensureTripGps(currentTrip, excluded, true)
-            .then((points) => {
-              useStore.setState((latest) => ({
-                tripGpsByTrip: {
-                  ...latest.tripGpsByTrip,
-                  [currentTrip.id]: points,
-                },
-              }));
-            })
+          void prepareTripGps(currentTrip, excluded, true)
             .catch((error) => {
               console.error("[player] GPS failover refresh failed:", error);
             });

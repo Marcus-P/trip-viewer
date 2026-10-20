@@ -107,6 +107,19 @@ Cloud validation:
 
 Still requires the final real-world user test: isolate a corrupt channel while healthy cameras remain synchronized, verify temporary recovery/rejoin without changing the promoted clock, cross a segment boundary, restart and reuse known health/GPS caches, and confirm GPS fallback to a healthy sibling. The synthetic smoke does not replace this test. PR #3 must remain unmerged pending fresh CI and explicit user confirmation.
 
+
+### Follow-up: long segment loading and unavailable Play
+
+A real Ubuntu test of the previous changes reported that playback of the problem footage eventually worked, but an early segment transition stayed on Loading for a long time and Play later became unavailable. Treat that as a regression report, not as successful completion of the final manual test. The supplied console output contains extensive GPS extraction but no timestamped transport-state trace, so it does not prove every instance of unavailable Play has the same cause.
+
+The audit found a concrete blocking path: `ensure_trip_gps` parsed whole-trip MP4 data while holding the shared archive DB mutex, and the visible camera source waited for a health lookup using that same mutex. GPS work now runs on a blocking worker with only short DB sections before and after extraction. Source/health provenance is rechecked before publication; a changed snapshot discards the stale result and retries with a bounded retry count.
+
+Transport now shows background GPS preparation/error status separately from waiting for a playable camera. GPS preparation never controls the Play button. Concurrent refresh status stays busy until the latest request completes, and failed refreshes retain existing GPS. Engine initialization also polls readiness until initialization, so a missing WebKit `loadeddata` event cannot permanently prevent an otherwise ready camera from enabling Play; this poll neither reloads nor seeks the videos.
+
+Local checks for this follow-up: 57 frontend tests and 319 Rust tests passed (one existing ignored test), frontend build passed, and real headless WebKit UI interaction verified Play/Pause and Play after changing segment while the GPS preparation indicator was active. A deterministic concurrency test verifies DB health writes during a deliberately suspended GPS extraction and rejects the stale GPS result after that health change. AppImage packaging and Ubuntu CI are checked separately before reporting readiness.
+
+Next focused user test: repeat the previously slow segment transition, then use Play/Pause after the transition and after the problem clip. If GPS preparation is active, playback must remain usable. No database deletion or fresh full-library scan is needed to perform this test.
+
 ### Obtaining the local Ubuntu test version
 
 Publishing the Codex environment does not update an installed desktop app. CI now uploads a downloadable test artifact after the Ubuntu build and desktop-integration checks pass. Open the latest successful CI run for `fix/webkit-sync-stability` (or PR #3) and download its `Trip-Viewer-Ubuntu-24.04-<commit>` artifact. Artifacts are retained for 30 days and require a GitHub login to download.

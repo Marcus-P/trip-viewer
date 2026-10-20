@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { ensureTripGps } from "../../ipc/gps";
+import { prepareTripGps } from "../../state/gpsPreparation";
 import { useStore } from "../../state/store";
 import type { Trip } from "../../types/model";
 import type { TimelapseJobRow } from "../../ipc/timelapse";
@@ -76,10 +76,7 @@ export function TripList() {
     // once from the segment camera files, chooses the strongest usable camera
     // source per segment, persists the stitched result, and returns it.
     try {
-      const points = await ensureTripGps(trip);
-      useStore.setState((state) => ({
-        tripGpsByTrip: { ...state.tripGpsByTrip, [tripId]: points },
-      }));
+      await prepareTripGps(trip);
     } catch (e) {
       console.error("ensureTripGps failed:", e);
     }
