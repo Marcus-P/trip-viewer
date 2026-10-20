@@ -130,39 +130,13 @@ export function TransportControls({ engine, onSourceChange }: Props) {
     const onPlaybackPause = () => {
       engine?.pause();
     };
-    const onMediaRecovered = (event: Event) => {
-      if (!engine) return;
-      const detail = (
-        event as CustomEvent<{
-          label: string;
-          targetTime: number;
-          resume: boolean;
-          skippedSeconds: number;
-          attempt: number;
-        }>
-      ).detail;
-      if (!detail || !Number.isFinite(detail.targetTime)) return;
-
-      if (detail.skippedSeconds > 0) {
-        console.warn(
-          `[sync] media recovery: ${detail.label} skipped ${detail.skippedSeconds}s after decode failure (attempt ${detail.attempt})`,
-        );
-      }
-
-      // A failed element has been reloaded and is ready again. Perform one
-      // synchronized transport seek across the whole camera group. This also
-      // prevents a master load() reset from dragging every slave back to 0.
-      void engine.seek(detail.targetTime, { resume: detail.resume });
-    };
     window.addEventListener("tripviewer:toggle-playback", onDashboardToggle);
     window.addEventListener("tripviewer:resync-playback", onPlaybackResync);
     window.addEventListener("tripviewer:pause-playback", onPlaybackPause);
-    window.addEventListener("tripviewer:media-recovered", onMediaRecovered);
     return () => {
       window.removeEventListener("tripviewer:toggle-playback", onDashboardToggle);
       window.removeEventListener("tripviewer:resync-playback", onPlaybackResync);
       window.removeEventListener("tripviewer:pause-playback", onPlaybackPause);
-      window.removeEventListener("tripviewer:media-recovered", onMediaRecovered);
     };
   }, [engine]);
 
