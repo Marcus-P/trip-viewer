@@ -1,3 +1,23 @@
+# Trip Viewer 0.7.2
+
+## Current download guidance
+
+- Removes the historical 0.6.0/PR #4 narrative from the README download section.
+  Current download and installation instructions use Latest Release without a
+  manually maintained application version; the link follows new publications.
+- Makes the installation/user/release guides consistent with that approach.
+  Keeps release history in these notes and the project record, and preserves
+  the archive compatibility warning, provenance, icons and license notices.
+- Records the successful 0.7.1 publication and a standing documentation rule
+  against putting old release narratives into current installation guidance.
+
+Application behaviour, dependencies, archive schema 17 and GPS parser 8 are
+unchanged. This documentation-only PATCH follows the owner's every-merge version
+and release-note policy. PR validation needs only documentation/version checks;
+no application test, package build or test artifact is required before merge.
+
+---
+
 # Trip Viewer 0.7.1
 
 ## Documentation and repository maintenance

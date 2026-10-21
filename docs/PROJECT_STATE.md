@@ -32,9 +32,19 @@ was published with eleven assets, including the Ubuntu Debian installer; its tag
 points to the merge commit. It combines the documentation correction with GUI
 installation, published-release awareness, relevant CI selection and the
 consistency fixes in [the review](CONSISTENCY_REVIEW.md). No 0.6.1 release was
-published. A later 0.7.1 documentation candidate records the storage policy and
-handoff without changing application behaviour; consult Latest Release for its
-actual publication status.
+published.
+
+The owner then merged [PR #6](https://github.com/Marcus-P/trip-viewer/pull/6) as
+`e14cb67f36b210defaf884b88aca840a8ea9bf3c`. Its lightweight documentation/version
+CI passed, and the [release workflow](https://github.com/Marcus-P/trip-viewer/actions/runs/39681561876)
+successfully published [0.7.1](https://github.com/Marcus-P/trip-viewer/releases/tag/v0.7.1).
+It records the storage policy and handoff without changing application behaviour.
+
+Current download/install guidance must stay version-neutral and link to Latest
+Release. Old release/merge narratives belong in release notes and project records;
+they confused the owner when placed under the README's Download and install heading.
+The documentation follow-up removes those distractions from installation guidance
+while preserving authorship, license material and useful compatibility warnings.
 
 The owner explicitly retained an increment and mandatory release notes for every
 merge, including pure documentation. PR checks must still be relevant: docs plus
