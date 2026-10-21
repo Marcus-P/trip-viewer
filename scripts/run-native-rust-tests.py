@@ -14,7 +14,7 @@ if not rustc or not cargo:
     raise RuntimeError("Rust toolchain is unavailable")
 info = subprocess.check_output([rustc, "-vV"], text=True, encoding="utf-8")
 host = re.search(r"^host: (\S+)$", info, re.M)[1]
-command = [cargo, "test", "--manifest-path", "src-tauri/Cargo.toml", "--locked",
+command = [cargo, "test", "--quiet", "--manifest-path", "src-tauri/Cargo.toml", "--locked",
            "--release", "--target", host]
 process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
@@ -24,7 +24,12 @@ for line in process.stdout:
     tail.append(line)
 status = process.wait()
 if status:
-    details = "".join(tail)[-16000:]
-    escaped = details.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-    print("::error title=Native Rust failure (" + host + ")::" + escaped, flush=True)
+    # Check annotations are truncated by GitHub. Remove successful test lines
+    # and emit small parts so assertion details are retained in the Checks UI.
+    details = "".join(line for line in tail if not
+                      (line.startswith("test ") and line.rstrip().endswith("... ok")))[-12000:]
+    for index, start in enumerate(range(0, len(details), 1000), 1):
+        part = details[start:start + 1000]
+        escaped = part.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print("::error title=Native Rust failure (" + host + ") part " + str(index) + "::" + escaped, flush=True)
 sys.exit(status)
