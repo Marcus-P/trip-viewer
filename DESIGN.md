@@ -85,14 +85,20 @@ The current persisted curve envelope is **v1**; see
 [timelapse alignment status](TIMELAPSE_ALIGNMENT_REDESIGN.md). An inherited v2
 proposal is not a claim that this checkout writes explicit v2 fileStart/fileEnd.
 
-`RELEASE_VERSION` on protected `main` triggers the Ubuntu release workflow.
+`RELEASE_VERSION` on protected `main` triggers native platform package builds and
+the Ubuntu publishing job.
 The upstream updater endpoint/key is not used by this fork. A bounded frontend
 check reads the fork’s latest published GitHub release and offers a same-repository
-Ubuntu installer download. It does not install packages automatically or offer
+installer download for the compiled target (Windows x64, universal Mac or Ubuntu
+x64), with a release-page fallback for unsupported architectures. It does not
+install packages automatically or offer
 downgrades. The navigation hint and Settings share a cache; network failure does
-not affect the playback state. NSIS/DMG target code
-remains, but the fork does not claim tested Windows/macOS packages. Flatpak is
-not an implemented delivery channel. See [releasing](RELEASING.md).
+not affect the playback state. Native CI checks Windows NSIS installation and
+basic launch, and the experimental Mac DMG/universal app/signature/basic launch.
+These checks do not establish original-footage playback/GPS acceptance. Mac
+remains experimental pending a tester. The required ubuntu status waits for all
+relevant platform checks; documentation-only work skips native builds/artifacts.
+Flatpak is not an implemented delivery channel. See [releasing](RELEASING.md).
 
 ## Future work
 

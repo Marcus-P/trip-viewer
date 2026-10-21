@@ -86,6 +86,14 @@ platform-distribution change, not a new claim of camera compatibility.
 - These distribution/update changes are fork-specific; do not copy them into the
   separate upstream contribution that retains Chris' own updater/release setup.
 
+Local candidate checks pass: thirteen release/client tests, TypeScript typecheck,
+thirteen policy tests, 58 frontend IPC calls/all 17 migrations, configuration
+schemas and actionlint. Native Linux 0.8.0 confirms get_install_target returns
+linux-x64, the update UI renders/selects its installer, offline errors do not
+replace existing video nodes and no downgrade is offered. The headless check
+does not activate an OS browser. Native Windows/Mac CI and owner Windows
+real-recording acceptance remain separate pending gates.
+
 ## Integrated upstream work and cleanup
 
 Upstream commits 2534f65 and a9617fc are ancestors of the 0.6.0 merge, preserving
@@ -102,7 +110,7 @@ ancestors of main and deleted. All temporary CI artifacts were removed after
 PR branches until they are merged or closed, including the upstream contribution.
 CI runs once per PR update and cancels superseded work. It selects frontend,
 backend, packaging, dependency and documentation checks from the diff. Packaging
-changes upload one Debian test installer for seven days; docs/metadata-only work
+changes upload one small installer per relevant platform for seven days; docs/metadata-only work
 creates none. Main builds the actual release packages once without repeating the
 protected PR’s unit suites.
 
@@ -141,7 +149,7 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 - Camera checkboxes save hidden labels in layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
 - Fullscreen uses one player root and logical dashboard/video navigation. Dashboard has the lower transport/timeline toggle; single-camera keeps upper Play/Pause. Paused zoom/pan resets on resume/source change.
 - Timeline/map/bookmarks reuse trip-time seeking. Bookmarks are integer milliseconds in the archive DB, independently of GPS. Right-click graph adds; marker left-click seeks/right-click removes; arrow-bar buttons navigate without wrapping. Writes serialize; archive checks/stale-response guards protect switching. ID changes cascade and merges rebase positions transactionally.
-- Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute cache and offers a validated same-repository Ubuntu package download. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.
+- Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute raw-response cache and offers a validated same-repository package for the compiled target. Unknown targets or absent matching installers use the release page. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.
 - Ubuntu Debian packages include playback dependencies, original icons and complete license material. The normalized desktop ID remains com.tripviewer.app. Package upgrades do not alter archive/user data; old AppImage launchers may need user-level migration as documented in the installation guide.
 - Report a bug targets the fork; empty-folder guidance is camera-neutral. The existing Miltona GPS export is registered in Tauri, matching the UI invocation. This is not additional real-Miltona validation.
 - Timelapse persisted speed-curve envelope remains **v1**. The inherited v2 proposal and old reported spike are historical, not an assertion that this checkout writes all proposed fields. See the corrected [alignment note](../TIMELAPSE_ALIGNMENT_REDESIGN.md).

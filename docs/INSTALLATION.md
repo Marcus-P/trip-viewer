@@ -53,7 +53,7 @@ If your release has no `.deb` asset, use its AppImage option instead.
 Other distributions, cameras and operating systems are not newly certified by
 this installation guide.
 
-## Ubuntu installation
+### First installation
 
 1. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
    in your browser and expand **Assets**.
