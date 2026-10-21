@@ -11,6 +11,7 @@ must not override the current code or fork release policy.
 ```bash
 npm ci
 npm test
+npx vitest run src/utils/speedCurve.test.ts
 npm run build
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run tauri -- dev
@@ -20,6 +21,18 @@ NO_STRIP=true npm run tauri -- build --bundles appimage
 Native development needs the [Linux dependencies](LINUX_DEV_SETUP.md).
 Use `cargo clippy` for relevant Rust work, inspect existing warnings, and do not
 claim the whole repository is warning-free without checking.
+
+## Backend module map (upstream guidance integrated)
+
+- `db/`: per-archive SQLite and numbered migrations; stored paths remain archive-relative through `paths.rs`.
+- `archive.rs`: switches `ArchiveSlot`; existing workers retain their original handle. `migration_v2.rs` handles legacy/cross-platform data; `startup.rs` runs background startup tasks with progress events.
+- `scan/`: folder/filename recognition and grouping. `scans/`: post-import analysis that emits tags (GPS, audio, places and coverage).
+- `trips/merge.rs`: manual merge and archive-only data-loss guards; directives survive rescans. `places/` and `tags/` own their corresponding operations.
+- `video_server.rs`: localhost HTTP Range playback on Linux/macOS; Windows uses the asset protocol.
+- `timelapse/events.rs`: variable-speed event thresholds. Read the actual curve implementation before changing timelapse alignment.
+
+These integrate the useful upstream `2534f65` documentation updates. The fork uses
+[its protected-main release workflow](RELEASING.md), not the upstream `npm run release` procedure.
 
 ## Preserve these invariants
 
