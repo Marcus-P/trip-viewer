@@ -5,13 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# PR commits get one run, not an additional push run. A newer commit replaces
-# obsolete in-flight work; release.yml validates/publishes the merged main tree.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Keep this required status for docs too; skip irrelevant steps, not the job.
   ubuntu:
     runs-on: ubuntu-24.04
     permissions:
@@ -23,12 +22,28 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - name: Validate application version
+      - name: Select relevant checks
+        id: scope
         env:
-          VERSION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.ref == 'refs/heads/main' && github.event.before || '' }}
+          CHECK_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+        run: node scripts/change-scope.mjs
+      - name: Validate version and mandatory release notes
+        env:
+          VERSION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
         run: node scripts/check-version.mjs
+      - name: Documentation links
+        if: steps.scope.outputs.docs == 'true' || steps.scope.outputs.tooling == 'true'
+        run: node scripts/check-docs.mjs
+      - name: CI policy tests
+        if: steps.scope.outputs.tooling == 'true'
+        run: node --test scripts/*.test.mjs
+      - name: Frontend and backend interfaces
+        if: steps.scope.outputs.frontend == 'true' || steps.scope.outputs.backend == 'true'
+        run: node scripts/check-interfaces.mjs
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.scope.outputs.backend == 'true' || steps.scope.outputs.bundle == 'true'
       - name: Install Ubuntu build dependencies
+        if: steps.scope.outputs.backend == 'true' || steps.scope.outputs.bundle == 'true'
         run: |
           sudo apt update
           sudo apt install -y \
@@ -37,24 +52,34 @@ jobs:
             gstreamer1.0-libav gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       - run: npm ci
+        if: steps.scope.outputs.frontend == 'true' || steps.scope.outputs.bundle == 'true' || steps.scope.outputs.audit == 'true'
       - name: Frontend tests
+        if: steps.scope.outputs.frontend == 'true'
         run: npm test
       - name: Frontend typecheck/build
+        if: steps.scope.outputs.frontend == 'true' && steps.scope.outputs.bundle != 'true'
         run: npm run build
       - name: Rust tests
+        if: steps.scope.outputs.backend == 'true'
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Runtime dependency audit
+        if: steps.scope.outputs.audit == 'true'
         run: npm audit --omit=dev --audit-level=high
-      - name: Build Ubuntu AppImage
-        run: NO_STRIP=true npm run tauri -- build --bundles appimage
-      - name: Validate Ubuntu desktop integration helper
+      - name: Prepare application and dependency notices
+        if: steps.scope.outputs.bundle == 'true'
+        run: python3 scripts/prepare-release-licenses.py
+      - name: Build Ubuntu packages
+        if: steps.scope.outputs.bundle == 'true'
+        run: NO_STRIP=true npm run tauri -- build --bundles appimage,deb
+      - name: Validate Ubuntu installers
+        if: steps.scope.outputs.bundle == 'true'
         shell: bash
         run: |
           set -euo pipefail
           SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
           TEST_HOME="${RUNNER_TEMP}/trip-viewer-home"
           mkdir -p "$TEST_HOME"
-          HOME="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$SOURCE"
+          TRIPVIEWER_INSTALL_ROOT="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$SOURCE"
           test -x "$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage"
           DESKTOP="$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
           ICON="$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
@@ -62,27 +87,33 @@ jobs:
           test -s "$ICON"
           grep -Fq "Exec=$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage" "$DESKTOP"
           grep -Fq "Icon=trip-viewer" "$DESKTOP"
-      - name: Prepare downloadable Ubuntu test build
+          DEB="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          python3 scripts/prepare-ubuntu-deb.py "$DEB"
+          python3 scripts/validate-ubuntu-deb.py "$DEB"
+          sudo apt-get install -y "./$DEB"
+          dpkg-query -W trip-viewer
+          test -x /usr/bin/tripviewer
+      - name: Prepare one downloadable installer for testing
+        if: steps.scope.outputs.bundle == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-          test -n "$SOURCE"
+          SOURCE="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
           VERSION="$(node -p "require('./package.json').version")"
-          TEST_APPIMAGE="Trip.Viewer_${VERSION}_test-${GITHUB_SHA:0:7}_Ubuntu-24.04_amd64.AppImage"
           OUT="${RUNNER_TEMP}/trip-viewer-test-build"
           mkdir -p "$OUT"
-          cp "$SOURCE" "$OUT/$TEST_APPIMAGE"
-          cp scripts/install-trip-viewer-ubuntu.sh LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
-          printf 'Trip Viewer Ubuntu 24.04 test build\nCommit: %s\nRun: %s/%s/actions/runs/%s\n' \
-            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
-            > "$OUT/BUILD_INFO.txt"
+          DEST="Trip.Viewer_${VERSION}_test-${GITHUB_SHA:0:7}_Ubuntu-24.04_amd64.deb"
+          cp "$SOURCE" "$OUT/$DEST"
+          printf 'Trip Viewer Ubuntu 24.04 installer test\nCommit: %s\nRun: %s/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > "$OUT/BUILD_INFO.txt"
           cd "$OUT"
-          sha256sum "$TEST_APPIMAGE" install-trip-viewer-ubuntu.sh > SHA256SUMS.txt
-      - name: Upload Ubuntu test build
-        uses: actions/upload-artifact@v4
+          sha256sum "$DEST" > SHA256SUMS.txt
+      - name: Upload Ubuntu test installer
+        if: steps.scope.outputs.bundle == 'true'
+        uses: actions/upload-artifact@v5
         with:
           name: Trip-Viewer-Ubuntu-24.04-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
           path: ${{ runner.temp }}/trip-viewer-test-build/
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7

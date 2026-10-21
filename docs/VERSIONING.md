@@ -1,7 +1,8 @@
 # Versioning and merging
 
 The stable branch is `main`. Every pull request merged into `main` must increase
-its version once relative to the current target branch. A PR uses the highest
+its version once relative to the current target branch, including documentation-only
+PRs. Release notes are mandatory for every merge. A PR uses the highest
 applicable change category:
 
 | Change | Increment | Example |
@@ -42,6 +43,14 @@ to a release after its workflow succeeds. Feature-branch CI artifacts include
 commit IDs and do not represent a stable release by themselves.
 
 PR #3 released 0.5.0 with progressive/resumable GPS and playback recovery.
-Open PR #4 combines new capabilities with GPS performance work, so its version
-is 0.6.0. Further documentation commits in that same unmerged PR keep 0.6.0.
-A later separate maintenance-only PR increments PATCH from the then-current main.
+PR #4 released 0.6.0 with new playback capabilities and GPS performance work.
+Adding an Ubuntu GUI installer and release-update awareness is a MINOR change
+(0.6.0 → 0.7.0). A later documentation-only correction increments PATCH, for
+example 0.7.0 → 0.7.1, and must describe that correction in its release notes.
+
+The merge-version rule is deliberately stricter than the usual release-based
+practice, where several PRs share one release and pure docs edits need no app
+version. It is retained by the owner's explicit preference. It does not require
+irrelevant runtime tests: docs plus version-only metadata get light PR checks.
+The subsequent release still builds packages once to embed the new version.
+A source version is not a publication claim; use Latest Release for downloads.

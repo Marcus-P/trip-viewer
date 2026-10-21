@@ -12,6 +12,7 @@ Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off f
 - Keep user media non-destructive. Never modify original dashcam files in place. Diagnostics may read them; generated/repaired derivatives must be separate files.
 - Small, reviewable commits are preferred. Keep bug fixes, cleanup, and unrelated feature work separable.
 - Run the relevant frontend tests/typecheck and Rust tests for code changes. For Linux playback/bundling changes, require the Ubuntu AppImage build to pass before considering the change ready.
+- Run only checks relevant to the diff. Documentation-only changes need link/format checks, not frontend/Rust tests, AppImage builds or downloadable test artifacts. Check version-file consistency when release metadata changes. Do not rerun accepted playback tests for documentation edits. Keep the required `ubuntu` status green through a lightweight documentation path rather than skipping the entire workflow and leaving a required check pending.
 - Do not merge a pull request, delete data, rewrite published history, or make destructive repository changes without explicit user authorization.
 - Investigation, code review, web research, and other non-destructive checks may be performed without asking for permission first.
 - New feature requests, UI improvements, and unrelated cleanup should be recorded under **On hold** in `docs/PROJECT_STATE.md` unless the user explicitly authorizes implementation.
@@ -45,7 +46,7 @@ This repository is public-facing project state. Do not commit secrets or persona
 ## Branch / PR discipline
 
 - `main` is the stable branch. The user reserves stable merges to the repository owner and requested force-push/merge protection. Never use force pushes or admin overrides to bypass protection; the active rules and verification are in `docs/BRANCH_PROTECTION.md`.
-- Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Version changes belong in the PR before merging so the packaged version is tested.
+- Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Every merge also updates release notes. Pure documentation PRs still increment PATCH by the owner’s explicit preference, but run only lightweight documentation/version checks; the later release builds packages once to embed that version. Version changes belong in the PR before merging.
 - PR #3 (`fix/webkit-sync-stability`) was merged as version 0.5.0 after green CI and explicit user confirmation of the final playback/GPS-resume tests; see `docs/PROJECT_STATE.md`.
 - Start subsequent feature and performance work on separate branches from current `main`. Preserve the validated playback and GPS semantics.
 - Before merging a later PR, require green CI and explicit user authorization; request focused real-world validation when the change affects playback or GPS behaviour.

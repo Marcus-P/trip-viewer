@@ -375,8 +375,8 @@ function App() {
               )}
               {status === "ready" && trips.length === 0 && (
                 <div className="rounded-md bg-yellow-950 px-2 py-1 text-xs text-yellow-300">
-                  No trips found in this folder. Check that it contains Wolf Box
-                  MP4 files with _F/_I/_R naming.
+                  No supported recordings found in this folder. Check the selected
+                  folder and the camera model in Settings.
                 </div>
               )}
               {error && (
@@ -392,7 +392,7 @@ function App() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() =>
-                    void openUrl("https://github.com/chrisl8/trip-viewer/issues")
+                    void openUrl("https://github.com/Marcus-P/trip-viewer/issues")
                   }
                   title="Open the GitHub issues page in your browser. If the app crashed, please attach the panic log from the app's data folder (logs/panic.log)."
                   className="text-xs text-neutral-400 hover:text-neutral-200"

@@ -1,8 +1,18 @@
 # User guide
 
-This guide describes the 0.6.0 candidate on PR #4. Stable 0.5.0 lacks the newly
-added bookmarks, camera checkboxes, route seeking and paused zoom controls.
+This guide covers the playback features released in 0.6.0 and the Ubuntu
+installation/update interface introduced by 0.7.0. Download a published build from
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
 The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
+
+## Install and update
+
+The [installation guide](INSTALLATION.md) explains the Ubuntu `.deb` installer,
+AppImage migration and upgrades without a terminal. The navigation bar shows
+new published releases; **Settings → Application updates** can check again and
+open the download. Offline checks do not interrupt playback. A test build newer
+than the current stable release is not offered a downgrade. The app opens the
+installer download; Ubuntu asks you to confirm installation after you close the app.
 
 ## Open an archive and select a trip
 

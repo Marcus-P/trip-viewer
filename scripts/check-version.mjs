@@ -24,6 +24,9 @@ const parse = (value) => {
 };
 try {
   const current = parse(pkg.version);
+  if (!read("RELEASE_NOTES.md").startsWith("# Trip Viewer " + pkg.version + "\n")) {
+    throw new Error("RELEASE_NOTES.md must start with the proposed application version");
+  }
   for (const [file, version] of Object.entries(versions)) {
     if (version !== pkg.version) throw new Error(`${file}: ${version} differs from ${pkg.version}`);
   }
@@ -33,6 +36,8 @@ try {
     if (!/^[a-f0-9]{40}$/i.test(base)) throw new Error("VERSION_BASE_SHA must be a full Git commit SHA");
     const old = JSON.parse(execFileSync("git", ["show", `${base}:package.json`], { encoding: "utf8" })).version;
     const previous = parse(old);
+    const notesChanged = execFileSync("git", ["diff", "--name-only", base, "--", "RELEASE_NOTES.md"], { encoding: "utf8" }).trim();
+    if (!notesChanged) throw new Error("Every merge must update RELEASE_NOTES.md");
     const changed = current.findIndex((part, index) => part !== previous[index]);
     if (changed < 0 || current[changed] <= previous[changed]) {
       throw new Error(`Merge version must increase: base ${old}, proposed ${pkg.version}`);

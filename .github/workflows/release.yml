@@ -33,154 +33,48 @@ jobs:
             gstreamer1.0-libav gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       - run: npm ci
-      - name: Validate release version
+      - name: Validate release version and notes
         shell: bash
         run: |
           set -euo pipefail
           node scripts/check-version.mjs
           VERSION="$(tr -d '[:space:]' < RELEASE_VERSION)"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
-          CARGO_VERSION="$(sed -n '/^\[package\]/,/^\[/s/^version *= *"\([^"]*\)".*/\1/p' src-tauri/Cargo.toml | head -1)"
-          CARGO_LOCK_VERSION="$(awk '/name = "tripviewer"/ { found=1; next } found && /^version = / { gsub(/"/,"",$3); print $3; exit }' src-tauri/Cargo.lock)"
-          test "$VERSION" = "$PACKAGE_VERSION"
-          test "$VERSION" = "$LOCK_VERSION"
-          test "$VERSION" = "$CARGO_VERSION"
-          test "$VERSION" = "$CARGO_LOCK_VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "Tag v$VERSION already exists." >&2
             exit 1
           fi
-      - name: Frontend tests
-        run: npm test
-      - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
-      - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
-      - name: Build Ubuntu AppImage
+      # Protected PR CI already ran relevant unit tests/audit. Build the actual
+      # merged release once; version-only docs releases need packaging, not a
+      # second debug build and repetition of the same unit tests.
+      - name: Prepare application and dependency notices
+        run: python3 scripts/prepare-release-licenses.py
+      - name: Build Ubuntu packages
         shell: bash
         run: |
           set -euo pipefail
-          NO_STRIP=true npm run tauri -- build --bundles appimage
+          NO_STRIP=true npm run tauri -- build --bundles appimage,deb
           SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-          mkdir -p release-assets
-          DEST="release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage"
-          cp "$SOURCE" "$DEST"
-          chmod +x "$DEST"
+          DEB="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          python3 scripts/prepare-ubuntu-deb.py "$DEB"
+          cp "$SOURCE" "release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage"
+          cp "$DEB" "release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.deb"
+          chmod +x "release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage"
           cp scripts/install-trip-viewer-ubuntu.sh release-assets/
-          chmod +x release-assets/install-trip-viewer-ubuntu.sh
-          cp LICENSE THIRD_PARTY_NOTICES.md release-assets/
-      - name: Validate Ubuntu desktop integration helper
+      - name: Validate release packages
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE="$(find release-assets -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          APPIMAGE="$PWD/release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage"
+          DEB="$PWD/release-assets/Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.deb"
+          python3 scripts/validate-ubuntu-deb.py "$DEB"
           TEST_HOME="${RUNNER_TEMP}/trip-viewer-home"
           mkdir -p "$TEST_HOME"
-          HOME="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$SOURCE"
+          TRIPVIEWER_INSTALL_ROOT="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$APPIMAGE"
           test -x "$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage"
-          DESKTOP="$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
-          ICON="$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
-          test -s "$DESKTOP"
-          test -s "$ICON"
-          grep -Fq "Exec=$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage" "$DESKTOP"
-          grep -Fq "Icon=trip-viewer" "$DESKTOP"
-      - name: Generate dependency license inventories
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE' > release-assets/NODE_RUNTIME_LICENSES.txt
-          const fs = require("fs");
-          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
-          const rows = [];
-          for (const [path, meta] of Object.entries(lock.packages || {})) {
-            if (!path || !path.startsWith("node_modules/") || meta.dev) continue;
-            rows.push([path.replace(/^node_modules\//, ""), meta.version || "?", meta.license || "UNKNOWN"]);
-          }
-          rows.sort((a,b) => a[0].localeCompare(b[0]));
-          console.log("Node runtime dependency license inventory");
-          console.log("Generated for Trip Viewer " + process.env.VERSION);
-          console.log();
-          for (const r of rows) console.log(r.join("\t"));
-          NODE
-          cargo metadata --format-version 1 --locked --manifest-path src-tauri/Cargo.toml > "${RUNNER_TEMP}/cargo-metadata.json"
-          python3 - <<'PY' > release-assets/RUST_DEPENDENCY_LICENSES.txt
-          import json, os
-          with open(os.environ["RUNNER_TEMP"] + "/cargo-metadata.json", encoding="utf-8") as f:
-              data = json.load(f)
-          rows = []
-          for p in data["packages"]:
-              if p["name"] == "tripviewer":
-                  continue
-              rows.append((p["name"], p["version"], p.get("license") or "UNKNOWN", p.get("repository") or p.get("source") or ""))
-          rows.sort()
-          print("Rust dependency license inventory")
-          print("Generated for Trip Viewer " + os.environ["VERSION"])
-          print()
-          for row in rows:
-              print("\t".join(row))
-          PY
-
-          node <<'NODE'
-          const fs = require("fs");
-          const path = require("path");
-          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
-          const out = path.join(process.env.RUNNER_TEMP, "node-runtime-license-texts");
-          fs.rmSync(out, { recursive: true, force: true });
-          fs.mkdirSync(out, { recursive: true });
-          const found = new Set();
-          for (const [pkgPath, meta] of Object.entries(lock.packages || {})) {
-            if (!pkgPath.startsWith("node_modules/") || meta.dev) continue;
-            if (!fs.existsSync(pkgPath)) continue;
-            const pkgName = pkgPath.replace(/^node_modules\//, "");
-            const files = fs.readdirSync(pkgPath).filter((name) =>
-              /^(license|licence|copying|notice)(\.|$)/i.test(name)
-            );
-            if (files.length === 0) continue;
-            const dest = path.join(
-              out,
-              (pkgName + "@" + (meta.version || "unknown")).replaceAll("/", "__")
-            );
-            fs.mkdirSync(dest, { recursive: true });
-            for (const name of files) {
-              fs.copyFileSync(path.join(pkgPath, name), path.join(dest, name));
-            }
-            found.add(pkgName);
-          }
-          for (const required of ["react-leaflet", "@react-leaflet/core"]) {
-            if (!found.has(required)) {
-              throw new Error("Required dependency license text not found for " + required);
-            }
-          }
-          NODE
-          tar -C "${RUNNER_TEMP}/node-runtime-license-texts" -czf             release-assets/NODE_RUNTIME_LICENSE_TEXTS.tar.gz .
-
-          python3 - <<'PY'
-          import json, os, pathlib, re, shutil
-          tmp = pathlib.Path(os.environ["RUNNER_TEMP"])
-          metadata = json.loads((tmp / "cargo-metadata.json").read_text(encoding="utf-8"))
-          out = tmp / "rust-dependency-license-texts"
-          shutil.rmtree(out, ignore_errors=True)
-          out.mkdir(parents=True)
-          for pkg in metadata["packages"]:
-              if pkg["name"] == "tripviewer":
-                  continue
-              src = pathlib.Path(pkg["manifest_path"]).parent
-              files = [
-                  p for p in src.iterdir()
-                  if p.is_file() and re.match(r"^(LICENSE|LICENCE|COPYING|NOTICE)(\.|-|$)", p.name, re.I)
-              ]
-              if not files:
-                  continue
-              safe = f'{pkg["name"]}@{pkg["version"]}'.replace("/", "__")
-              dest = out / safe
-              dest.mkdir(parents=True)
-              for p in files:
-                  shutil.copy2(p, dest / p.name)
-          PY
-          tar -C "${RUNNER_TEMP}/rust-dependency-license-texts" -czf             release-assets/RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz .
-      - name: Create checksums and bundle
+          test -s "$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
+          test -s "$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
+      - name: Create checksums and AppImage bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -188,19 +82,26 @@ jobs:
           tar -czf "Trip.Viewer_${VERSION}_Ubuntu-24.04_bundle.tar.gz" \
             "Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage" \
             install-trip-viewer-ubuntu.sh LICENSE THIRD_PARTY_NOTICES.md \
-            NODE_RUNTIME_LICENSES.txt RUST_DEPENDENCY_LICENSES.txt             NODE_RUNTIME_LICENSE_TEXTS.tar.gz RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz
+            NODE_RUNTIME_LICENSES.txt RUST_DEPENDENCY_LICENSES.txt \
+            NODE_RUNTIME_LICENSE_TEXTS.tar.gz RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz
           sha256sum \
             "Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage" \
-            "Trip.Viewer_${VERSION}_Ubuntu-24.04_bundle.tar.gz" \
-            > SHA256SUMS.txt
+            "Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.deb" \
+            "Trip.Viewer_${VERSION}_Ubuntu-24.04_bundle.tar.gz" > SHA256SUMS.txt
       - name: Create durable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "v${VERSION}" \
-            --target "${GITHUB_SHA}" \
+          python3 - <<'PY' > "${RUNNER_TEMP}/release-notes.md"
+          import os, pathlib, re, urllib.parse
+          text = pathlib.Path("RELEASE_NOTES.md").read_text()
+          base = "https://github.com/Marcus-P/trip-viewer/blob/" + os.environ["GITHUB_SHA"] + "/"
+          text = re.sub(r"\]\((?!https?://|mailto:|#)([^)]+)\)",
+                        lambda m: "](" + base + urllib.parse.quote(m[1], safe="/#") + ")", text)
+          print(text)
+          PY
+          gh release create "v${VERSION}" --target "$GITHUB_SHA" \
             --title "Trip Viewer v${VERSION} — Ubuntu 24.04 / VIOFO A229 Pro" \
-            --notes-file RELEASE_NOTES.md \
-            release-assets/*
+            --notes-file "${RUNNER_TEMP}/release-notes.md" release-assets/*

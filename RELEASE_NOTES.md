@@ -1,7 +1,60 @@
-# Trip Viewer 0.6.0 candidate
+# Trip Viewer 0.7.0
 
-Open PR #4, not yet a published stable release. Builds on stable 0.5.0 and the
-original [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer) project.
+## Ubuntu installation and updates
+
+- Adds an Ubuntu 24.04 LTS x86_64 `.deb` installer for download and double-click
+  installation/upgrades. The package includes playback dependencies, the original
+  icon, the stable desktop/application identity and source/dependency notices.
+- The navigation bar and Settings check the fork's published stable GitHub release.
+  New releases offer an installer download; installation is confirmed by the user
+  through Ubuntu. Failed/offline checks do not stop playback, requests time out,
+  concurrent checks share a cache, and newer test builds are not offered downgrades.
+- Keeps the standalone AppImage and existing launcher helper. The upstream
+  signed-updater integration remains disabled; its unused dependency/permission is
+  removed. No private upstream signing key is used and no automatic background
+  package installation is introduced.
+
+## Consistency fixes
+
+- Fixes the Report a bug link to target this fork, and makes the empty-library
+  message camera-neutral rather than implying only Wolf Box is supported.
+- Registers the existing Miltona GPS diagnostic-export backend command used by
+  the visible UI. This is an IPC consistency fix, not new Miltona hardware validation.
+- Corrects stale pre-release documentation and old 0.5.0 installation instructions.
+  Current downloads use Latest Release; the 0.6.0 acceptance/merge/release record
+  is completed. Upstream attribution, logos and license notices are retained.
+- Release notes are mandatory and must match the proposed version. Every merge,
+  including documentation-only work, still increments the app version as requested.
+
+## Relevant checks and artifacts
+
+- PR CI selects checks by changed area. Documentation plus version-only metadata
+  uses light version/release-note/link/shell checks, with no frontend/Rust suites,
+  native build dependencies, package build or test artifact.
+- Frontend, backend, runtime dependency and packaging changes select their own
+  checks. CI-policy tests cover documentation, version-only changes, dependency
+  changes, unknown files and the mandatory release-note/version gates. The required
+  ubuntu status remains active for light PRs instead of being skipped entirely.
+- Packaging PRs upload one small Debian test installer, not duplicate AppImage and
+  installer artifacts. Retention remains seven days. The release workflow builds
+  the actual merged packages once without repeating the protected PR's unit suites.
+- Release-note links point to the published source commit. Installer tests use an
+  explicit isolated installation root without replacing the process HOME variable.
+
+The database schema remains 17 and GPS parser remains 8. Hands-on camera testing
+remains exclusively VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS; automated/synthetic
+legacy checks do not certify other original recordings or operating systems.
+See the [installation guide](docs/INSTALLATION.md) and
+[consistency review](docs/CONSISTENCY_REVIEW.md). A source version is not proof of
+publication; stable assets appear on [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
+after the owner merge and successful release workflow.
+
+---
+
+# Trip Viewer 0.6.0
+
+Released after the owner accepted the final integration test and merged PR #4.
+Builds on stable 0.5.0 and the original [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer) project.
 The upstream logos/icons, MIT notice and dependency license notices are retained.
 
 ## New playback tools
@@ -76,11 +129,11 @@ restart, and camera checkboxes have been accepted. Other implemented cameras
 remain available; [automated/synthetic compatibility checks](docs/COMPATIBILITY.md)
 do not certify their real recordings or imply they stopped working.
 
-The latest functional head passed Ubuntu CI; local verification has 85 frontend
-and 339 Rust tests passing (one existing ignored). Documentation changes receive
-fresh CI. Main protection is active; the repository owner merges only after the
-required checks. This candidate becomes a stable download only after merge and a
-successful release workflow. See [project state](docs/PROJECT_STATE.md).
+The final PR CI and the merged-main Ubuntu release workflow passed. Local
+verification has 85 frontend and 339 Rust tests passing (one existing ignored).
+The owner accepted the final integration test before merging. Main protection
+remains active. The release is built from merge commit
+`865bfcd841cfd7e1be6a54799943ac06f7b1f80a`.
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "tripviewer",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "pretauri": "node scripts/cargo-sweep.mjs",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run --exclude=scripts/**"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

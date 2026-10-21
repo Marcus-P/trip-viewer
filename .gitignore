@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code local settings
 .claude/
+
+# Generated release packages and dependency notices
+/release-assets/

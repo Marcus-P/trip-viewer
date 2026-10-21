@@ -17,21 +17,52 @@ See the [compatibility evidence](docs/COMPATIBILITY.md).
 
 ## Download and install
 
-The latest published stable release is **0.5.0**. The **0.6.0** changes are in
-[PR #4](https://github.com/Marcus-P/trip-viewer/pull/4), not yet a stable release.
-Check [Releases](https://github.com/Marcus-P/trip-viewer/releases) for subsequent
-published versions; Actions test artifacts identify their commit and expire.
+Download the latest published stable version from
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
+Version [0.6.0](https://github.com/Marcus-P/trip-viewer/releases/tag/v0.6.0)
+was published after [PR #4](https://github.com/Marcus-P/trip-viewer/pull/4) merged
+and its release workflow succeeded. A source branch or expiring Actions test
+artifact is not a published release; the release page is the download authority.
 
-Ubuntu 24.04 LTS x86_64 command-line installation of the published 0.5.0:
+### Install and update without a terminal
+
+Starting with 0.7.0, published Ubuntu 24.04 LTS x86_64 releases include a `.deb`
+installer. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest),
+expand **Assets**, download `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb`, close
+Trip Viewer and double-click the package. Choose **Install** (or **Update**) in
+Ubuntu's App Center/Software Install, then launch **Trip Viewer** from Applications.
+No GitHub account or command line is needed for a public release download.
+
+The app checks published stable releases and shows an update hint in the navigation
+bar. **Settings → Application updates** also has **Check for updates** and a download
+button. Download the new package, close the app and double-click it to upgrade.
+This is a user-confirmed package update, not an unattended background installation.
+Only releases built from merged `main` are offered, not every source commit or PR.
+
+The installer appears after the release workflow succeeds. If Latest Release has
+no `.deb` asset yet, use the AppImage option below. Existing AppImage users should
+follow the [migration instructions](docs/INSTALLATION.md#switching-from-an-appimage)
+to avoid an older user shortcut masking the installed package.
+
+### AppImage and command-line installation
+
+Ubuntu 24.04 LTS x86_64 command-line installation of the latest release
+(requires the [GitHub CLI](https://cli.github.com/), `gh`). Close the running app
+first. The command resolves one release tag and downloads its bundle, including
+the original license and dependency notices:
 
 ```bash
-mkdir -p ~/Downloads/TripViewer-0.5.0 &&
-cd ~/Downloads/TripViewer-0.5.0 &&
-curl -fLO https://github.com/Marcus-P/trip-viewer/releases/download/v0.5.0/Trip.Viewer_0.5.0_Ubuntu-24.04_amd64.AppImage &&
-curl -fLO https://github.com/Marcus-P/trip-viewer/releases/download/v0.5.0/install-trip-viewer-ubuntu.sh &&
-curl -fLO https://github.com/Marcus-P/trip-viewer/releases/download/v0.5.0/SHA256SUMS.txt &&
+TRIPVIEWER_TAG="$(gh api repos/Marcus-P/trip-viewer/releases/latest --jq .tag_name)" &&
+TRIPVIEWER_VERSION="${TRIPVIEWER_TAG#v}" &&
+mkdir -p "$HOME/Downloads/TripViewer-$TRIPVIEWER_VERSION" &&
+cd "$HOME/Downloads/TripViewer-$TRIPVIEWER_VERSION" &&
+gh release download "$TRIPVIEWER_TAG" --repo Marcus-P/trip-viewer \
+  --pattern "Trip.Viewer_${TRIPVIEWER_VERSION}_Ubuntu-24.04_bundle.tar.gz" \
+  --pattern SHA256SUMS.txt --clobber &&
 sha256sum --ignore-missing -c SHA256SUMS.txt &&
-bash install-trip-viewer-ubuntu.sh ./Trip.Viewer_0.5.0_Ubuntu-24.04_amd64.AppImage
+tar -xzf "Trip.Viewer_${TRIPVIEWER_VERSION}_Ubuntu-24.04_bundle.tar.gz" &&
+bash install-trip-viewer-ubuntu.sh \
+  "./Trip.Viewer_${TRIPVIEWER_VERSION}_Ubuntu-24.04_amd64.AppImage"
 ```
 
 The helper installs the AppImage under `~/.local/opt/trip-viewer/`, retaining
@@ -39,20 +70,22 @@ the existing icon and `com.tripviewer.app` desktop identifier. Start it from
 the application overview, then add it to GNOME Favorites if desired.
 For direct execution, `chmod +x` the downloaded AppImage and run it.
 Source builds do not automatically replace an already installed app.
+Without `gh`, download the Ubuntu bundle and `SHA256SUMS.txt` from Latest Release,
+verify the bundle checksum, extract it, then run the included installer.
 
-An archive upgraded by the 0.6.0 test build uses database schema 17. The older
-0.5.0/schema-16 build cannot open that upgraded archive; use the current test
-build while evaluating PR #4 rather than downgrading that archive.
+Version 0.6.0 introduced archive database schema 17. Older 0.5.0/schema-16 builds
+cannot open an upgraded archive. Use a compatible stable release rather than
+downgrading that archive.
 
 ## What is available
 
-Stable 0.5.0 includes synchronized multi-camera playback, VIOFO embedded GPS,
+Trip Viewer includes synchronized multi-camera playback, VIOFO embedded GPS,
 a speed graph, map follow, resizable views, per-camera error recovery,
 progressive/resumable GPS preparation, imports, scans/tags, review, places and
 optional ffmpeg timelapses. Some features originate upstream; this is not a
 claim that every workflow has been manually retested by the fork maintainer.
 
-The 0.6.0 candidate adds route-click seeking, collapsible fullscreen timeline,
+Released in 0.6.0: route-click seeking, collapsible fullscreen timeline,
 paused zoom/pan, persistent bookmarks, saved camera-visibility checkboxes and
 bounded GPS reads. See [release notes](RELEASE_NOTES.md) and the
 [user guide](docs/USER_GUIDE.md) for controls and storage behaviour.

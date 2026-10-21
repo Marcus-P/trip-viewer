@@ -268,6 +268,7 @@ pub fn run() {
             gps::extract_gps_batch,
             gps::ensure_trip_gps,
             gps::load_trip_gps,
+            gps::dump_miltona_gps_debug,
             media_health::load_media_health,
             media_health::record_media_failure,
             media_health::record_media_recovery,
