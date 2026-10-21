@@ -42,7 +42,7 @@ This repository is public-facing project state. Do not commit secrets or persona
 
 ## Branch / PR discipline
 
-- `main` is the stable branch.
+- `main` is the stable branch. The user reserves stable merges to the repository owner and requested force-push/merge protection. Never use force pushes or admin overrides to bypass protection; see `docs/PROJECT_STATE.md` for the actual activation status.
 - Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Version changes belong in the PR before merging so the packaged version is tested.
 - PR #3 (`fix/webkit-sync-stability`) was merged as version 0.5.0 after green CI and explicit user confirmation of the final playback/GPS-resume tests; see `docs/PROJECT_STATE.md`.
 - Start subsequent feature and performance work on separate branches from current `main`. Preserve the validated playback and GPS semantics.

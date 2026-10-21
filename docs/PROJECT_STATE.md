@@ -22,6 +22,18 @@ Real-world Ubuntu testing confirmed that the prior video flicker disappeared aft
 
 The approved English follow-up to `gubiq` was posted on PR #2 after the environment network update: https://github.com/Marcus-P/trip-viewer/pull/2#issuecomment-6315937674.
 
+## Active extension: channel visibility / PR #4
+
+The user accepted bookmarks, including persistence across app restart, and authorized the previously deferred channel checkboxes. Front/Interior/Rear (and other available labels) can now be shown/hidden individually. Choices persist in layout preferences across app restart. Only visible cameras determine the visual primary/secondary layout; two-camera layouts fill both columns to full height and a single camera fills the video grid. All-hidden mode gives the map the full viewing area, or shows a recovery hint if no map exists. Checkboxes remain accessible outside the video grid in normal/dashboard mode. Existing video elements and sync/audio master selection are retained through visibility changes; this is display selection, not media deletion or a recording setting.
+
+Validation: 80 frontend tests and typecheck/build, 335 Rust tests (one pre-existing ignored). Native WebKit verified three/two/one/zero visible cameras, full-height two-camera placement, map-only expansion/restoration, saved choices, dashboard checkboxes, Play/Pause with the canonical master hidden, and identical video nodes without `emptied` events. New checkbox behaviour awaits focused user confirmation; bookmark/route/zoom/fullscreen behaviour is already accepted.
+
+### Stable branch protection requested, API permission blocked
+
+The stable/default branch is `main`. The user requested rejecting force-push/forced merges and allowing only the owner to merge. The repository is personal; the collaborators endpoint currently lists only the owner with the admin role. The installed GitHub integration returns HTTP 403 `Resource not accessible by integration` for branch protection reads and ruleset creation despite the account having admin permissions. No protection was installed; do not report it as active.
+
+`scripts/protect-main.sh` and `scripts/github/main-{history,owner}-rules.json` are ready for the owner to run with a GitHub CLI login that grants repository Administration write access. One active, non-bypassable ruleset requires PRs, strict successful `ubuntu` checks and resolved threads, and forbids non-fast-forward updates/deletion. A separate update restriction permits only repository admin role 5 via pull requests; for this personal repository that is the owner. No approval count is imposed that would prevent the owner merging their own PR. The script checks account/ownership/default branch, preserves existing same-named rules, and verifies the stored rules against the payloads; mismatches fail for review. Shell syntax and mocked creation/idempotent rerun/mismatch detection passed. Actual activation/verification requires owner credentials; do not use direct pushes or admin overrides to evade the intended rules.
+
 ## Active extension: persistent timeline bookmarks / PR #4
 
 The user explicitly accepted the final dashboard/single-camera Play/Pause visibility: no upper transport in dashboard fullscreen; retain it in single-camera fullscreen. CI for that accepted head (`0e40e90`) passed. The user then authorized timeline bookmarks and previous/next bookmark navigation. This extends the still-open PR #4 on `feat/route-seek-fullscreen-tools`; version remains 0.6.0 because the PR has not been merged. No new merge authorization was given.
@@ -30,7 +42,7 @@ Bookmarks use the concatenated trip clock (integer milliseconds), independently 
 
 Migration 0017 adds `trip_bookmarks` in the per-archive SQLite DB (schema head 17). Trip switching and app restart retain marks; trip deletion cascades, ID rewrites cascade, and manual merges rebase marks on the merged segment clock in the same transaction. Archive-only merges use the original speed-curve clock, falling back to the trip span. Archive-root checks reject stale commands aimed at a different archive; frontend generations discard stale asynchronous responses, writes are serialized, and reload waits for pending saves. Save/load errors are visible rather than presenting an unsuccessful save as persistent. Media originals and GPS cache/parser semantics are unchanged.
 
-Validation: 76 frontend tests and typecheck/build; 335 Rust tests (one pre-existing ignored), including SQLite reopen, sorting/deduplication, isolation/deletion, stale archive rejection, trip merge rebasing and archive-only curve timing. Native WebKit exercised actual timeline right-clicks without seeking, next/previous seeks across a segment boundary, restore after trip switching, and persistent removal via IPC. Fresh CI checks follow the pushed bookmark head. The bookmark feature still needs the focused user test; previously accepted route/fullscreen/zoom behaviour remains accepted.
+Validation: 76 frontend tests and typecheck/build; 335 Rust tests (one pre-existing ignored), including SQLite reopen, sorting/deduplication, isolation/deletion, stale archive rejection, trip merge rebasing and archive-only curve timing. Native WebKit exercised actual timeline right-clicks without seeking, next/previous seeks across a segment boundary, restore after trip switching, and persistent removal via IPC. Fresh CI checks follow the pushed bookmark head. The user subsequently accepted the bookmark feature including persistence across app restart; prior route/fullscreen/zoom behaviour remains accepted.
 
 ## Active work: authorized playback tools and GPS analysis / 0.6.0
 
@@ -292,14 +304,7 @@ Both final GPS resume tests were confirmed and both Ubuntu CI runs for the versi
 
 ## On hold / later work
 
-**Channel visibility checkboxes (record only; implementation not yet authorized).**
-Allow Front, Interior and Rear to be individually shown/hidden using checkboxes.
-Hidden channels must consume no video tile or placeholder space; the layout
-must redistribute the available area among the selected channels and map.
-Support one-, two- and three-camera setups without reserving empty Interior or
-Rear cells. This is a display/layout preference, not a request to delete or
-modify media. The user explicitly asked to record this idea only and will first
-provide feedback on the current bookmark build.
+**Channel visibility checkboxes:** subsequently authorized and implemented in PR #4; see the active extension above.
 
 The user features below were subsequently authorized and implemented in the 0.6.0 branch described above. Maintenance items remain tracked separately.
 
