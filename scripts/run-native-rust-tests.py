@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Keep native test failures visible in GitHub check annotations as well as logs."""
+import collections
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+
+root = pathlib.Path(__file__).resolve().parent.parent
+rustc = shutil.which("rustc")
+cargo = shutil.which("cargo")
+if not rustc or not cargo:
+    raise RuntimeError("Rust toolchain is unavailable")
+info = subprocess.check_output([rustc, "-vV"], text=True, encoding="utf-8")
+host = re.search(r"^host: (\S+)$", info, re.M)[1]
+command = [cargo, "test", "--manifest-path", "src-tauri/Cargo.toml", "--locked",
+           "--release", "--target", host]
+process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+tail = collections.deque(maxlen=100)
+for line in process.stdout:
+    print(line, end="", flush=True)
+    tail.append(line)
+status = process.wait()
+if status:
+    details = "".join(tail)[-16000:]
+    escaped = details.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print("::error title=Native Rust failure (" + host + ")::" + escaped, flush=True)
+sys.exit(status)

@@ -47,11 +47,7 @@ jobs:
         run: python scripts/prepare-release-licenses.py
       - name: Native Rust tests when relevant
         if: inputs.run-tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          HOST_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
-          cargo test --manifest-path src-tauri/Cargo.toml --locked --release --target "$HOST_TARGET"
+        run: python scripts/run-native-rust-tests.py
       - name: Build installer
         run: npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - name: Install Windows package silently into a temporary directory
