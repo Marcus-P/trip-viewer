@@ -35,3 +35,10 @@ Follow-up consistency fixes from the fork's 0.7.0 work make the empty-library
 message camera-neutral and register the existing Miltona diagnostic-export
 command used by the UI. They do not change the GPS parser, schema, upstream
 release/updater configuration or the real-camera validation scope above.
+
+Checkpoint test fixtures now use the canonical archive root for both recording
+paths and media-health keys, matching production scans on Windows/macOS. The
+relative checkpoint path is checked after JSON decoding. All four checkpoint
+tests pass with an aliased temporary root, which reproduced the three original
+fixture failures before the correction. Production parser/cache behaviour and
+upstream distribution configuration are unchanged by this test-only follow-up.
