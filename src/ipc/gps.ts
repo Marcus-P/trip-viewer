@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { CameraKind, GpsBatchItem, GpsPoint, Trip } from "../types/model";
 
 /**
@@ -49,6 +49,11 @@ export interface TripGpsSegmentRequest {
   channels: TripGpsChannelRequest[];
 }
 
+export type TripGpsProgress =
+  | { kind: "started"; attempt: number; total: number }
+  | { kind: "segment"; attempt: number; completed: number; total: number;
+      updates: { index: number; points: GpsPoint[] }[] };
+
 // Serialize refreshes for the same trip. Several cameras can fail in the same
 // turn; an older response must not overwrite a later, more complete exclusion.
 const tripGpsPending = new Map<string, Promise<GpsPoint[]>>();
@@ -66,6 +71,7 @@ export function ensureTripGps(
   trip: Trip,
   excludedLabelsBySegment: Record<string, string[]> = {},
   force = false,
+  onProgress?: (progress: TripGpsProgress) => void,
 ): Promise<GpsPoint[]> {
   const segments: TripGpsSegmentRequest[] = trip.segments
     .map((segment) => {
@@ -84,9 +90,15 @@ export function ensureTripGps(
     });
 
   const previous = tripGpsPending.get(trip.id) ?? Promise.resolve([]);
-  const pending = previous.catch(() => []).then(() => invoke<GpsPoint[]>("ensure_trip_gps", {
-    tripId: trip.id, segments, force,
-  }));
+  const pending = previous.catch(() => []).then(() => {
+    const args: Record<string, unknown> = { tripId: trip.id, segments, force };
+    if (onProgress) {
+      const channel = new Channel<TripGpsProgress>();
+      channel.onmessage = onProgress;
+      args.onProgress = channel;
+    }
+    return invoke<GpsPoint[]>("ensure_trip_gps", args);
+  });
   tripGpsPending.set(trip.id, pending);
   void pending.finally(() => {
     if (tripGpsPending.get(trip.id) === pending) tripGpsPending.delete(trip.id);

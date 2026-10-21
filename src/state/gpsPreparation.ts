@@ -1,20 +1,69 @@
 import { ensureTripGps } from "../ipc/gps";
-import type { Trip } from "../types/model";
+import type { GpsPoint, Trip } from "../types/model";
 import { useStore } from "./store";
 
-const requests = new Map<string, object>();
+type Request = { baseline: GpsPoint[] | undefined };
+const requests = new Map<string, Request>();
 
-/** Show background work without coupling transport to GPS availability. */
+/** Show completed segments immediately, keeping persisted GPS atomic. */
 export async function prepareTripGps(
   trip: Trip,
   excluded: Record<string, string[]> = {},
   force = false,
 ): Promise<void> {
-  const request = {};
+  const previous = requests.get(trip.id);
+  const request: Request = {
+    baseline: previous ? previous.baseline : useStore.getState().tripGpsByTrip[trip.id],
+  };
   requests.set(trip.id, request);
-  useStore.setState((s) => ({ gpsPreparationByTrip: { ...s.gpsPreparationByTrip, [trip.id]: "loading" } }));
+  const resetPreview = () => useStore.setState((s) => {
+    const gps = { ...s.tripGpsByTrip };
+    if (request.baseline === undefined) delete gps[trip.id];
+    else gps[trip.id] = request.baseline;
+    return { tripGpsByTrip: gps };
+  });
+  resetPreview();
+  useStore.setState((s) => {
+    const progress = { ...s.gpsProgressByTrip };
+    delete progress[trip.id];
+    return {
+      gpsPreparationByTrip: { ...s.gpsPreparationByTrip, [trip.id]: "loading" },
+      gpsProgressByTrip: progress,
+    };
+  });
+  let attempt = 0;
+  const partial = new Map<number, GpsPoint[]>();
+  const offsets: number[] = [];
+  let cursor = 0;
+  for (const segment of trip.segments) {
+    offsets.push(cursor);
+    cursor += segment.durationS;
+  }
   try {
-    const points = await ensureTripGps(trip, excluded, force);
+    const points = await ensureTripGps(trip, excluded, force, (progress) => {
+      if (requests.get(trip.id) !== request) return;
+      if (progress.kind === "started") {
+        if (progress.attempt < attempt) return;
+        attempt = progress.attempt;
+        partial.clear();
+        resetPreview();
+      } else {
+        if (progress.attempt !== attempt) return;
+        for (const update of progress.updates) {
+          if (update.index >= 0 && update.index < trip.segments.length) {
+            partial.set(update.index, update.points);
+          }
+        }
+        const preview = trip.segments.flatMap((segment, index) =>
+          partial.get(index) ?? (request.baseline ?? []).filter((p) =>
+            p.tOffsetS >= offsets[index] && p.tOffsetS < offsets[index] + segment.durationS));
+        useStore.setState((s) => ({ tripGpsByTrip: { ...s.tripGpsByTrip, [trip.id]: preview } }));
+      }
+      useStore.setState((s) => ({ gpsProgressByTrip: {
+        ...s.gpsProgressByTrip,
+        [trip.id]: { completed: progress.kind === "started" ? 0 : progress.completed, total: progress.total },
+      } }));
+    });
     if (requests.get(trip.id) !== request) return;
     useStore.setState((s) => ({
       tripGpsByTrip: { ...s.tripGpsByTrip, [trip.id]: points },
@@ -22,6 +71,7 @@ export async function prepareTripGps(
     }));
   } catch (error) {
     if (requests.get(trip.id) === request) {
+      resetPreview();
       useStore.setState((s) => ({ gpsPreparationByTrip: { ...s.gpsPreparationByTrip, [trip.id]: "error" } }));
     }
     throw error;

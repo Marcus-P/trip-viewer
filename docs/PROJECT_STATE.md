@@ -118,7 +118,15 @@ Transport now shows background GPS preparation/error status separately from wait
 
 Local checks for this follow-up: 57 frontend tests and 319 Rust tests passed (one existing ignored test), frontend build passed, and real headless WebKit UI interaction verified Play/Pause and Play after changing segment while the GPS preparation indicator was active. A deterministic concurrency test verifies DB health writes during a deliberately suspended GPS extraction and rejects the stale GPS result after that health change. Local AppImage packaging also passed. Ubuntu CI for source commit `5e8a4cc` is checked separately before reporting readiness.
 
-Next focused user test: repeat the previously slow segment transition, then use Play/Pause after the transition and after the problem clip. If GPS preparation is active, playback must remain usable. No database deletion or fresh full-library scan is needed to perform this test.
+The user subsequently confirmed that the loading/Play fix works well with the problem footage. Treat that real-world result as established. PR #3 remains unmerged; this confirmation does not authorize merging.
+
+### Progressive GPS preparation
+
+GPS preparation now publishes completed segments to the map and speed graph immediately, together with an actual completed/total segment count and progress bar. GPS-less segments also advance the count; current cached trips still return immediately. The strongest healthy camera remains selected independently for each segment. When VIOFO boundary validation revises the previous segment, that preview is replaced rather than duplicated.
+
+Progress is scoped to each request and extraction attempt. A retry discards its earlier preview; superseded requests cannot overwrite the active preview. Failed refreshes restore the previously committed GPS. Missing original segments retain archived GPS in the preview. Partial previews are held only in UI state: the database still receives the complete result atomically after source/health revalidation, and extraction keeps the DB mutex available to playback.
+
+Validation: 62 frontend tests, 322 Rust tests (one existing ignored), and frontend typecheck/build pass, including progressive publication, GPS-less gaps, boundary correction, retry reset, stale events, and failure rollback. The real headless WebKit app verified native progress-channel delivery (start, segment 1, segment 2), no events on a cache hit, working IPC, and decoded video playback. AppImage packaging and Ubuntu CI are checked separately before reporting readiness.
 
 ### Obtaining the local Ubuntu test version
 
@@ -159,6 +167,11 @@ Do not merge PR #3 until the user explicitly confirms the relevant final test.
 ## On hold / later work
 
 These are intentionally deferred. Do not silently implement them while finishing PR #3.
+
+**Next user priorities (recorded, implementation not yet authorized):**
+
+- **Seek by clicking the map route.** Clicking a point on the displayed route should seek the video and timeline to its corresponding GPS time. Resolve the nearest position on the route (including between samples), preserving segment/trip time mapping; a general map click must not arbitrarily choose an unrelated route point.
+- **Collapsible timeline in dashboard fullscreen.** In the F/I/R + Map fullscreen layout, allow the timeline and speed graph area to be expanded/collapsed.
 
 1. **Paused-video zoom/pan.** When an individual camera is paused, allow zooming and panning the current image. Prefer stable video-element zoom/pan; if WebKit proves unreliable, capture/extract the current frame to a temporary still while paused, then return to video on resume.
 2. **Vite mixed import warning for `src/ipc/archive.ts`.** The stable cleanup is to use a static `currentArchive` import in `App.tsx` because the module is already statically imported elsewhere. This is cleanup, not a playback fix.

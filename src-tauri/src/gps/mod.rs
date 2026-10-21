@@ -12,7 +12,7 @@ use crate::error::AppError;
 use crate::model::{GpsBatchItem, GpsPoint};
 use crate::scan::naming::CameraKind;
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::State;
 
@@ -126,59 +126,93 @@ fn batch_quality(item: &BatchGps, duration_s: f64) -> (usize, i64) {
     (offsets.len(), span_ms)
 }
 
-fn batch_into_points(item: BatchGps) -> Vec<GpsPoint> {
-    match item {
-        BatchGps::Plain(item) => item.points,
-        BatchGps::Viofo { timed, .. } => timed.into_iter().map(|item| item.point).collect(),
-    }
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripGpsSegmentUpdate {
+    pub index: usize,
+    pub points: Vec<GpsPoint>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TripGpsProgress {
+    Started {
+        attempt: usize,
+        total: usize,
+    },
+    Segment {
+        attempt: usize,
+        completed: usize,
+        total: usize,
+        updates: Vec<TripGpsSegmentUpdate>,
+    },
 }
 
 /// Extract and stitch one trip while allowing each segment to pick the camera
 /// file with the strongest usable GPS trace. Candidate order is the tie-breaker,
 /// so a healthy canonical Front remains preferred when all cameras are equal.
 pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<GpsPoint> {
-    let mut selected: Vec<(f64, BatchGps)> = Vec::with_capacity(segments.len());
+    extract_trip_gps_progressive(segments, extract_batch_item, |_, _| {})
+}
 
-    for segment in segments {
+fn trip_segment_points(item: &BatchGps, duration: f64, offset: f64) -> Vec<GpsPoint> {
+    let points: Vec<&GpsPoint> = match item {
+        BatchGps::Plain(item) => item.points.iter().collect(),
+        BatchGps::Viofo { timed, .. } => timed.iter().map(|p| &p.point).collect(),
+    };
+    points
+        .into_iter()
+        .filter(|p| p.t_offset_s >= 0.0 && p.t_offset_s <= duration)
+        .map(|p| GpsPoint {
+            t_offset_s: offset + p.t_offset_s,
+            ..p.clone()
+        })
+        .collect()
+}
+
+/// Emit only the current segment and its corrected left neighbour. VIOFO's
+/// boundary validation can revise that neighbour when the next file arrives.
+/// This preserves the original final result without resending the whole trip.
+fn extract_trip_gps_progressive(
+    segments: &[TripGpsSegmentSource],
+    mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
+    mut progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
+) -> Vec<GpsPoint> {
+    let mut selected: Vec<BatchGps> = Vec::with_capacity(segments.len());
+    let mut offsets = Vec::with_capacity(segments.len());
+    let mut cursor = 0.0;
+    for (index, segment) in segments.iter().enumerate() {
+        offsets.push(cursor);
+        cursor += segment.duration_s;
         let mut best: Option<((usize, i64), BatchGps)> = None;
         for path in &segment.paths {
-            let item = extract_batch_item(path, segment.camera_kind);
+            let item = extract(path, segment.camera_kind);
             let quality = batch_quality(&item, segment.duration_s);
             if best.as_ref().map(|(q, _)| quality > *q).unwrap_or(true) {
                 best = Some((quality, item));
             }
         }
-        if let Some((_, item)) = best {
-            selected.push((segment.duration_s, item));
-        } else {
-            selected.push((
-                segment.duration_s,
-                BatchGps::Plain(GpsBatchItem {
-                    file_path: String::new(),
-                    points: Vec::new(),
-                }),
-            ));
-        }
+        selected.push(best.map(|(_, item)| item).unwrap_or_else(|| {
+            BatchGps::Plain(GpsBatchItem {
+                file_path: String::new(),
+                points: Vec::new(),
+            })
+        }));
+        let start = index.saturating_sub(1);
+        validate_viofo_batch_boundaries(&mut selected[start..]);
+        let updates = (start..=index)
+            .map(|i| TripGpsSegmentUpdate {
+                index: i,
+                points: trip_segment_points(&selected[i], segments[i].duration_s, offsets[i]),
+            })
+            .collect();
+        progress(index + 1, updates);
     }
-
-    let mut batch_only: Vec<BatchGps> = selected.into_iter().map(|(_, item)| item).collect();
-    validate_viofo_batch_boundaries(&mut batch_only);
-
-    let mut out = Vec::new();
-    let mut cursor = 0.0;
-    for (segment, item) in segments.iter().zip(batch_only.into_iter()) {
-        for p in batch_into_points(item) {
-            if p.t_offset_s < 0.0 || p.t_offset_s > segment.duration_s {
-                continue;
-            }
-            out.push(GpsPoint {
-                t_offset_s: cursor + p.t_offset_s,
-                ..p
-            });
-        }
-        cursor += segment.duration_s;
-    }
-    out
+    selected
+        .iter()
+        .enumerate()
+        .flat_map(|(i, item)| trip_segment_points(item, segments[i].duration_s, offsets[i]))
+        .collect()
 }
 
 #[tauri::command]
@@ -211,17 +245,37 @@ pub async fn ensure_trip_gps(
     trip_id: String,
     segments: Vec<TripGpsSegmentRequest>,
     force: Option<bool>,
+    on_progress: Option<tauri::ipc::JavaScriptChannelId>,
+    webview: tauri::Webview,
     slot: State<'_, ArchiveSlot>,
 ) -> Result<Vec<GpsPoint>, AppError> {
     let db = require_db(&slot)?;
+    let on_progress: Option<tauri::ipc::Channel<TripGpsProgress>> =
+        on_progress.map(|id| id.channel_on(webview));
     tauri::async_runtime::spawn_blocking(move || {
-        ensure_trip_gps_unlocked(
-            &db,
-            &trip_id,
-            &segments,
-            force.unwrap_or(false),
-            extract_best_trip_gps,
-        )
+        let mut attempt = 0;
+        ensure_trip_gps_unlocked(&db, &trip_id, &segments, force.unwrap_or(false), |work| {
+            attempt += 1;
+            let total = work.sources.len();
+            if let Some(channel) = &on_progress {
+                let _ = channel.send(TripGpsProgress::Started { attempt, total });
+            }
+            extract_trip_gps_progressive(
+                &work.sources,
+                extract_batch_item,
+                |completed, mut updates| {
+                    restore_archived_progress(work, &mut updates);
+                    if let Some(channel) = &on_progress {
+                        let _ = channel.send(TripGpsProgress::Segment {
+                            attempt,
+                            completed,
+                            total,
+                            updates,
+                        });
+                    }
+                },
+            )
+        })
     })
     .await
     .map_err(|e| AppError::Internal(format!("GPS worker failed: {e}")))?
@@ -232,6 +286,26 @@ struct GpsWork {
     sources: Vec<TripGpsSegmentSource>,
     available: Vec<bool>,
     cached: Option<Vec<GpsPoint>>,
+}
+
+fn restore_archived_progress(work: &GpsWork, updates: &mut [TripGpsSegmentUpdate]) {
+    for update in updates {
+        if !work.available[update.index] {
+            let start: f64 = work.sources[..update.index]
+                .iter()
+                .map(|s| s.duration_s)
+                .sum();
+            let end = start + work.sources[update.index].duration_s;
+            update.points = work
+                .cached
+                .as_deref()
+                .unwrap_or(&[])
+                .iter()
+                .filter(|p| p.t_offset_s >= start && p.t_offset_s < end)
+                .cloned()
+                .collect();
+        }
+    }
 }
 
 enum GpsPreparation {
@@ -273,7 +347,7 @@ fn ensure_trip_gps_unlocked(
     trip_id: &str,
     segments: &[TripGpsSegmentRequest],
     force: bool,
-    mut extract: impl FnMut(&[TripGpsSegmentSource]) -> Vec<GpsPoint>,
+    mut extract: impl FnMut(&GpsWork) -> Vec<GpsPoint>,
 ) -> Result<Vec<GpsPoint>, AppError> {
     for attempt in 0..3 {
         let preparation = {
@@ -292,7 +366,7 @@ fn ensure_trip_gps_unlocked(
             GpsPreparation::Cached(points) => return Ok(points),
             GpsPreparation::Extract(work) => work,
         };
-        let points = extract(&work.sources);
+        let points = extract(&work);
         let conn = db
             .lock()
             .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
@@ -703,7 +777,8 @@ mod tests {
         let worker = std::thread::spawn(move || {
             let mut calls = 0;
             let result =
-                ensure_trip_gps_unlocked(&worker_db, "trip", &worker_segments, false, |sources| {
+                ensure_trip_gps_unlocked(&worker_db, "trip", &worker_segments, false, |work| {
+                    let sources = &work.sources;
                     calls += 1;
                     if calls == 1 {
                         assert_eq!(sources[0].paths.len(), 3);
@@ -927,6 +1002,146 @@ mod tests {
                 fix_ok: true,
             },
         }
+    }
+
+    #[test]
+    fn progressive_extraction_emits_before_next_segment_and_keeps_gap_offsets() {
+        let completed = std::cell::Cell::new(0);
+        let segments: Vec<_> = [vec!["weak", "strong"], vec![], vec!["last"]]
+            .into_iter()
+            .map(|paths| TripGpsSegmentSource {
+                duration_s: 10.0,
+                camera_kind: CameraKind::Generic,
+                paths: paths.into_iter().map(String::from).collect(),
+            })
+            .collect();
+        let points = extract_trip_gps_progressive(
+            &segments,
+            |path, _| {
+                if path == "last" {
+                    assert_eq!(completed.get(), 2);
+                }
+                let mut points = vec![timed(1_000, 0.0, 0.0, 0.0).point];
+                if path == "strong" {
+                    points.push(timed(2_000, 0.0, 0.0, 0.0).point);
+                }
+                BatchGps::Plain(GpsBatchItem {
+                    file_path: path.into(),
+                    points,
+                })
+            },
+            |count, updates| {
+                if count == 1 {
+                    assert_eq!(updates[0].points.len(), 2);
+                }
+                if count == 2 {
+                    assert!(updates[1].points.is_empty());
+                }
+                completed.set(count);
+            },
+        );
+        assert_eq!(completed.get(), 3);
+        assert_eq!(
+            points.iter().map(|p| p.t_offset_s).collect::<Vec<_>>(),
+            vec![1.0, 2.0, 21.0]
+        );
+    }
+
+    #[test]
+    fn archived_progress_keeps_cached_span_without_overriding_available_segment() {
+        let cached = vec![
+            timed(1_000, 0.0, 0.0, 0.0).point,
+            timed(11_000, 0.0, 0.0, 0.0).point,
+        ];
+        let work = GpsWork {
+            signature: String::new(),
+            sources: (0..2)
+                .map(|_| TripGpsSegmentSource {
+                    duration_s: 10.0,
+                    camera_kind: CameraKind::Generic,
+                    paths: vec![],
+                })
+                .collect(),
+            available: vec![false, true],
+            cached: Some(cached),
+        };
+        let mut updates = vec![
+            TripGpsSegmentUpdate {
+                index: 0,
+                points: vec![],
+            },
+            TripGpsSegmentUpdate {
+                index: 1,
+                points: vec![],
+            },
+        ];
+        restore_archived_progress(&work, &mut updates);
+        assert_eq!(updates[0].points.len(), 1);
+        assert_eq!(updates[0].points[0].t_offset_s, 1.0);
+        assert!(updates[1].points.is_empty());
+    }
+
+    #[test]
+    fn progressive_boundary_correction_replaces_previous_preview() {
+        let segments: Vec<_> = ["left", "right"]
+            .into_iter()
+            .map(|path| TripGpsSegmentSource {
+                duration_s: 3.0,
+                camera_kind: CameraKind::Generic,
+                paths: vec![path.into()],
+            })
+            .collect();
+        let mut previews = std::collections::BTreeMap::new();
+        let result = extract_trip_gps_progressive(
+            &segments,
+            |path, _| {
+                let mut timed = if path == "left" {
+                    vec![
+                        timed(0, 0.0, 11.12, 90.0),
+                        timed(1_000, 0.0001, 11.12, 90.0),
+                        timed(2_000, 20.0, 0.0, 0.0),
+                    ]
+                } else {
+                    vec![
+                        timed(3_000, 0.0003, 11.12, 90.0),
+                        timed(4_000, 0.0004, 11.12, 90.0),
+                    ]
+                };
+                if path == "right" {
+                    for p in &mut timed {
+                        p.point.t_offset_s -= 3.0;
+                    }
+                }
+                BatchGps::Viofo {
+                    file_path: path.into(),
+                    timed,
+                }
+            },
+            |count, updates| {
+                if count == 1 {
+                    assert_eq!(updates[0].points.len(), 3);
+                }
+                if count == 2 {
+                    assert_eq!(updates[0].index, 0);
+                    assert_eq!(updates[0].points.len(), 2);
+                }
+                for update in updates {
+                    previews.insert(update.index, update.points);
+                }
+            },
+        );
+        let preview: Vec<_> = previews
+            .into_values()
+            .flatten()
+            .map(|p| (p.t_offset_s, p.lon))
+            .collect();
+        assert_eq!(
+            preview,
+            result
+                .into_iter()
+                .map(|p| (p.t_offset_s, p.lon))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]

@@ -76,6 +76,7 @@ export function TransportControls({ engine, onSourceChange }: Props) {
   const activeSpeedCurve = useStore((s) => s.activeSpeedCurve);
   const timelapseJobs = useStore((s) => s.timelapseJobs);
   const gpsPreparation = useStore((s) => loadedTripId ? s.gpsPreparationByTrip[loadedTripId] : undefined);
+  const gpsProgress = useStore((s) => loadedTripId ? s.gpsProgressByTrip[loadedTripId] : undefined);
   const disabled = !engine;
 
   const trip = trips.find((t) => t.id === loadedTripId);
@@ -179,7 +180,13 @@ export function TransportControls({ engine, onSourceChange }: Props) {
       {gpsPreparation === "loading" && (
         <span role="status" className="flex items-center gap-2 text-xs text-blue-300">
           <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
-          Preparing GPS in the background…
+          {gpsProgress
+            ? `GPS: ${gpsProgress.completed} / ${gpsProgress.total} segments`
+            : "Preparing GPS in the background…"}
+          {gpsProgress && gpsProgress.total > 0 && (
+            <progress aria-label="GPS segments prepared" className="h-1.5 w-20 accent-blue-400"
+              value={gpsProgress.completed} max={gpsProgress.total} />
+          )}
         </span>
       )}
       {gpsPreparation === "error" && (

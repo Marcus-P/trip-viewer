@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { ensureTripGps } from "./gps";
 import type { Trip } from "../types/model";
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: class { onmessage = () => {}; } }));
 const trip = {
   id: "trip",
   segments: [
@@ -40,4 +40,15 @@ it("serializes concurrent failures and continues after a failed refresh", async 
   expect(invoke).toHaveBeenLastCalledWith("ensure_trip_gps", expect.objectContaining({
     segments: expect.arrayContaining([expect.objectContaining({ segmentId: "current", channels: [] })]),
   }));
+});
+
+it("attaches a per-request progress channel when requested", async () => {
+  const progress = vi.fn();
+  vi.mocked(invoke).mockImplementationOnce(async (_command, args) => {
+    const channel = (args as { onProgress: Channel<unknown> }).onProgress;
+    channel.onmessage({ kind: "started", attempt: 1, total: 3 });
+    return [];
+  });
+  await ensureTripGps(trip, {}, false, progress);
+  expect(progress).toHaveBeenCalledWith({ kind: "started", attempt: 1, total: 3 });
 });
