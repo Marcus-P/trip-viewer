@@ -23,11 +23,18 @@ was published with ten assets; its tag points to that merge commit. The download
 checksum manifest matched GitHub asset digests for both AppImage and bundle.
 The [acceptance record](FINAL_060_CHECK.md) is complete, not a pending test or merge.
 
-The 0.7.0 work combines the documentation correction with an Ubuntu Debian
-installer, published-release awareness, relevant CI selection and the consistency
-fixes described in [the review](CONSISTENCY_REVIEW.md). It is a MINOR increment
-from 0.6.0. No 0.6.1 release was published. Use the release page for publication
-status rather than treating the source version as already released.
+The owner merged [PR #5](https://github.com/Marcus-P/trip-viewer/pull/5) as
+`9b9ce06edc1ce51eab97e4b8cf19f8659d84d25d` after the successful
+[final PR CI](https://github.com/Marcus-P/trip-viewer/actions/runs/39676647941).
+The [merged-tree release run](https://github.com/Marcus-P/trip-viewer/actions/runs/39680040761)
+also passed. [Stable 0.7.0](https://github.com/Marcus-P/trip-viewer/releases/tag/v0.7.0)
+was published with eleven assets, including the Ubuntu Debian installer; its tag
+points to the merge commit. It combines the documentation correction with GUI
+installation, published-release awareness, relevant CI selection and the
+consistency fixes in [the review](CONSISTENCY_REVIEW.md). No 0.6.1 release was
+published. A later 0.7.1 documentation candidate records the storage policy and
+handoff without changing application behaviour; consult Latest Release for its
+actual publication status.
 
 The owner explicitly retained an increment and mandatory release notes for every
 merge, including pure documentation. PR checks must still be relevant: docs plus
@@ -54,6 +61,15 @@ backend, packaging, dependency and documentation checks from the diff. Packaging
 changes upload one Debian test installer for seven days; docs/metadata-only work
 creates none. Main builds the actual release packages once without repeating the
 protected PR’s unit suites.
+
+Conservative Actions storage use is a standing owner requirement. Keep only
+small artifacts needed for an active acceptance test, for at most seven days;
+avoid duplicate uploads, build/dependency directories and unneeded caches.
+With authorization, remove obsolete artifacts/caches after use, preserving
+published releases/license material and useful CI history. Do not add a scheduled
+cleanup workflow or delete another repository's storage without a concrete need
+and authorization. After PR #5 merged, its 5,572,061-byte test artifact was deleted;
+the repository API then reported zero Actions artifacts and zero caches.
 
 ## Scope and accepted functional tests
 
@@ -88,7 +104,7 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 
 ## Validation evidence
 
-- Local 0.7.0 checks: 92 frontend tests, frontend typecheck/build, 339 Rust tests (one existing ignored), thirteen CI/version-policy tests, 56 IPC calls and 17 DB migrations checked. The Debian package built and its identity, declared dependencies, desktop entry, icon and six notice files were validated. Ubuntu CI is the required final package gate; do not infer its outcome before checking.
+- Local 0.7.0 checks: 92 frontend tests, frontend typecheck/build, 339 Rust tests (one existing ignored), thirteen CI/version-policy tests, 56 IPC calls and 17 DB migrations checked. The Debian package built and its identity, declared dependencies, desktop entry, icon and six notice files were validated. Final PR CI passed, including Ubuntu package installation/dependency resolution and AppImage integration; the merged release workflow also succeeded.
 - Native 0.7.0 WebKit checked update availability with synthetic GitHub responses, the download button, offline non-blocking behaviour, no downgrade and unchanged video elements. The native diagnostic IPC command responds. A live GitHub check returned the actual published 0.6.0 and correctly classified the installed 0.7.0 build as newer, without offering a downgrade. Camera visibility 3→2→1→0, map-only, saved choices, dashboard controls and hidden-master Play/Pause passed. GUI installation through Ubuntu App Center still needs the small owner acceptance check; these are not new hardware-camera certifications.
 
 - The accepted 0.6.0 tree and the separate upstream contribution each passed 85 frontend tests, typecheck/build and 339 Rust tests (one existing ignored). Final PR CI and the merged-main Ubuntu release succeeded. Documentation-only corrections do not invalidate the accepted playback test.
@@ -123,6 +139,18 @@ Do not create a duplicate PR or issue notification. Preserve the contribution
 branch while the upstream PR is open; use its page for current review/CI status.
 Its first Verify updater dry-run awaited maintainer approval, not a failed test.
 Do not approve or bypass the upstream maintainer gate.
+
+After the 0.7.0 merge, the owner authorized suitable updates to that same PR.
+Follow-up commit `757556226bf0bdfc3993f4d23e2e3292754192d0` adds camera-neutral
+empty-library guidance and registers the existing Miltona diagnostic IPC command.
+TypeScript typecheck, locked native compilation and static checks for 56 IPC calls
+and 17 migrations pass. No new real-camera test is claimed. Upstream versions,
+dependencies, updater/signing, release workflows and original notices remain
+unchanged. The contribution branch push updated PR #16 successfully. Updating
+its description through the GitHub App returned HTTP 403 (resource not accessible
+by integration); the existing approved description remains and the follow-up is
+documented in the commit and contribution compatibility note. Do not create a
+duplicate notification or attempt to bypass upstream permissions.
 
 The contribution preserves gubiq's commits/co-author notices and upstream's
 updater, application versions, signing and release workflows. It excludes the
