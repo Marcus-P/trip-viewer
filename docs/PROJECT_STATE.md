@@ -94,6 +94,16 @@ replace existing video nodes and no downgrade is offered. The headless check
 does not activate an OS browser. Native Windows/Mac CI and owner Windows
 real-recording acceptance remain separate pending gates.
 
+Initial native tests exposed noncanonical temporary roots in checkpoint fixtures
+(Mac aliases / Windows short-name paths), not a parser change. The same three
+failures were reproduced locally using a symlinked TMPDIR. Fixtures now derive
+requests and media-health keys from db.archive_root(), matching production's
+canonical archive scan contract. Decoded checkpoint JSON must contain front.mp4
+rather than an absolute path. All four checkpoint tests pass under that alias;
+none were skipped and production GPS/cache code is unchanged. Native failures
+are emitted as compact check annotations as well as console logs so full error
+context remains reviewable. Package build/validation errors use the same reporting.
+
 ## Integrated upstream work and cleanup
 
 Upstream commits 2534f65 and a9617fc are ancestors of the 0.6.0 merge, preserving

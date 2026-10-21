@@ -1213,6 +1213,10 @@ mod tests {
         let (fixture, _) = cache_fixture(root);
         drop(fixture);
         let db = crate::db::open(root).unwrap();
+        // Production scan paths share the canonical archive root. Temp paths
+        // may be aliases (macOS /var vs /private/var, Windows short names), so
+        // exercise the same contract instead of mixing two spellings.
+        let root = db.archive_root();
         db.lock().unwrap().execute(
             "INSERT INTO trips (id,start_time_ms,end_time_ms,camera_kind,gps_supported,last_seen_ms)
              VALUES ('trip',0,30000,'generic',1,0)", []).unwrap();
@@ -1289,8 +1293,9 @@ mod tests {
             )
             .unwrap();
         assert!(
-            !stored.contains(&root.path().to_string_lossy().to_string()),
-            "stored paths must be archive-relative"
+            matches!(serde_json::from_str::<BatchGps>(&stored).unwrap(),
+                BatchGps::Plain(item) if item.file_path == "front.mp4"),
+            "stored paths must be archive-relative on every platform"
         );
         drop(db);
         let db = crate::db::open(root.path()).unwrap();
@@ -1373,7 +1378,7 @@ mod tests {
         let (size, modified) = crate::media_health::fingerprint(path).unwrap();
         db.lock().unwrap().execute(
             "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
-             VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path, root.path()),size,modified]).unwrap();
+             VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path, db.archive_root()),size,modified]).unwrap();
         let result = run(&mut parsed);
         assert!(
             parsed.is_empty(),
@@ -1397,7 +1402,7 @@ mod tests {
                 let (size, modified) = crate::media_health::fingerprint(path_obj).unwrap();
                 conn.execute(
                     "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
-                     VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path_obj, root.path()),size,modified]).unwrap();
+                     VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path_obj, db.archive_root()),size,modified]).unwrap();
                 fake_batch(path, 1.0)
             }, |_, _| {})
         }).unwrap();

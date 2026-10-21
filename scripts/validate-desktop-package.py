@@ -15,6 +15,10 @@ import sys
 import tempfile
 import time
 
+from native_diagnostics import annotate_exceptions
+
+annotate_exceptions("Native package validation")
+
 parser = argparse.ArgumentParser()
 parser.add_argument("platform", choices=["Windows-x64", "macOS-universal"])
 parser.add_argument("--installed", type=pathlib.Path)
@@ -29,6 +33,12 @@ notices = ["LICENSE", "THIRD_PARTY_NOTICES.md", "NODE_RUNTIME_LICENSES.txt",
 def check_notices(directory):
     for name in notices:
         assert (directory / name).read_bytes() == (root / "release-assets" / name).read_bytes(), name
+
+
+def checked(command):
+    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode:
+        raise RuntimeError("Command failed: " + repr(command) + "\n" + result.stdout + result.stderr)
 
 
 def smoke(binary):
@@ -76,14 +86,14 @@ else:
     assert info["CFBundleIdentifier"] == "com.tripviewer.app"
     assert info["CFBundleShortVersionString"] == version
     binary = app / "Contents/MacOS" / info["CFBundleExecutable"]
-    subprocess.run(["lipo", "-verify_arch", "arm64", "x86_64", str(binary)], check=True)
-    subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    checked(["lipo", "-verify_arch", "arm64", "x86_64", str(binary)])
+    checked(["codesign", "--verify", "--deep", "--strict", str(app)])
     check_notices(app / "Contents/Resources/licenses")
     assert list((app / "Contents/Resources").glob("*.icns")), "Missing original icon"
     images = list((bundle / "dmg").glob("*.dmg"))
     assert len(images) == 1
     with tempfile.TemporaryDirectory(prefix="trip-viewer-dmg-") as mount:
-        subprocess.run(["hdiutil", "attach", str(images[0]), "-readonly", "-nobrowse", "-mountpoint", mount], check=True)
+        checked(["hdiutil", "attach", str(images[0]), "-readonly", "-nobrowse", "-mountpoint", mount])
         try:
             mounted = pathlib.Path(mount) / "Trip Viewer.app"
             other = mounted / "Contents/MacOS" / info["CFBundleExecutable"]
@@ -91,6 +101,6 @@ else:
             assert (pathlib.Path(mount) / "Applications").is_symlink()
             check_notices(mounted / "Contents/Resources/licenses")
         finally:
-            subprocess.run(["hdiutil", "detach", mount], check=True)
+            checked(["hdiutil", "detach", mount])
     smoke(binary)
 print(args.platform + ": package identity, architecture, notices and basic launch pass")

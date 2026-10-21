@@ -19,6 +19,10 @@
 
 ## Native validation and storage
 
+- Fixes cross-platform checkpoint test setup to use the canonical archive root,
+  matching production scan paths on Mac/Windows. The relative-path assertion now
+  checks decoded JSON instead of matching raw strings with escaped separators.
+  Cache/parser implementation and the tested health/restart assertions remain.
 - Native Windows/Mac jobs build and validate their own packages, license payloads,
   architecture and a basic process launch. Mac checks both universal slices,
   ad-hoc signature and mounted disk-image contents. Windows silently installs

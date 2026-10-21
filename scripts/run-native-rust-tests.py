@@ -6,6 +6,10 @@ import re
 import shutil
 import subprocess
 import sys
+from native_diagnostics import report
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 root = pathlib.Path(__file__).resolve().parent.parent
 rustc = shutil.which("rustc")
@@ -24,12 +28,5 @@ for line in process.stdout:
     tail.append(line)
 status = process.wait()
 if status:
-    # Check annotations are truncated by GitHub. Remove successful test lines
-    # and emit small parts so assertion details are retained in the Checks UI.
-    details = "".join(line for line in tail if not
-                      (line.startswith("test ") and line.rstrip().endswith("... ok")))[-12000:]
-    for index, start in enumerate(range(0, len(details), 1000), 1):
-        part = details[start:start + 1000]
-        escaped = part.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-        print("::error title=Native Rust failure (" + host + ") part " + str(index) + "::" + escaped, flush=True)
+    report("Native Rust failure (" + host + ")", "".join(tail))
 sys.exit(status)

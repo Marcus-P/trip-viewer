@@ -7,6 +7,10 @@ import os
 import pathlib
 import shutil
 
+from native_diagnostics import annotate_exceptions
+
+annotate_exceptions("Native package preparation")
+
 parser = argparse.ArgumentParser()
 parser.add_argument("platform", choices=["Windows-x64", "macOS-universal"])
 parser.add_argument("--out", required=True, type=pathlib.Path)
