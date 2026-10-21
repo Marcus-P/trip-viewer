@@ -518,7 +518,7 @@ export function VideoGrid({
       }}
     >
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
-        {fullscreenActive && (
+        {singleFullscreenLabel !== null && (
           <button
             type="button"
             onClick={togglePlayback}

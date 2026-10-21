@@ -20,7 +20,7 @@ That PR:
 
 Real-world Ubuntu testing confirmed that the prior video flicker disappeared after PR #2. Keep that fix unless a demonstrated regression requires changing it.
 
-The user approved the proposed English follow-up to `gubiq` on PR #2 and explicitly instructed sending it. Publication is pending the managed environment allowing `api.github.com`; the required additive network draft is saved for user review. Check existing comments before sending to avoid duplication and record the actual comment URL once posted.
+The approved English follow-up to `gubiq` was posted on PR #2 after the environment network update: https://github.com/Marcus-P/trip-viewer/pull/2#issuecomment-6315937674.
 
 ## Active work: authorized playback tools and GPS analysis / 0.6.0
 
@@ -63,9 +63,9 @@ unchanged video source/time during zoom, dashboard timeline collapse/expand,
 single-camera/dashboard back navigation, Play/Pause and fullscreen exit. No
 video nodes were replaced and no media `emptied` events occurred through zoom
 or fullscreen changes. A three-file native GPS batch handled missing GPS.
-Fresh Ubuntu AppImage CI and focused USB-SSD/real-footage validation remain
-required before reporting this feature branch ready for merging. No real-storage
-speedup factor is claimed from the bounded-concurrency tests.
+Ubuntu AppImage CI passed for `8817eaa`: https://github.com/Marcus-P/trip-viewer/actions/runs/39591307803. The user subsequently confirmed cross-segment map seeking, dashboard fullscreen timeline and paused zoom on real footage. GPS analysis may be roughly 2–5 seconds faster than the previous ~20-second segment baseline, but this was not measured precisely; the user accepts the observed performance with no reported regression. Do not claim a measured speedup factor.
+
+The user requested removing the redundant upper Play/Pause button in dashboard fullscreen, where the lower transport already supplies it. The upper control now appears only in single-camera fullscreen, where the timeline/transport strip is hidden. The UI follow-up passed 74 frontend tests, typecheck/build and 331 Rust tests (one pre-existing ignored). The validated media/GPS code is unchanged.
 
 ## Completed stabilization: PR #3 / 0.5.0
 
@@ -284,7 +284,7 @@ Both final GPS resume tests were confirmed and both Ubuntu CI runs for the versi
 
 The user features below were subsequently authorized and implemented in the 0.6.0 branch described above. Maintenance items remain tracked separately.
 
-**User features implemented in the active 0.6.0 branch (awaiting validation):**
+**User features implemented in the active 0.6.0 branch (user validation confirmed above):**
 
 - **Seek by clicking the map route.** Clicking a point on the displayed route should seek the video and timeline to its corresponding GPS time. Resolve the nearest position on the route (including between samples), preserving segment/trip time mapping; a general map click must not arbitrarily choose an unrelated route point.
 - **Collapsible timeline in dashboard fullscreen.** In the F/I/R + Map fullscreen layout, allow the timeline and speed graph area to be expanded/collapsed.
@@ -296,7 +296,7 @@ The user features below were subsequently authorized and implemented in the 0.6.
 5. **`NO_STRIP=true`.** Determine its exact effect in the Tauri/AppImage/linuxdeploy path and document concrete release guidance. Do not assume it is the same as Cargo release stripping.
 6. **npm audit findings.** Review `npm audit --omit=dev` and full `npm audit`; make targeted changes only. Do not run `npm audit fix` blindly.
 7. **Upstream contribution cleanup.** When contributing generally useful fixes back to `chrisl8/trip-viewer`, branch from upstream main and cherry-pick/reapply only upstream-suitable changes rather than submitting the whole fork branch.
-8. **Contributor follow-up.** The user approved the English draft and authorized sending it to `gubiq` on PR #2. Awaiting API access; record the actual comment URL after publication.
+8. **Contributor follow-up.** Completed: the approved follow-up was posted to `gubiq` on PR #2; see the comment URL above.
 
 ## Development principles established by the debugging work
 
