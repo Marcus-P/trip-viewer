@@ -43,6 +43,7 @@ This repository is public-facing project state. Do not commit secrets or persona
 ## Branch / PR discipline
 
 - `main` is the stable branch.
+- Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Version changes belong in the PR before merging so the packaged version is tested.
 - Active stabilization work is tracked in PR #3 on `fix/webkit-sync-stability`; see `docs/PROJECT_STATE.md` for the current status.
 - Keep PR #3 focused on playback/media-health/GPS robustness. Put unrelated feature work in a later branch.
 - Before merging PR #3, require green CI and explicit user confirmation after the relevant real-world playback test.

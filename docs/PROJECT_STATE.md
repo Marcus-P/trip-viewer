@@ -20,14 +20,14 @@ That PR:
 
 Real-world Ubuntu testing confirmed that the prior video flicker disappeared after PR #2. Keep that fix unless a demonstrated regression requires changing it.
 
-A follow-up thank-you/comment to `gubiq` is intentionally deferred until PR #3 is fully finished and manually validated. His public GitHub communication is predominantly English, so English is the default language for that final follow-up.
+A follow-up to `gubiq` should be drafted in English after PR #3 is merged. The user explicitly requested a proposed message for review first; do not post it without a further instruction to send.
 
 ## Active work: PR #3
 
 - PR: #3, **Stabilize WebKit multi-camera seeking and recovery**
 - Branch: `fix/webkit-sync-stability`
 - Base: `main`
-- CI before the follow-up audit was reported green, including the Ubuntu AppImage build. The follow-up changes below require fresh CI; local cloud validation is recorded separately.
+- Source commit `e99f273` passed both Ubuntu CI runs, including AppImage packaging. The user confirmed both final tests (A → B → A during GPS analysis, and app restart before completion), confirmed successful playback, and explicitly authorized merging PR #3. Version/release-policy updates to 0.5.0 require fresh green CI before merging.
 
 ### Playback synchronization work already implemented
 
@@ -142,7 +142,43 @@ Local automated validation: 65 frontend tests and 326 Rust tests pass (one exist
 
 Publishing the Codex environment does not update an installed desktop app. CI now uploads a downloadable test artifact after the Ubuntu build and desktop-integration checks pass. Open the latest successful CI run for `fix/webkit-sync-stability` (or PR #3) and download its `Trip-Viewer-Ubuntu-24.04-<commit>` artifact. Artifacts are retained for 30 days and require a GitHub login to download.
 
-Extract the ZIP, run `sha256sum -c SHA256SUMS.txt`, and launch the included `Trip.Viewer_*_test-*_Ubuntu-24.04_amd64.AppImage` after making it executable. The filename and `BUILD_INFO.txt` identify the tested commit; the in-app version remains 0.4.0 until a separate stable release. The installer helper is included if the user wants to replace their launcher installation after testing. This path neither merges PR #3 nor creates a stable GitHub Release.
+Extract the ZIP, run `sha256sum -c SHA256SUMS.txt`, and launch the included `Trip.Viewer_*_test-*_Ubuntu-24.04_amd64.AppImage` after making it executable. The filename and `BUILD_INFO.txt` identify the tested commit; the in-app version follows `package.json` (0.5.0 for the PR #3 release). The installer helper is included if the user wants to replace their launcher installation after testing. This path neither merges PR #3 nor creates a stable GitHub Release.
+
+## Version and release policy
+
+`docs/VERSIONING.md` defines MAJOR.MINOR.PATCH and synchronized version files.
+Every PR merged into `main` increments once: patch for fixes/maintenance, minor
+for backwards-compatible features, major for incompatible changes, resetting
+lower components. PR #3 is 0.5.0 because of the progressive/resumable GPS feature.
+CI validates file agreement and a valid increase against the PR base or main's
+previous commit. Changing `RELEASE_VERSION` on main triggers the existing Ubuntu
+release workflow. A completed merge and a published release are separate states.
+
+## GPS performance investigation
+
+The user reports slow analysis per segment; the supplied log has no per-file
+elapsed timings, so no measured speedup or single proven bottleneck is claimed.
+The current implementation parses each candidate camera sequentially per segment.
+Both MP4 metadata probing and the VIOFO reader use unbuffered `File` reads; VIOFO
+records also require seeks to their described positions. Concurrent video playback
+and an external rotating disk can make more I/O workers counterproductive.
+
+Next steps, separately from the validated PR #3 merge: measure metadata probing,
+GPS reads and validation independently; benchmark buffered/sequential metadata
+access first, then bounded file-level parallelism (initially two workers, shared
+across jobs). Keep decoded records in physical source order and assemble results
+in segment/candidate order; never sort malformed camera timestamps to hide a
+contradiction. Keep best-camera selection/tie-breaking, adjacent VIOFO validation,
+checkpoint provenance, short DB locks and the responsive transport unchanged.
+Compare parallel and sequential outputs on corrupt timestamps, missing GPS,
+late fixes, gaps, source/health changes, restart and cache hits before proposing a
+performance change for merge. Do not advertise a speed factor without measurements
+on representative media/storage. A behaviour-preserving optimization is 0.5.1.
+
+The latest log reports one segment's three camera files with descriptors but no
+decodable GPS records. This is compatible with absent valid fixes (possibly a
+short recording), not proof of clip duration or a damaged video. GStreamer
+startup/teardown warnings in the same log do not establish a GPS parsing failure.
 
 ## GPS architecture
 
@@ -172,7 +208,7 @@ Before merging PR #3, manually verify the latest branch, especially:
 - if the original GPS-providing channel is known bad, GPS comes from a healthy sibling channel where usable,
 - segment auto-advance still works with a promoted sync master.
 
-Do not merge PR #3 until the user explicitly confirms the relevant final test.
+The user has now confirmed both final GPS resume tests and explicitly authorized merging PR #3. Earlier pending-test notes above are historical. Merge only after fresh CI for the versioned head is green.
 
 ## On hold / later work
 
@@ -190,7 +226,7 @@ These are intentionally deferred. Do not silently implement them while finishing
 5. **`NO_STRIP=true`.** Determine its exact effect in the Tauri/AppImage/linuxdeploy path and document concrete release guidance. Do not assume it is the same as Cargo release stripping.
 6. **npm audit findings.** Review `npm audit --omit=dev` and full `npm audit`; make targeted changes only. Do not run `npm audit fix` blindly.
 7. **Upstream contribution cleanup.** When contributing generally useful fixes back to `chrisl8/trip-viewer`, branch from upstream main and cherry-pick/reapply only upstream-suitable changes rather than submitting the whole fork branch.
-8. **Contributor follow-up.** After PR #3 is complete and validated, post a concise English follow-up to `gubiq` on PR #2 explaining that his libva/DMABuf fix removed the flicker and that subsequent WebKit synchronization/media-health robustness was added in PR #3.
+8. **Contributor follow-up.** After PR #3 is merged, prepare a concise English follow-up for user review before posting to `gubiq` on PR #2 explaining that his libva/DMABuf fix removed the flicker and that subsequent WebKit synchronization/media-health robustness was added in PR #3.
 
 ## Development principles established by the debugging work
 

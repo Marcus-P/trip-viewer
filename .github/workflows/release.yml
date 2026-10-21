@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/check-version.mjs
           VERSION="$(tr -d '[:space:]' < RELEASE_VERSION)"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
