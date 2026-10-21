@@ -256,6 +256,22 @@ describe("SyncEngine transport barriers", () => {
     engine.dispose();
   });
 
+  it("a rejected slave play does not stop the master or healthy cameras", async () => {
+    const master = new FakeVideo({ seekDelayMs: 1 });
+    const failed = new FakeVideo({ rejectPlay: true, seekDelayMs: 1 });
+    const healthy = new FakeVideo({ seekDelayMs: 1 });
+    const engine = engineFor(master, [failed, healthy]);
+    await engine.play();
+    await sleep(2);
+    expect(master.paused).toBe(false);
+    expect(healthy.paused).toBe(false);
+    expect(failed.paused).toBe(true);
+    expect(useStore.getState().isPlaying).toBe(true);
+    expect(useStore.getState().error).toBeNull();
+    engine.pause();
+    engine.dispose();
+  });
+
   it("master play failure leaves every channel paused and UI on Play", async () => {
     const master = new FakeVideo({ rejectPlay: true, seekDelayMs: 1 });
     const slave = new FakeVideo({ seekDelayMs: 1 });

@@ -1,50 +1,80 @@
-# Releasing this fork
+# Releasing the Marcus-P fork
 
-This fork currently publishes **Ubuntu 24.04 LTS x86_64** builds only. Windows support is intentionally deferred to a later feature branch.
+This fork of [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer) currently
+publishes Ubuntu 24.04 LTS x86_64 AppImages. Existing Windows/macOS target code
+is retained; these are not newly validated/released platforms for this fork.
+Keep the original icons, [MIT notice](LICENSE) and
+[third-party notices](THIRD_PARTY_NOTICES.md).
 
-## Release model
+## Stable versus candidate
 
-The file `RELEASE_VERSION` is the release trigger and must match:
+Published stable: **0.5.0**. The open 0.6.0 candidate is **PR #4**. Owner-confirmed
+manual checks cover VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS. Use
+[compatibility evidence](docs/COMPATIBILITY.md) to describe other cameras; do not
+promote parser tests or synthetic media into hardware certification.
 
-- `package.json`
-- the root package version in `package-lock.json`
-- `src-tauri/Cargo.toml`
-- the `tripviewer` package entry in `src-tauri/Cargo.lock`
+A feature branch/test artifact is not a stable release. Merge, successful release
+workflow, uploaded assets and installed local version are separate events.
+Only advertise a new stable download after its release workflow succeeds.
 
-When a commit that changes `RELEASE_VERSION` lands on `main`, `.github/workflows/release.yml` validates and tests the tree, builds the Ubuntu AppImage, generates checksums/license inventories, creates the `vX.Y.Z` tag, and creates a normal GitHub Release with permanent release assets.
+## Prepare the PR
 
-## No upstream signing key or auto-updater
+Follow [versioning](docs/VERSIONING.md). Synchronize `package.json`, both root
+version entries in `package-lock.json`, the app entries in `src-tauri/Cargo.toml`
+and `src-tauri/Cargo.lock`, and `RELEASE_VERSION`. Update release notes and docs
+so a candidate is not mislabeled as already published.
 
-The upstream project uses a Tauri updater signing key owned by the upstream maintainer. This fork does not have and must not attempt to use that private key.
+```bash
+npm ci
+node scripts/check-version.mjs
+npm test
+npm run build
+npm audit --omit=dev --audit-level=high
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+NO_STRIP=true npm run tauri -- build --bundles appimage
+```
 
-For this fork:
+CI runs once for each PR update, cancels superseded work, and retains test packages
+for seven days. Manual dispatch is available for a deliberate standalone test.
+Main does not get a redundant CI build: the release workflow verifies its merged
+tree before publication.
 
-- `createUpdaterArtifacts` is disabled
-- the upstream updater endpoint/public key is removed
-- the updater UI/backend registration is disabled
-- releases are verified by the SHA-256 checksum published next to the AppImage
+CI additionally compares the version to the PR’s base. Validate the Ubuntu desktop
+integration helper against the built AppImage using an isolated test home, as in
+`.github/workflows/ci.yml`. Record relevant real-footage checks and their actual
+hardware/OS scope, retaining authorship and a merge commit for contributions.
 
-This removes the previous local-build failure where Tauri produced an AppImage and then failed while trying to sign updater artifacts.
+## Protected merge and release workflow
 
-## Preparing a future release
+`main` requires a PR, resolved review threads, a current successful `ubuntu` check,
+and owner-only updates via PR. History rewrite and branch deletion are blocked
+without a bypass actor. **Only the repository owner merges.** Do not substitute
+direct pushes, force pushes or `--admin` bypasses. Details and verification are in
+[branch protection](docs/BRANCH_PROTECTION.md).
 
-Work in a feature branch. Before merging to `main`:
+When a merged commit changes `RELEASE_VERSION`, `.github/workflows/release.yml`
+validates the tree, tests/audits it, builds the AppImage and installer, checks the
+launcher, generates license inventories/checksums, creates `vX.Y.Z`, and publishes
+a GitHub Release. Existing tags are rejected rather than overwritten.
 
-1. update the four version locations listed above
-2. update `RELEASE_VERSION`
-3. update `RELEASE_NOTES.md`
-4. run `npm ci`, `npm test`, `npm audit --omit=dev --audit-level=high`, `cargo test --manifest-path src-tauri/Cargo.toml`, and `NO_STRIP=true npm run tauri -- build --bundles appimage`
-5. validate the Ubuntu installer/launcher helper against the built AppImage
-6. merge the tested branch to `main`
+The stable AppImage name is `Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.AppImage`.
+CI test artifacts instead include a commit ID and expire after their retention
+period. Published release assets persist until deliberately removed.
 
-If `RELEASE_VERSION` did not change, no release is created.
+## Updater, desktop identity and licensing
 
-## Ubuntu desktop integration
+The upstream private updater key is not available to this fork and must not be
+used. Updater artifacts/UI/endpoint are disabled; release SHA-256 manifests provide
+integrity checks for manually downloaded assets. This is distinct from upstream
+signed-updater trust and depends on the release distribution channel.
 
-The release includes `install-trip-viewer-ubuntu.sh`. It extracts desktop metadata and the icon from the AppImage, installs the AppImage at a stable per-user path, installs the desktop entry under the Tauri application identifier (`com.tripviewer.app`), and refreshes the desktop database when available.
+The installer uses `com.tripviewer.app`, the existing icon and GTK app-ID support.
+Do not change the identifier as release cleanup: it affects launcher grouping and
+application compatibility. Installation paths and source-build updates are in
+[Linux setup](LINUX_DEV_SETUP.md).
 
-Tauri's `enableGTKAppId` setting is enabled so GNOME can associate the running application with that launcher and keep the Dock icon/group stable.
-
-## Licensing
-
-Before a release, review [LICENSE](LICENSE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and the generated Node/Rust dependency-license inventories. The repository MIT license covers Trip Viewer code and does not override dependency licenses.
+Release license inventories include resolved Node/Rust declarations and extracted
+runtime notice/license texts. Third-party components retain their own terms,
+including React Leaflet’s Hippocratic-2.1 and Symphonia’s MPL-2.0 declarations.
+Trip Viewer’s MIT license does not relicense them. Preserve the inherited icon
+and copyright attribution even when refreshing product documentation.

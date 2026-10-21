@@ -14,6 +14,7 @@ import {
   type MediaHealthRange,
 } from "../../ipc/mediaHealth";
 import { useStore } from "../../state/store";
+import { usePausedZoom } from "./usePausedZoom";
 import { shouldMuteChannelAudio } from "./audioPolicy";
 
 // Diagnostic toggles. Both default off so production builds stay silent.
@@ -132,6 +133,10 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
 
     // Merge the forwarded ref with our local ref so we can attach debug
     // listeners without disturbing whatever the parent is doing with the ref.
+    const isPlaying = useStore(s => s.isPlaying);
+    const canZoom = !isPlaying && ready && !error && !gapped;
+    const zoom = usePausedZoom(localRef, canZoom, src);
+
     const setRefs = useCallback(
       (node: HTMLVideoElement | null) => {
         localRef.current = node;
@@ -492,6 +497,8 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
 
     return (
       <div
+        title={canZoom ? "Paused: scroll to zoom, drag the enlarged image to pan" : undefined}
+        onClickCapture={zoom.onClickCapture}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         className={clsx(
@@ -501,6 +508,14 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       >
         <video
           ref={setRefs}
+          onPointerDown={zoom.onPointerDown}
+          onPointerMove={zoom.onPointerMove}
+          onPointerUp={zoom.onPointerUp}
+          onPointerCancel={zoom.onPointerCancel}
+          onLostPointerCapture={zoom.onLostPointerCapture}
+          style={{ transform: zoom.view.scale > 1 ? `translate(${zoom.view.x}px, ${zoom.view.y}px) scale(${zoom.view.scale})` : undefined,
+            touchAction: canZoom && zoom.view.scale > 1 ? "none" : "auto",
+            cursor: canZoom && zoom.view.scale > 1 ? "grab" : undefined }}
           className="h-full w-full object-contain"
           muted={audioMuted}
           preload="auto"
@@ -539,6 +554,17 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           }}
         />
 
+        {canZoom && (
+          <div className="absolute bottom-2 right-2 z-20 flex items-center gap-1 rounded bg-black/80 p-1 text-xs text-white"
+            onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
+            <button type="button" aria-label={`Zoom out ${label}`} disabled={zoom.view.scale <= 1}
+              className="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-40" onClick={() => zoom.changeZoom(1 / 1.5)}>−</button>
+            <button type="button" aria-label={`Reset zoom ${label}`} title="Reset zoom and pan"
+              className="rounded px-2 py-1 hover:bg-neutral-700" onClick={zoom.reset}>{Math.round(zoom.view.scale * 100)}%</button>
+            <button type="button" aria-label={`Zoom in ${label}`} disabled={zoom.view.scale >= 8}
+              className="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-40" onClick={() => zoom.changeZoom(1.5)}>+</button>
+          </div>
+        )}
         {gapped && (
           <div className="absolute inset-0 flex items-center justify-center bg-black text-xs text-neutral-600">
             camera off

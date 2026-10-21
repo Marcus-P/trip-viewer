@@ -1,87 +1,55 @@
-# CLAUDE.md
+# Contributor entry point
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Start with [AGENTS.md](AGENTS.md) and [current project state](docs/PROJECT_STATE.md).
+Those instructions apply to this fork regardless of the coding assistant used.
+The [inherited Claude guidance](docs/history/inherited-CLAUDE.md) is preserved for
+provenance; its Windows-first, legacy settings-table and updater assumptions
+must not override the current code or fork release policy.
 
 ## Commands
 
 ```bash
-# Development (hot-reload, ~10s incremental Rust builds)
-npm run tauri dev
-
-# Production build (creates NSIS installer at src-tauri/target/release/bundle/nsis/)
-npm run tauri build
-
-# Type-check TypeScript
-npx tsc --noEmit
-
-# Rust tests (35+ unit tests, mostly in src-tauri/src/import/ and src-tauri/src/scan/)
-cargo test --manifest-path src-tauri/Cargo.toml
-
-# Run a single Rust test (example)
-cargo test --manifest-path src-tauri/Cargo.toml test_copy_and_hash_matches_hash_file
-
-# Clippy (should be zero warnings — enforce this)
-cargo clippy --manifest-path src-tauri/Cargo.toml -- -W clippy::all
+npm ci
+npm test
+npx vitest run src/utils/speedCurve.test.ts
+npm run build
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+npm run tauri -- dev
+NO_STRIP=true npm run tauri -- build --bundles appimage
 ```
 
-## Architecture
+Native development needs the [Linux dependencies](LINUX_DEV_SETUP.md).
+Use `cargo clippy` for relevant Rust work, inspect existing warnings, and do not
+claim the whole repository is warning-free without checking.
 
-Trip Viewer is a **Tauri v2** desktop app: Rust backend (`src-tauri/src/`) communicates with a React/TypeScript frontend (`src/`) via Tauri commands and events. Targets Windows (NSIS installer) and Linux (AppImage; Flatpak planned). Windows is the primary development platform; the Linux port relies on WebKitGTK 4.1 and GStreamer for video rendering.
+## Backend module map (upstream guidance integrated)
 
-### Rust backend module map
+- `db/`: per-archive SQLite and numbered migrations; stored paths remain archive-relative through `paths.rs`.
+- `archive.rs`: switches `ArchiveSlot`; existing workers retain their original handle. `migration_v2.rs` handles legacy/cross-platform data; `startup.rs` runs background startup tasks with progress events.
+- `scan/`: folder/filename recognition and grouping. `scans/`: post-import analysis that emits tags (GPS, audio, places and coverage).
+- `trips/merge.rs`: manual merge and archive-only data-loss guards; directives survive rescans. `places/` and `tags/` own their corresponding operations.
+- `video_server.rs`: localhost HTTP Range playback on Linux/macOS; Windows uses the asset protocol.
+- `timelapse/events.rs`: variable-speed event thresholds. Read the actual curve implementation before changing timelapse alignment.
 
-- **`scan/`** — folder scanner. Parses Wolf Box filenames (`YYYY_MM_DD_HHMMSS_EE_C.MP4`), fuzzy-matches triplets within a 3-second window, merges segments into trips with a 120s gap threshold. Uses `rayon` for parallel metadata probing.
-- **`gps/`** — custom binary parser for the **ShenShu MetaData format** used by Wolf Box firmware. This was reverse-engineered — no upstream spec exists. Decodes NMEA DDMM.MMMM coordinates from the `gpmd` track.
-- **`metadata/`** — MP4 probe using the `mp4` crate (pure Rust, **no ffprobe dependency** — this is a locked decision, see DESIGN.md).
-- **`import/`** — SD card import pipeline (10 submodules). **Safety-critical**: files are SHA-256 hashed during copy, re-hashed on the destination, and the source is only wiped after every file is verified. See "Import pipeline invariants" below.
-- **`timelapse/`** — background ffmpeg-driven pre-render pipeline that produces 8x / 16x / 60x fast-playback MP4s per (trip, tier, channel). ffmpeg is an opt-in user dependency (configured via the `settings` table, not bundled). NVENC + NVDEC path is used when available; see `ffmpeg.rs::Encoder::needs_cuda_hwaccel`. **Event-detection thresholds for the variable-speed 16x/60x tiers live in `events.rs` — see that module's top-of-file doc comment for how to verify the slowdown behavior after a run and how to tune thresholds.**
-- **`error.rs`** — `AppError` enum with `thiserror`; implements `Serialize` for automatic JSON conversion to the frontend.
+These integrate the useful upstream `2534f65` documentation updates. The fork uses
+[its protected-main release workflow](RELEASING.md), not the upstream `npm run release` procedure.
 
-### Frontend structure
+## Preserve these invariants
 
-- **`App.tsx`** — sidebar (trip list, SD + folder import buttons, storage summary, version footer) plus a top tab bar (`MainNavTabs`) that switches between Player, Scan, Review, Timelapse, optional Issues, and Places. The Issues tab only renders when there are scan errors; Places lives at the right of the bar.
-- **`components/video/`** — `VideoGrid`, `ChannelPanel`, `PlayerShell`. The grid renders one `<video>` per channel reported by the active segment (1 to 4). Channels are **always rendered in stable DOM order** for the dashcam's kind set; swap behavior uses CSS grid placement only. Moving them in the tree would cause React to unmount/remount the `<video>` elements and pause playback.
-- **`components/import/`** — confirm dialog, progress UI, unknown files dialog, summary. Progress events stream from Rust via `window.emit()`, frontend listens with `@tauri-apps/api/event`. There are two import flows: SD-card (destructive, wipes source) and folder (non-destructive).
-- **`components/timelapse/`** — Timelapse Library view, ffmpeg config modal, per-trip rebuild, scope picker (new & unfinished / retry failed / rebuild all).
-- **`engine/useSyncEngine.ts`** — video sync engine. Uses `requestVideoFrameCallback` against a stable master ref (front when present, otherwise the first channel); other channels are slaved to it. Master ref is the timing master regardless of which channel is visually primary.
-- **`state/store.ts`** — Zustand store with `LibrarySlice`, `PlaybackSlice`, `ImportSlice`, plus timelapse state. `primaryChannel` controls layout but not sync.
+- Keep channel video elements mounted and in canonical DOM order; change layout
+  with CSS. Visual primary and display visibility are separate from sync/audio.
+- Keep validated Linux workarounds and channel-local recovery. Do not turn one
+  corrupt camera or a missing GPS log into a whole-trip playback failure.
+- Preserve camera dispatch; see [compatibility evidence](docs/COMPATIBILITY.md).
+  Do not infer hardware validation from synthetic samples or parser unit tests.
+- Preserve upstream import verify-before-wipe: source wipe only after complete
+  verified staging and not when cancelled/read-only. Hash on copy, verify at the
+  destination, retain PID-lock recovery, skip preallocation files and respect
+  the Videos/Photos import-root adjustment.
+- Keep archive writes attached to the intended handle; avoid long DB locks while
+  parsing media. Bookmarks and GPS caches must survive ordinary trip/restart use.
+- Preserve contributor authorship, the upstream icon and MIT/dependency notices.
+  No force pushes, admin bypasses or assistant merges into owner-protected main.
 
-## Locked architectural decisions (do not revisit without strong reason)
-
-See DESIGN.md for full context. Key ones:
-
-- **HTML5 `<video>` for playback** (not libmpv). `tauri-plugin-libmpv` is broken for multi-instance on Windows.
-- **Pure Rust `mp4` crate** (not ffprobe). Bundling ffprobe adds 80 MB and triggers Defender heuristics.
-- **HEVC Extension tax accepted** — app uses a `<HevcSupportGate>` startup check with Store deep-link on Windows, and an apt-install hint on Linux when GStreamer's libav plugin is missing.
-- **NSIS on Windows, AppImage on Linux (Flatpak planned).** MSI rejected (~130 MB vs 3 MB NSIS). `.deb` skipped — AppImage bundles its own GStreamer plugins for codec-complete direct downloads. A future Flatpak would reach Debian/Ubuntu/Fedora/Arch with bundled codecs via `org.freedesktop.Platform.ffmpeg-full`, but no Flathub manifest exists yet.
-- **No fullscreen API on single-click** — use double-click (conflict with play/pause expectation).
-
-## Import pipeline invariants
-
-The SD card import pipeline in `src-tauri/src/import/` has strict safety guarantees. Do not break these:
-
-1. **Verify-before-wipe**: `wipe_source()` only runs if `manifest.iter().all(|e| e.verified)` is true, not cancelled, and not read-only.
-2. **Cancel safety**: cancel flag is checked between every file operation. Cancel during staging → source NOT wiped.
-3. **Lock file with PID recovery**: `<root>/.staging/.lock` contains the PID. On startup, if the PID is dead (verified via Windows `OpenProcess`), the stale lock is reclaimed.
-4. **Hash-while-copy**: single-pass SHA-256 via explicit loop (no `TeeReader` in Rust std). Destination is re-hashed independently to detect storage corruption.
-5. **Sequential phases**: pre-flight → stage → wipe → distribute → unknowns → cleanup. Each source is processed fully before the next.
-6. **PreAllocFiles are skipped during staging** (not just deleted after) — they'd inflate progress counters and waste copy time.
-7. **Import root adjustment**: if the user-supplied `root_path` ends in `/Videos`, the parent is used as the import root. Videos/ and Photos/ are siblings at the root.
-
-## Video layout rules
-
-1. Every channel reported by the active segment gets a `<ChannelPanel>` and stays mounted — hidden via CSS grid placement, not conditional rendering. Channel count is dashcam-dependent (1 for Miltona, 2 for Thinkware, 3 for Wolf Box, up to 4 for Generic).
-2. Refs are **stable per channel kind**, never swapped. The sync engine depends on this.
-3. Audio follows `isMaster` prop (which tracks `primaryChannel`); sync timing is always driven by the master ref (front when the dashcam has one, otherwise the first channel).
-4. On trip/segment change, `primaryChannel` resets to `null` in the store action; `VideoGrid` then sets it to the new segment's master channel.
-
-## Event system (Rust → frontend)
-
-The import pipeline emits 5 event types via `app.emit()`. Progress events are **throttled to ~15/sec** (66ms minimum between emits) to avoid IPC saturation. See `types.rs` for payload shapes.
-
-## Related documents
-
-- **DESIGN.md** — architecture decisions, ruled-out options, tech stack, future roadmap
-- **RELEASING.md** — how to cut a release, version bumping, GitHub Actions workflow, SignPath code signing roadmap
-- **LINUX_DEV_SETUP.md** — Linux dev environment setup (distrobox recipe for atomic distros like Bazzite/Silverblue, plus direct-install steps for Fedora/Ubuntu/Arch)
-- **README.md** — user-facing documentation
+See [architecture](DESIGN.md), [user guide](docs/USER_GUIDE.md),
+[release policy](RELEASING.md) and [versioning](docs/VERSIONING.md) for details.

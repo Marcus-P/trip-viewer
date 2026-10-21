@@ -15,7 +15,7 @@ use crate::gps::validation::{self, FieldConsistency, GpsObservation, ValidationC
 use crate::model::GpsPoint;
 use chrono::{NaiveDate, NaiveDateTime};
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 const KNOT_TO_MPS: f64 = 0.514_444;
@@ -58,6 +58,7 @@ pub(crate) fn extract_timed(
     path: &Path,
     duration_s: Option<f64>,
 ) -> Result<Vec<TimedGpsPoint>, AppError> {
+    let read_started = std::time::Instant::now();
     let mut file = File::open(path)?;
     let file_len = file.metadata()?.len();
     let descriptors = read_gps_descriptors(&mut file, file_len)?;
@@ -73,6 +74,7 @@ pub(crate) fn extract_timed(
         }
     }
 
+    super::gps_timing(path, "read_decode", read_started.elapsed(), decoded.len());
     if decoded.is_empty() {
         eprintln!(
             "viofo gps: descriptor box found but no decodable GPS records in {}",
@@ -97,7 +99,14 @@ pub(crate) fn extract_timed(
     let max_time_span_ms = duration_s
         .filter(|duration| duration.is_finite() && *duration >= 0.0)
         .map(|duration| (duration.ceil() * 1000.0) as i64);
+    let validation_started = std::time::Instant::now();
     let validated = validation::validate(&observations, ValidationContext { max_time_span_ms });
+    super::gps_timing(
+        path,
+        "validate",
+        validation_started.elapsed(),
+        decoded.len(),
+    );
 
     let temporal_contradictions = validated
         .iter()
@@ -232,10 +241,17 @@ fn find_gps_box(
             // starting 16 bytes after the `gps ` box start (8 box + 8 vendor).
             let mut cursor = header.body_start.saturating_add(8);
             let mut out = Vec::new();
+            if cursor > end {
+                return Ok(Some(out));
+            }
+            file.seek(SeekFrom::Start(cursor))?;
+            // Descriptor pairs are contiguous. Read through a bounded buffer
+            // instead of seeking and reading eight bytes for every pair.
+            // Take prevents reading beyond this box; descriptor order is kept.
+            let mut pairs = BufReader::with_capacity(16 * 1024, file.take(end - cursor));
             while cursor + 8 <= end {
-                file.seek(SeekFrom::Start(cursor))?;
                 let mut pair = [0u8; 8];
-                file.read_exact(&mut pair)?;
+                pairs.read_exact(&mut pair)?;
                 let offset = u32::from_be_bytes(pair[0..4].try_into().unwrap()) as u64;
                 let size = u32::from_be_bytes(pair[4..8].try_into().unwrap()) as u64;
                 if offset != 0 && size >= 12 && offset.saturating_add(size) <= file_len {
@@ -444,6 +460,24 @@ mod tests {
     fn converts_south_and_west() {
         assert!((nmea_coord_to_degrees(5332.5, b'S').unwrap() + 53.5416667).abs() < 0.00001);
         assert!((nmea_coord_to_degrees(1001.5, b'W').unwrap() + 10.025).abs() < 0.00001);
+    }
+
+    #[test]
+    fn short_and_empty_descriptor_boxes_are_safe_without_unsigned_underflow() {
+        for gps_size in [8u32, 12, 16, 20] {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&8u32.to_be_bytes());
+            bytes.extend_from_slice(b"ftyp");
+            bytes.extend_from_slice(&(8 + gps_size).to_be_bytes());
+            bytes.extend_from_slice(b"moov");
+            bytes.extend_from_slice(&gps_size.to_be_bytes());
+            bytes.extend_from_slice(b"gps ");
+            bytes.resize(bytes.len() + gps_size as usize - 8, 0);
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("short.MP4");
+            std::fs::write(&path, bytes).unwrap();
+            assert!(extract(&path).unwrap().is_empty());
+        }
     }
 
     #[test]

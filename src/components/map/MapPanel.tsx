@@ -149,6 +149,7 @@ function MiltonaDebugButton({ segment }: { segment: Segment }) {
 
 interface Props {
   activeSegment: Segment | null;
+  onSeekTripTime: (time: number) => void;
 }
 
 function GpsMissingRibbon({
@@ -182,7 +183,7 @@ function GpsMissingRibbon({
   );
 }
 
-export function MapPanel({ activeSegment }: Props) {
+export function MapPanel({ activeSegment, onSeekTripTime }: Props) {
   const gpsByFile = useStore((s) => s.gpsByFile);
   const tripGpsByTrip = useStore((s) => s.tripGpsByTrip);
   const loadedTripId = useStore((s) => s.loadedTripId);
@@ -332,7 +333,7 @@ export function MapPanel({ activeSegment }: Props) {
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapResizeObserver />
-        {hasTripGps && <TrackPolyline points={tripGpsPoints} />}
+        {hasTripGps && <TrackPolyline points={tripGpsPoints} currentTripTime={concatTime} onSeekTripTime={onSeekTripTime} />}
         {hasTripGps && (
           <VehicleMarker
             gpsPoints={consumerGpsPoints}
@@ -343,6 +344,7 @@ export function MapPanel({ activeSegment }: Props) {
         )}
       </MapContainer>
 
+      {hasTripGps && <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded bg-black/60 px-2 py-1 text-[10px] text-neutral-200">Click route to seek video</div>}
       {!hasTripGps && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center bg-neutral-900/70 text-xs text-neutral-400">
           Loading GPS…

@@ -31,8 +31,9 @@ Keep these files synchronized:
 Update `RELEASE_NOTES.md` to describe the resulting release. Run
 `node scripts/check-version.mjs`; PR CI additionally checks the version against
 its target commit. GitHub branch protection must require this CI check to prevent
-merging a failed version check through the UI. Direct pushes to `main` are
-reserved for an explicitly authorized merge, with the same local checks.
+merging a failed version check through the UI. Only the repository owner may merge through a PR under the active
+[branch rules](BRANCH_PROTECTION.md). Direct pushes, force pushes and admin
+bypasses are not the merge procedure.
 
 Changing `RELEASE_VERSION` on `main` triggers the existing Ubuntu release
 workflow, which builds, tests, packages, tags and publishes the matching version.
@@ -40,6 +41,7 @@ A merge is recorded separately from release-build completion: only link users
 to a release after its workflow succeeds. Feature-branch CI artifacts include
 commit IDs and do not represent a stable release by themselves.
 
-PR #3 is 0.5.0 because it adds progressive, resumable GPS preparation alongside
-playback and media-health fixes. The next behaviour-preserving GPS performance
-fix should be 0.5.1.
+PR #3 released 0.5.0 with progressive/resumable GPS and playback recovery.
+Open PR #4 combines new capabilities with GPS performance work, so its version
+is 0.6.0. Further documentation commits in that same unmerged PR keep 0.6.0.
+A later separate maintenance-only PR increments PATCH from the then-current main.

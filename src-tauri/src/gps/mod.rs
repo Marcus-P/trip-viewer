@@ -14,6 +14,8 @@ use crate::scan::naming::CameraKind;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tauri::State;
 
 /// Bump when GPS decoders change semantics so previously archived GPS becomes
@@ -153,7 +155,14 @@ pub enum TripGpsProgress {
 /// file with the strongest usable GPS trace. Candidate order is the tie-breaker,
 /// so a healthy canonical Front remains preferred when all cameras are equal.
 pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<GpsPoint> {
-    extract_trip_gps_progressive(segments, extract_batch_item, |_, _| {})
+    match extract_trip_gps_segments::<std::convert::Infallible>(
+        segments,
+        |_, segment| Ok(select_segment_gps_parallel(segment, extract_batch_item)),
+        |_, _| {},
+    ) {
+        Ok(points) => points,
+        Err(never) => match never {},
+    }
 }
 
 fn trip_segment_points(item: &BatchGps, duration: f64, offset: f64) -> Vec<GpsPoint> {
@@ -174,6 +183,7 @@ fn trip_segment_points(item: &BatchGps, duration: f64, offset: f64) -> Vec<GpsPo
 /// Emit only the current segment and its corrected left neighbour. VIOFO's
 /// boundary validation can revise that neighbour when the next file arrives.
 /// This preserves the original final result without resending the whole trip.
+#[cfg(test)]
 fn extract_trip_gps_progressive(
     segments: &[TripGpsSegmentSource],
     mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
@@ -189,14 +199,24 @@ fn extract_trip_gps_progressive(
     }
 }
 
+#[cfg(test)]
 fn select_segment_gps(
     segment: &TripGpsSegmentSource,
     mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
 ) -> BatchGps {
+    best_segment_gps(
+        segment
+            .paths
+            .iter()
+            .map(|path| extract(path, segment.camera_kind)),
+        segment.duration_s,
+    )
+}
+
+fn best_segment_gps(items: impl IntoIterator<Item = BatchGps>, duration_s: f64) -> BatchGps {
     let mut best: Option<((usize, i64), BatchGps)> = None;
-    for path in &segment.paths {
-        let item = extract(path, segment.camera_kind);
-        let quality = batch_quality(&item, segment.duration_s);
+    for item in items {
+        let quality = batch_quality(&item, duration_s);
         if best.as_ref().map(|(q, _)| quality > *q).unwrap_or(true) {
             best = Some((quality, item));
         }
@@ -207,6 +227,61 @@ fn select_segment_gps(
             points: Vec::new(),
         })
     })
+}
+
+fn gps_read_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        let workers = std::env::var("TRIPVIEWER_GPS_WORKERS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(2)
+            .clamp(1, 2);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(workers)
+            .thread_name(|i| format!("gps-reader-{i}"))
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
+/// One shared read budget across trips and batch extraction. Indexed parallel
+/// collection preserves candidate order even when Rear finishes before Front.
+/// No DB access, record sorting or boundary validation happens on reader jobs.
+fn bounded_gps_map<T: Sync, R: Send>(items: &[T], read: impl Fn(&T) -> R + Sync + Send) -> Vec<R> {
+    if let Some(pool) = gps_read_pool() {
+        pool.install(|| items.par_iter().map(&read).collect())
+    } else {
+        // Thread creation failure must neither panic nor lift the I/O bound.
+        static FALLBACK: Mutex<()> = Mutex::new(());
+        let _guard = FALLBACK.lock().unwrap_or_else(|e| e.into_inner());
+        items.iter().map(read).collect()
+    }
+}
+
+fn select_segment_gps_parallel(
+    segment: &TripGpsSegmentSource,
+    extract: impl Fn(&str, CameraKind) -> BatchGps + Sync + Send,
+) -> BatchGps {
+    let started = Instant::now();
+    let items = bounded_gps_map(&segment.paths, |path| extract(path, segment.camera_kind));
+    let result = best_segment_gps(items, segment.duration_s);
+    if let Some(path) = segment.paths.first() {
+        gps_timing(Path::new(path), "segment_candidates", started.elapsed(), 0);
+    }
+    result
+}
+
+fn gps_timing(path: &Path, phase: &str, elapsed: Duration, records: usize) {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    if *ENABLED.get_or_init(|| std::env::var("TRIPVIEWER_GPS_TIMING").as_deref() == Ok("1")) {
+        eprintln!(
+            "[gps-timing] phase={phase} file={} ms={:.3} records={records}",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
 }
 
 fn extract_trip_gps_segments<E>(
@@ -240,10 +315,9 @@ fn extract_trip_gps_segments<E>(
 
 #[tauri::command]
 pub async fn extract_gps_batch(requests: Vec<GpsRequest>) -> Result<Vec<GpsBatchItem>, AppError> {
-    let mut extracted: Vec<BatchGps> = requests
-        .par_iter()
-        .map(|req| extract_batch_item(&req.path, req.camera_kind))
-        .collect();
+    let mut extracted: Vec<BatchGps> = bounded_gps_map(&requests, |req| {
+        extract_batch_item(&req.path, req.camera_kind)
+    });
 
     validate_viofo_batch_boundaries(&mut extracted);
 
@@ -283,12 +357,12 @@ pub async fn ensure_trip_gps(
             if let Some(channel) = &on_progress {
                 let _ = channel.send(TripGpsProgress::Started { attempt, total });
             }
-            extract_trip_gps_checkpointed(
+            extract_trip_gps_checkpointed_using(
                 &db,
                 &trip_id,
                 &segments,
                 work,
-                extract_batch_item,
+                |segment| select_segment_gps_parallel(segment, extract_batch_item),
                 |completed, mut updates| {
                     restore_archived_progress(work, &mut updates);
                     if let Some(channel) = &on_progress {
@@ -318,12 +392,31 @@ struct GpsWork {
 /// Boundary validation always runs again with the current neighbours. Reads,
 /// writes and provenance checks hold the DB mutex only briefly; parsing and
 /// JSON serialization/deserialization happen outside it.
+#[cfg(test)]
 fn extract_trip_gps_checkpointed(
     db: &crate::db::DbHandle,
     trip_id: &str,
     requests: &[TripGpsSegmentRequest],
     work: &GpsWork,
     mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
+    progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
+) -> Result<Vec<GpsPoint>, AppError> {
+    extract_trip_gps_checkpointed_using(
+        db,
+        trip_id,
+        requests,
+        work,
+        |segment| select_segment_gps(segment, &mut extract),
+        progress,
+    )
+}
+
+fn extract_trip_gps_checkpointed_using(
+    db: &crate::db::DbHandle,
+    trip_id: &str,
+    requests: &[TripGpsSegmentRequest],
+    work: &GpsWork,
+    mut select: impl FnMut(&TripGpsSegmentSource) -> BatchGps,
     progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
 ) -> Result<Vec<GpsPoint>, AppError> {
     use crate::db::gps_segment_checkpoints as checkpoints;
@@ -360,7 +453,7 @@ fn extract_trip_gps_checkpointed(
                     Err(e) => eprintln!("GPS checkpoint invalid; re-extracting segment: {e}"),
                 }
             }
-            let item = select_segment_gps(segment, &mut extract);
+            let item = select(segment);
             let mut stored = item.clone();
             let path = batch_path_mut(&mut stored);
             *path = crate::media_health::stored_path(Path::new(path), db.archive_root());
@@ -645,7 +738,9 @@ fn extract_viofo_timed(path: &Path) -> Result<Vec<viofo::TimedGpsPoint>, AppErro
     // The consistency validator needs the clip's measured duration only as an
     // upper bound on how far apart two UTC records from this same MP4 can be.
     // It does not use the filename clock or infer any timezone.
+    let started = Instant::now();
     let duration_s = crate::metadata::mp4_probe::probe(path)?.duration_s;
+    gps_timing(path, "metadata", started.elapsed(), 0);
     let mut timed = viofo::extract_timed(path, Some(duration_s))?;
     let Some(first_gps_utc) = timed.first().map(|item| item.utc) else {
         return Ok(timed);
@@ -1384,6 +1479,131 @@ mod tests {
             "raw left segment must be revalidated against changed neighbour"
         );
         assert_eq!(parsed, 1, "only changed neighbour needs reparsing");
+    }
+
+    #[test]
+    fn parallel_candidates_keep_canonical_ties_despite_reversed_completion() {
+        let source = TripGpsSegmentSource {
+            duration_s: 10.0,
+            camera_kind: CameraKind::Generic,
+            paths: vec!["front".into(), "interior".into(), "rear".into()],
+        };
+        let decode = |path: &str, _: CameraKind| {
+            if path == "front" {
+                std::thread::sleep(Duration::from_millis(15));
+            }
+            fake_batch(path, if path == "front" { 1.0 } else { 2.0 })
+        };
+        let sequential = select_segment_gps(&source, decode);
+        let parallel = select_segment_gps_parallel(&source, decode);
+        assert_eq!(
+            serde_json::to_string(&parallel).unwrap(),
+            serde_json::to_string(&sequential).unwrap()
+        );
+        assert!(matches!(parallel, BatchGps::Plain(item) if item.file_path == "front"));
+    }
+
+    #[test]
+    fn all_jobs_share_at_most_two_gps_readers() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let active = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let decode = |_: &usize| {
+            let now = active.fetch_add(1, Ordering::SeqCst) + 1;
+            peak.fetch_max(now, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(5));
+            active.fetch_sub(1, Ordering::SeqCst);
+            now
+        };
+        std::thread::scope(|scope| {
+            let a = scope.spawn(|| bounded_gps_map(&[0, 1, 2], &decode));
+            let b = scope.spawn(|| bounded_gps_map(&[0, 1, 2], &decode));
+            assert_eq!(a.join().unwrap().len(), 3);
+            assert_eq!(b.join().unwrap().len(), 3);
+        });
+        assert!(peak.load(Ordering::SeqCst) <= 2);
+        assert!(peak.load(Ordering::SeqCst) >= 1);
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn parallel_stitch_matches_sequential_viofo_boundaries_gaps_and_empty_candidates() {
+        let sources: Vec<_> = [vec!["left", "empty"], vec!["right"], vec![], vec!["last"]]
+            .into_iter()
+            .map(|paths| TripGpsSegmentSource {
+                duration_s: 3.0,
+                camera_kind: CameraKind::Generic,
+                paths: paths.into_iter().map(String::from).collect(),
+            })
+            .collect();
+        let decode = |path: &str, _: CameraKind| {
+            if path == "empty" {
+                return BatchGps::Plain(GpsBatchItem {
+                    file_path: path.into(),
+                    points: vec![],
+                });
+            }
+            let timed = if path == "left" {
+                vec![
+                    timed(0, 0.0, 11.12, 90.0),
+                    timed(1_000, 0.0001, 11.12, 90.0),
+                    timed(2_000, 20.0, 0.0, 0.0),
+                ]
+            } else {
+                let base = if path == "right" { 3_000 } else { 60_000 };
+                let mut points = vec![
+                    timed(base, 0.0003, 11.12, 90.0),
+                    timed(base + 1_000, 0.0004, 11.12, 90.0),
+                ];
+                for p in &mut points {
+                    p.point.t_offset_s -= base as f64 / 1000.0;
+                }
+                points
+            };
+            BatchGps::Viofo {
+                file_path: path.into(),
+                timed,
+            }
+        };
+        let seq = extract_trip_gps_progressive(&sources, decode, |_, _| {});
+        let par = extract_trip_gps_segments::<std::convert::Infallible>(
+            &sources,
+            |_, source| Ok(select_segment_gps_parallel(source, decode)),
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&seq).unwrap(),
+            serde_json::to_string(&par).unwrap()
+        );
+        assert_eq!(par.len(), 6);
+        assert_eq!(par.last().unwrap().t_offset_s, 10.0);
+    }
+
+    #[test]
+    fn checkpoint_hit_does_not_submit_candidate_read_jobs() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, requests) = checkpoint_fixture(root.path());
+        let work = pending_work(&db, &requests);
+        extract_trip_gps_checkpointed_using(
+            &db,
+            "trip",
+            &requests,
+            &work,
+            |source| select_segment_gps_parallel(source, |path, _| fake_batch(path, 1.0)),
+            |_, _| {},
+        )
+        .unwrap();
+        let result = extract_trip_gps_checkpointed_using(
+            &db,
+            "trip",
+            &requests,
+            &work,
+            |_| panic!("current checkpoint must bypass all readers"),
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(result.len(), 2);
     }
 
     #[test]

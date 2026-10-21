@@ -19,6 +19,8 @@ Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off f
 - Do not casually change the Tauri identifier `com.tripviewer.app`; it currently matches upstream. Treat any identifier change as a separate compatibility/release decision.
 - Do not run `npm audit fix` blindly. Inspect findings first and prefer targeted dependency changes.
 - Do not conflate Vite bundle-size warnings with WebKitGTK/GStreamer playback faults unless evidence supports a link.
+- Document functional validation as VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS only unless new real-camera/platform evidence is recorded. Retain existing camera support; distinguish automated/synthetic checks from hands-on hardware tests.
+- Preserve upstream provenance, existing logos/icons, source copyright and dependency license notices when refreshing documentation.
 - If a Linux/WebKit media workaround is already validated by the user, do not remove it merely to simplify the code. Regression evidence is required.
 
 ## Communication and testing
@@ -42,7 +44,7 @@ This repository is public-facing project state. Do not commit secrets or persona
 
 ## Branch / PR discipline
 
-- `main` is the stable branch.
+- `main` is the stable branch. The user reserves stable merges to the repository owner and requested force-push/merge protection. Never use force pushes or admin overrides to bypass protection; the active rules and verification are in `docs/BRANCH_PROTECTION.md`.
 - Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Version changes belong in the PR before merging so the packaged version is tested.
 - PR #3 (`fix/webkit-sync-stability`) was merged as version 0.5.0 after green CI and explicit user confirmation of the final playback/GPS-resume tests; see `docs/PROJECT_STATE.md`.
 - Start subsequent feature and performance work on separate branches from current `main`. Preserve the validated playback and GPS semantics.

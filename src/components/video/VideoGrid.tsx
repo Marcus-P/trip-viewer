@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { Segment } from "../../types/model";
+import { channelGridStyle as gridStyle } from "./channelLayout";
 import { ChannelPanel } from "./ChannelPanel";
 import { useStore } from "../../state/store";
 import { videoSrcFor } from "../../utils/videoSrc";
@@ -51,6 +52,8 @@ const IS_MAC =
   navigator.userAgent.includes("Mac OS X");
 
 interface Props {
+  hiddenChannels: string[];
+  onFullscreenKindChange: (kind: "dashboard" | "video" | null) => void;
   /** Shared map of label → <video> element, populated by callback refs.
    *  Stable identity across renders so useSyncEngine doesn't re-run. */
   channelRefs: MutableRefObject<Map<string, HTMLVideoElement | null>>;
@@ -70,37 +73,9 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/**
- * Compute CSS grid placement for a channel panel.
- *
- * Layout philosophy: primary takes col 1 full height; secondaries stack
- * in col 2. Row count adapts to secondary count so each secondary gets
- * the full column width. Works for 1, 2, 3, 4+ channels.
- */
-function gridStyle(
-  isPrimary: boolean,
-  secondaryIndex: number,
-  secondaryCount: number,
-  rowCount: number,
-): CSSProperties {
-  if (secondaryCount === 0) {
-    // Single channel: fill the whole area.
-    return { gridColumn: "1 / 3", gridRow: "1 / 3" };
-  }
-  if (isPrimary) {
-    // Primary occupies col 1, spanning all rows. Using rowCount (not
-    // secondaryCount) ensures the primary fills the full grid height even
-    // when rowCount > secondaryCount (the 2-channel case, where rowCount=2
-    // but secondaryCount=1). Without this, an empty grid row captures
-    // pointer events from the transport controls below via a Chromium
-    // compositor hit-testing edge case.
-    return { gridColumn: 1, gridRow: `1 / ${rowCount + 1}` };
-  }
-  // Secondary cell: col 2, one row per secondary.
-  return { gridColumn: 2, gridRow: secondaryIndex + 1 };
-}
-
 export function VideoGrid({
+  hiddenChannels,
+  onFullscreenKindChange,
   channelRefs,
   activeSegment,
   syncMasterLabel,
@@ -121,6 +96,7 @@ export function VideoGrid({
   const singleFullscreenLabel =
     fullscreenView?.kind === "video" ? fullscreenView.label : null;
   const fullscreenActive = fullscreenView !== null;
+  useEffect(() => { onFullscreenKindChange(fullscreenView?.kind ?? null); }, [fullscreenView?.kind, onFullscreenKindChange]);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -165,6 +141,9 @@ export function VideoGrid({
     if (!valid) setPrimaryChannel(master);
   }, [activeSegment, primaryChannel, setPrimaryChannel]);
 
+  const visibleChannels = activeSegment?.channels.filter(c => !hiddenChannels.includes(c.label)) ?? [];
+  const allChannelsHidden = Boolean(activeSegment) && visibleChannels.length === 0;
+
   // The outer PlayerShell grid is the *only* browser Fullscreen API element.
   // Logical dashboard/video fullscreen modes merely change what is rendered
   // inside it. This avoids browser-dependent nested fullscreen stacks while
@@ -186,6 +165,10 @@ export function VideoGrid({
       grid.style.gridColumn = "1 / -1";
       viewingArea.style.gridTemplateColumns = "minmax(0, 1fr)";
       if (mapPresent && sibling) sibling.style.display = "none";
+    } else if (allChannelsHidden && mapPresent && sibling) {
+      grid.style.display = "none";
+      sibling.style.gridColumn = "1 / -1";
+      viewingArea.style.gridTemplateColumns = "minmax(0, 1fr)";
     } else if (!mapPresent) {
       viewingArea.style.gridTemplateColumns = "";
     } else {
@@ -195,10 +178,12 @@ export function VideoGrid({
 
     return () => {
       grid.style.gridColumn = "";
+      grid.style.display = "";
+      if (sibling) sibling.style.gridColumn = "";
       viewingArea.style.gridTemplateColumns = "";
       if (mapPresent && sibling) sibling.style.display = "";
     };
-  }, [activeSegment, mapShare, singleFullscreenLabel]);
+  }, [activeSegment, mapShare, singleFullscreenLabel, allChannelsHidden]);
 
   // Timeline height is inherited as a CSS custom property. This keeps the
   // lower strip structurally identical and lets the flexing video area give
@@ -222,7 +207,7 @@ export function VideoGrid({
   // fullscreen.
   useEffect(() => {
     const onFullscreenChange = () => {
-      const viewingArea = gridRef.current?.parentElement ?? null;
+      const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]") ?? null;
       if (viewingArea && document.fullscreenElement === viewingArea) return;
       if (fullscreenStackRef.current.length === 0) return;
 
@@ -312,10 +297,10 @@ export function VideoGrid({
   const channels = activeSegment.channels;
   const canonicalMasterLabel = channels[0]?.label ?? null;
   const effectivePrimary =
-    channels.find((c) => c.label === primaryChannel)?.label ??
-    canonicalMasterLabel;
+    visibleChannels.find((c) => c.label === primaryChannel)?.label ??
+    visibleChannels[0]?.label ?? null;
 
-  const secondaries = channels.filter((c) => c.label !== effectivePrimary);
+  const secondaries = visibleChannels.filter((c) => c.label !== effectivePrimary);
 
   function setRef(label: string) {
     return (node: HTMLVideoElement | null) => {
@@ -423,7 +408,7 @@ export function VideoGrid({
   }
 
   async function openLogicalFullscreen(target: FullscreenView) {
-    const viewingArea = gridRef.current?.parentElement;
+    const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]");
     if (!viewingArea) return;
 
     // Self-heal if browser fullscreen was lost before its event reached us.
@@ -446,7 +431,7 @@ export function VideoGrid({
   }
 
   async function exitLogicalFullscreen() {
-    const viewingArea = gridRef.current?.parentElement;
+    const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]");
     if (!viewingArea) return;
 
     const currentStack = fullscreenStackRef.current;
@@ -482,7 +467,7 @@ export function VideoGrid({
   }
 
   async function handleMainDoubleClick() {
-    await toggleSingleVideoFullscreen(effectivePrimary);
+    if (effectivePrimary) await toggleSingleVideoFullscreen(effectivePrimary);
   }
 
   async function toggleDashboardFullscreen() {
@@ -515,7 +500,7 @@ export function VideoGrid({
       }}
     >
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
-        {fullscreenActive && (
+        {singleFullscreenLabel !== null && (
           <button
             type="button"
             onClick={togglePlayback}
@@ -651,6 +636,7 @@ export function VideoGrid({
         </div>
       )}
 
+      {allChannelsHidden && !hasMapPanel && <div className="col-span-full row-span-full flex items-center justify-center text-sm text-neutral-400">All cameras hidden. Select a camera above to show video.</div>}
       {channels.map((channel) => {
         const isPrimary = channel.label === effectivePrimary;
         const idx = isPrimary
@@ -658,9 +644,9 @@ export function VideoGrid({
           : secondaries.findIndex((c) => c.label === channel.label);
 
         const singleTarget = singleFullscreenLabel === channel.label;
-        const singleHidden =
-          singleFullscreenLabel !== null && !singleTarget;
-        const style: CSSProperties = singleFullscreenLabel
+        const singleHidden = hiddenChannels.includes(channel.label) ||
+          (singleFullscreenLabel !== null && !singleTarget);
+        const style: CSSProperties = hiddenChannels.includes(channel.label) ? { display: "none" } : singleFullscreenLabel
           ? singleTarget
             ? { gridColumn: "1 / -1", gridRow: "1 / -1" }
             : { display: "none" }

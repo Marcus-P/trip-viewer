@@ -1,188 +1,100 @@
-# Linux dev setup
+# Linux development and runtime setup
 
-This document covers how to get a working Trip Viewer dev environment on Linux, with two paths depending on your distro:
+The fork’s hands-on functional checks cover **VIOFO A229 Pro 3CH on Ubuntu
+24.04 LTS**. CI also builds on Ubuntu 24.04 x86_64. Other camera/platform support
+is retained but has a different [evidence level](docs/COMPATIBILITY.md).
+The [inherited Linux guide](docs/history/inherited-LINUX_DEV_SETUP.md) preserves
+upstream Fedora/Bazzite/distrobox recipes and old AppImage reports; those reports
+are not assertions about the current Ubuntu-built fork on every distribution.
 
-- **[Atomic / immutable distros](#atomic--immutable-distros-bazzite-silverblue-kinoite)** (Bazzite, Silverblue, Kinoite, etc.) — use distrobox so you don't have to layer packages onto the base image.
-- **[Mutable distros](#mutable-distros-vanilla-fedora-ubuntu-arch)** (vanilla Fedora workstation, Ubuntu, Arch, etc.) — install the deps directly on the host.
+## Ubuntu 24.04 build dependencies
 
-The end state is the same in both cases: `npm run tauri dev` runs and HEVC video plays. The runtime AppImage produced by CI bundles its own WebKitGTK + GStreamer codec stack and needs no host setup beyond `libfuse2` (which Fedora and most other distros ship by default).
-
----
-
-## Atomic / immutable distros (Bazzite, Silverblue, Kinoite)
-
-These distros use `rpm-ostree` and discourage layering packages onto the base image. The clean path is a Fedora toolbox container via [distrobox](https://distrobox.it/). Distrobox is preinstalled on Bazzite; on Silverblue/Kinoite install it with `rpm-ostree install distrobox` (one-time, requires reboot).
-
-### 1. Create the container
+Install Node.js **22.12+ LTS or a newer supported LTS**, stable Rust through rustup,
+and the native packages:
 
 ```bash
-distrobox create --name tripviewer-dev \
-  --image registry.fedoraproject.org/fedora-toolbox:43 --yes
-```
-
-Match the Fedora version to your host's base image (`rpm -E %fedora` on the host tells you).
-
-### 2. Install Tauri build dependencies
-
-```bash
-distrobox enter tripviewer-dev -- sudo dnf install -y \
-  webkit2gtk4.1-devel \
-  gtk3-devel \
-  libsoup3-devel \
-  javascriptcoregtk4.1-devel \
-  librsvg2-devel \
-  openssl-devel \
-  atk-devel \
-  gcc gcc-c++ pkg-config
-```
-
-After this, `cargo build --manifest-path src-tauri/Cargo.toml` will succeed inside the container.
-
-### 3. Enable RPM Fusion (required for codec packages)
-
-```bash
-distrobox enter tripviewer-dev -- sudo dnf install -y \
-  https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-  https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-```
-
-`rpm -E %fedora` runs inside the container, so it picks up the container's Fedora version automatically.
-
-### 4. Install the GStreamer codec stack (HEVC playback)
-
-```bash
-distrobox enter tripviewer-dev -- sudo dnf install -y \
-  gstreamer1-plugin-libav \
-  gstreamer1-plugins-ugly \
-  gstreamer1-plugins-bad-freeworld \
-  libavcodec-freeworld
-```
-
-Why each:
-
-- **`gstreamer1-plugin-libav`** — ffmpeg-backed decoder shim for GStreamer.
-- **`libavcodec-freeworld`** — RPM Fusion's unstripped libavcodec. Required because Fedora's `gstreamer1-plugin-libav` links against `libavcodec-free`, which has HEVC stripped. Installing freeworld puts an unstripped lib at `/usr/lib64/ffmpeg/libavcodec.so.61` that takes precedence.
-- **`gstreamer1-plugins-ugly`** + **`gstreamer1-plugins-bad-freeworld`** — additional codec coverage matching what the CI release workflow installs on Ubuntu.
-
-### 5. Clear the stale GStreamer registry cache
-
-```bash
-distrobox enter tripviewer-dev -- rm -rf ~/.cache/gstreamer-1.0
-```
-
-**Don't skip this.** GStreamer caches its plugin registry per-user; without clearing it, `gst-inspect-1.0 libav | grep h265` will report nothing and the app will fall back to non-HEVC paths. The cache regenerates automatically on next use.
-
-### 6. Verify
-
-```bash
-distrobox enter tripviewer-dev -- bash -c '
-  cd /path/to/trip-viewer &&
-  cargo build --manifest-path src-tauri/Cargo.toml &&
-  gst-inspect-1.0 libav | grep -i h265
-'
-```
-
-Expect: cargo build succeeds, and `avdec_h265: libav HEVC ... decoder` appears.
-
-> **`npm run tauri build` (AppImage bundling) is currently not viable on Fedora derivatives.** Tauri's bundler downloads `linuxdeploy-plugin-gstreamer` but never invokes it, so no GStreamer plugin `.so` files end up bundled. The resulting AppImage's bundled libgstreamer doesn't reliably load host plugins on Bazzite (Fedora 43) even with `GST_PLUGIN_SYSTEM_PATH_1_0` and friends set, leading to `appsink not found` / `autoaudiosink not found` and a frozen player on launch. Use `npm run tauri dev` (next section) for actual development and testing on Linux. A proper bundling fix is still pending as of v0.3.1 — see the runtime AppImage section at the bottom of this doc.
-
-### Daily use
-
-```bash
-distrobox enter tripviewer-dev
-cd /path/to/trip-viewer
-npm run tauri dev
-```
-
-The host's cargo (`~/.cargo`), fnm-managed node, and `~/.config` carry through automatically — distrobox auto-mounts `/home`, `/run/user`, `/run/media`, and `/mnt`. Git/SSH/editor configs work the same as on the host.
-
----
-
-## Mutable distros (vanilla Fedora, Ubuntu, Arch)
-
-No distrobox needed — just install equivalents of the same packages on the host.
-
-### Fedora workstation
-
-```bash
-# Build deps
-sudo dnf install -y \
-  webkit2gtk4.1-devel gtk3-devel libsoup3-devel javascriptcoregtk4.1-devel \
-  librsvg2-devel openssl-devel atk-devel gcc gcc-c++ pkg-config
-
-# RPM Fusion (one-time)
-sudo dnf install -y \
-  https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-  https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-
-# Codecs
-sudo dnf install -y \
-  gstreamer1-plugin-libav gstreamer1-plugins-ugly \
-  gstreamer1-plugins-bad-freeworld libavcodec-freeworld
-
-# Clear stale cache
-rm -rf ~/.cache/gstreamer-1.0
-```
-
-### Ubuntu / Debian
-
-This mirrors what `.github/workflows/release.yml` installs in CI:
-
-```bash
+sudo apt update
 sudo apt install -y \
   libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev libxdo-dev file \
+  libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf \
   gstreamer1.0-libav gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
 ```
 
-Ubuntu's `gstreamer1.0-libav` is unstripped, so no freeworld equivalent needed.
-
-### Arch
+Use the project lockfiles:
 
 ```bash
-sudo pacman -S \
-  webkit2gtk-4.1 gtk3 libsoup3 librsvg openssl atk \
-  base-devel pkgconf \
-  gst-libav gst-plugins-good gst-plugins-bad gst-plugins-ugly
+npm ci
+npm test
+npm run build
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+npm run tauri -- dev
 ```
 
-Arch's `gst-libav` is unstripped.
-
----
-
-## Runtime AppImage on Linux
-
-Most distros need nothing extra to run the released `.AppImage`. The Tauri AppImage build bundles WebKitGTK 4.1, GTK3, libsoup3, javascriptcoregtk, librsvg2, and the GStreamer codec plugins via `linuxdeploy` at CI time.
-
-The only host requirement is **libfuse2** (to mount the AppImage), which Fedora, Ubuntu, Arch, Bazzite, and most other distros ship by default. If `./TripViewer.AppImage` exits with a "fusermount" error, install your distro's `fuse` (libfuse2) package.
-
-The optional **timelapse** feature shells out to ffmpeg, which is *not* bundled. On Bazzite, ffmpeg from RPM Fusion non-free (with NVENC/NVDEC) ships preinstalled at `/usr/bin/ffmpeg`. On other distros, install ffmpeg however you normally would and point the app's settings at the binary.
-
-### Known issue: release AppImage on Fedora derivatives
-
-The released `Trip Viewer_*_amd64.AppImage` from GitHub does **not** work on Fedora 41+, Bazzite, Silverblue, Kinoite, or other distros with GLib 2.80+ / GStreamer 1.26+. The CI build runs on Ubuntu 22.04, which ships GLib 2.72 / GStreamer 1.20; the bundled WebKit can't load the host's newer GStreamer plugins because the bundled libs lack symbols like `g_once_init_leave_pointer` and `gst_id_str_as_str` that newer plugins require. Symptoms include `GStreamer element autoaudiosink not found` and a long cascade of `Failed to load plugin … undefined symbol …` warnings, followed by the player freezing when you try to load a trip. Verified against v0.2.0 and still present in v0.3.1.
-
-A locally-built AppImage from the dev container has matching libgstreamer/libglib ABI but still fails for a separate reason (Tauri's bundler does not invoke `linuxdeploy-plugin-gstreamer`, so no GStreamer plugins end up bundled — and the bundled libgstreamer doesn't reliably fall back to host plugins on Fedora). So **there is currently no working AppImage path on Bazzite/Fedora 43+**.
-
-**Workaround for daily use on Fedora derivatives**: develop and run from inside the dev container — `npm run tauri dev` for a hot-reload session, or run the compiled release binary directly with `distrobox enter tripviewer-dev -- /path/to/trip-viewer/src-tauri/target/release/tripviewer` after a `npm run tauri build`. (`distrobox-export --bin <path>` will also expose the binary on the host PATH.)
-
-A proper fix — bundling GStreamer plugins via `linuxdeploy-plugin-gstreamer` as a post-build step — is still on the roadmap.
-
----
-
-## Troubleshooting
-
-### Blank/grey window when running `npm run tauri dev` on NVIDIA + X11
-
-WebKitGTK 2.42+ uses a DMA-BUF renderer by default that doesn't play well with the proprietary NVIDIA driver. Symptom: the title bar appears but the WebView area renders as a solid dark grey rectangle. The console may also log lines like `Failed to create GBM buffer of size … : Invalid argument`.
-
-Fix: set `WEBKIT_DISABLE_DMABUF_RENDERER=1` in the environment that launches the app. For one-off use:
+For an AppImage, close the running development instance and use:
 
 ```bash
-WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
+NO_STRIP=true npm run tauri -- build --bundles appimage
 ```
 
-For permanent use on a dev machine, add it to your shell config (e.g. `set -gx WEBKIT_DISABLE_DMABUF_RENDERER 1` in `~/.config/fish/config.fish`, or `export WEBKIT_DISABLE_DMABUF_RENDERER=1` in `~/.bashrc`/`~/.zshrc`). Harmless on non-NVIDIA setups — WebKit ignores the variable when the DMA-BUF path was working anyway.
+Output: `src-tauri/target/release/bundle/appimage/Trip Viewer_<version>_amd64.AppImage`.
+This is the fork’s CI-tested bundling command. `NO_STRIP` is a bundling environment
+setting, not a promise that it controls Rust’s Cargo release stripping settings.
+Its complete toolchain-specific effects remain a maintenance investigation.
+The optional `pretauri` cargo-sweep hook warns and skips when cargo-sweep is absent;
+that warning alone is not a build failure.
 
-The released AppImage isn't affected (its WebKit bundle predates the DMA-BUF renderer change).
+## Install a local test build
+
+Check out the intended branch and pull before building. Building a new AppImage
+leaves any previously installed binary unchanged. To update the manual path used
+for testing, after a successful build:
+
+```bash
+VERSION="$(node -p "require('./package.json').version")"
+install -Dm755 "src-tauri/target/release/bundle/appimage/Trip Viewer_${VERSION}_amd64.AppImage" \
+  "$HOME/Applications/TripViewer.AppImage"
+"$HOME/Applications/TripViewer.AppImage"
+```
+
+Close the installed app before replacement. For GNOME/Dock integration instead,
+run `bash scripts/install-trip-viewer-ubuntu.sh /path/to/the.AppImage`; it uses
+`~/.local/opt/trip-viewer/Trip.Viewer.AppImage`, a different per-user path.
+See [README](README.md) for published release downloads/checksums.
+
+## Runtime requirements and diagnostics
+
+WebKitGTK/GStreamer codec availability and compatible GPU drivers affect
+playback. The AppImage bundles media/framework components but still interacts
+with host libraries; it is not a guarantee of codec or ABI portability to every
+distribution. Install the GStreamer packages above if required. Ubuntu 24.04
+systems needing AppImage FUSE mounting can install `libfuse2t64`; alternatively
+AppImage’s `--appimage-extract-and-run` mode avoids FUSE mounting.
+
+The fork preserves the libva/DMABuf changes from contributor `gubiq`, including
+respecting explicit environment overrides. Do not remove these validated Linux
+workarounds as incidental cleanup. Inspect actual video/decoder errors rather
+than treating GTK optional-module or Vite bundle-size warnings as media failures.
+
+For GPS timing, launch a new process:
+
+```bash
+TRIPVIEWER_GPS_TIMING=1 ~/Applications/TripViewer.AppImage
+```
+
+`TRIPVIEWER_GPS_WORKERS=1` or `2` selects the bounded candidate-reader count.
+Compare uncached comparable footage; cached trips intentionally skip extraction.
+No controlled hardware speedup factor has been established.
+
+Optional timelapse creation needs a separately installed ffmpeg, selected in the
+app. Decoder availability and hardware encoders must be checked for that build.
+
+## Other Linux distributions
+
+Fedora/atomic-distro toolbox or distrobox and Arch dependency recipes remain in
+the [historical guide](docs/history/inherited-LINUX_DEV_SETUP.md). Treat them as
+starting points to update for current package versions. The fork does not claim
+new hands-on validation on those systems, nor that they are necessarily broken.
+Use native dependency/codec probing and a matching development environment when
+diagnosing ABI/plugin errors. Windows/macOS target code likewise remains without
+a new platform certification from this fork.

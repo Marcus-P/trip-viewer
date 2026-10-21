@@ -1,5 +1,7 @@
 export interface LayoutPreferences {
+  hiddenChannels: string[];
   sidebarCollapsed: boolean;
+  dashboardTimelineCollapsed: boolean;
   primaryShare: number;
   secondarySplit: number;
   mapShare: number;
@@ -9,7 +11,9 @@ export interface LayoutPreferences {
 const STORAGE_KEY = "tripviewer.layout.v1";
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
+  hiddenChannels: [],
   sidebarCollapsed: false,
+  dashboardTimelineCollapsed: false,
   primaryShare: 2 / 3,
   secondarySplit: 0.5,
   mapShare: 0.25,
@@ -29,7 +33,9 @@ function normalize(
 ): LayoutPreferences {
   const timeline = value?.timelineHeightPx;
   return {
+    hiddenChannels: Array.isArray(value?.hiddenChannels) ? [...new Set(value.hiddenChannels.filter((v): v is string => typeof v === "string"))] : [],
     sidebarCollapsed: value?.sidebarCollapsed === true,
+    dashboardTimelineCollapsed: value?.dashboardTimelineCollapsed === true,
     primaryShare: clamp(
       finiteOr(value?.primaryShare, DEFAULT_LAYOUT_PREFERENCES.primaryShare),
       0.35,

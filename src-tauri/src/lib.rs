@@ -1,5 +1,6 @@
 mod app_settings;
 mod archive;
+mod bookmarks;
 mod db;
 mod error;
 #[cfg(target_os = "linux")]
@@ -254,6 +255,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            bookmarks::list_bookmarks,
+            bookmarks::set_bookmark,
             archive::open_archive,
             archive::close_archive,
             archive::current_archive,

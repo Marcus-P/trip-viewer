@@ -1,8 +1,15 @@
 name: CI
 
 on:
-  push:
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# PR commits get one run, not an additional push run. A newer commit replaces
+# obsolete in-flight work; release.yml validates/publishes the merged main tree.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ubuntu:
@@ -75,7 +82,7 @@ jobs:
       - name: Upload Ubuntu test build
         uses: actions/upload-artifact@v4
         with:
-          name: Trip-Viewer-Ubuntu-24.04-${{ github.sha }}
+          name: Trip-Viewer-Ubuntu-24.04-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
           path: ${{ runner.temp }}/trip-viewer-test-build/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
