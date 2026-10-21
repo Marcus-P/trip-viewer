@@ -23,6 +23,8 @@ Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off f
 
 ## Communication and testing
 
+- End each final response with concrete next steps for the user. If progress requires missing information or a decision, end with a focused question that makes the blocker clear. Continue independently whenever the existing authorization and available information suffice.
+- When a new desktop build needs user testing, finish with actionable update/install instructions and a small, specific test; account for the fact that repository or cloud updates do not update the locally installed app.
 - Work in concise, concrete steps. When user-side testing is needed, request the smallest reproducible test rather than a long diagnostic session.
 - State uncertainty explicitly. Distinguish observed facts, code-derived conclusions, and hypotheses.
 - When a user reports that a test succeeded, treat that result as established until a later regression disproves it.
