@@ -1,42 +1,45 @@
-# Trip Viewer 0.5.0
+# Trip Viewer 0.6.0
 
-Ubuntu 24.04 LTS release with more robust multi-camera playback and progressive,
-resumable GPS preparation. Builds on the Linux playback fixes contributed in
-PR #2 by `gubiq`; contributor authorship is preserved.
+Playback tools and bounded GPS analysis, building on the user-validated 0.5.0.
 
-## Highlights
+## New playback tools
 
-- Seek and segment-transition synchronization with bounded waits and recovery
-  for WebKit readiness events that never arrive.
-- A failed camera is isolated while healthy cameras continue. Background decode
-  probes allow recovery without repeatedly restarting the visible camera.
-- Fingerprinted media-health intervals persist across app restarts. A promoted
-  synchronization master remains in charge until the next segment.
-- GPS preparation runs independently of Play/Pause, without holding the archive
-  database mutex while reading MP4 data.
-- GPS route and speed data appear progressively, with a completed/total segment
-  counter and progress bar.
-- Switching away from an unfinished trip and back reuses its running analysis.
-  Completed segment checkpoints survive an app restart; only unfinished or
-  invalidated segments need analysis.
-- Each segment selects GPS from the strongest healthy camera. VIOFO timestamps,
-  delayed first fixes and cross-segment validation retain their existing rules.
-- Version files and merge increments are checked in CI; the versioning policy is
-  documented in `docs/VERSIONING.md`.
+- Click the recorded route to seek the video and timeline to the corresponding
+  trip time, including between samples and across video segments. GPS gaps are
+  not bridged; repeated locations prefer the traversal nearest the playhead.
+- The F/I/R + GPS fullscreen dashboard includes the timeline and speed graph,
+  with an expand/collapse button and a saved preference. Single-camera/back
+  navigation keeps the same video elements and fullscreen root.
+- While paused, zoom using the wheel or +/- controls and drag the enlarged
+  image to pan. Reset returns to 100%. Resuming playback or changing source
+  restores the normal view without replacing/reloading the video element.
+- Archived timelapses can seek via trip time even when no original segment
+  list remains, using the existing speed-curve mapping.
 
-## Validation
+## GPS analysis
 
-Real-world Ubuntu tests confirmed progressive GPS preparation during Play/Pause,
-segment transitions, returning to an unfinished trip, and continuation after an
-app restart. Automated frontend, Rust, headless WebKit and Ubuntu AppImage checks
-are recorded in `docs/PROJECT_STATE.md` and the matching CI run.
+- Independent candidate files share a read pool capped at two workers across
+  trip and batch jobs. Candidate order/ties, raw GPS source order, best-camera
+  selection and adjacent VIOFO validation remain deterministic.
+- VIOFO descriptor pairs are read through a bounded sequential buffer instead
+  of seeking for each pair. Segment and trip caches remain valid (parser v8).
+- Completed checkpoints bypass reader jobs. Source/health revalidation and
+  short DB lock sections are preserved.
+- Optional command-line diagnostics: `TRIPVIEWER_GPS_TIMING=1` reports metadata,
+  GPS read/decode, validation and candidate-selection times. Worker comparison
+  can use `TRIPVIEWER_GPS_WORKERS=1` or `2` (values are capped to this range).
 
-GPS extraction performance is being investigated separately. Map-route clicking
-to seek the video and a collapsible fullscreen timeline remain planned work.
+A real USB-SSD speedup has not yet been measured. The reported baseline is
+about 20 seconds per 3-minute, three-camera segment. Test uncached comparable
+footage; existing cached trips intentionally do not repeat extraction.
+
+## Validation and release status
+
+Automated frontend/Rust tests and native WebKit interaction checks are recorded
+in `docs/PROJECT_STATE.md`. This feature branch is a test build until its Ubuntu
+CI and the focused real-footage checks have passed and merging is authorized.
 
 ## License
 
 Trip Viewer remains MIT licensed. Third-party components retain their licenses;
-see `THIRD_PARTY_NOTICES.md` and the dependency-license inventories attached to
-the release. VIOFO/A229 Pro are descriptive compatibility names; this project is
-not affiliated with or endorsed by VIOFO.
+see `THIRD_PARTY_NOTICES.md` and the release dependency-license inventories.

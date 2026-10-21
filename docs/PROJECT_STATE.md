@@ -20,7 +20,52 @@ That PR:
 
 Real-world Ubuntu testing confirmed that the prior video flicker disappeared after PR #2. Keep that fix unless a demonstrated regression requires changing it.
 
-A follow-up to `gubiq` should be drafted in English after PR #3 is merged. The user explicitly requested a proposed message for review first; do not post it without a further instruction to send.
+The user approved the proposed English follow-up to `gubiq` on PR #2 and explicitly instructed sending it. Publication is pending the managed environment allowing `api.github.com`; the required additive network draft is saved for user review. Check existing comments before sending to avoid duplication and record the actual comment URL once posted.
+
+## Active work: authorized playback tools and GPS analysis / 0.6.0
+
+The user confirmed that the installed 0.5.0 displays the correct version, approved
+the contributor comment, requested merging any already-open PRs, and authorized
+implementation of all pending user features. GitHub reported zero open PRs; PR #3
+was already merged. No additional existing PR needed merging.
+
+Branch: `feat/route-seek-fullscreen-tools`, based on merged 0.5.0 plus the GPS
+research notes. The combined new capabilities require MINOR 0.6.0. No merge of
+this newly implemented feature branch has yet been requested or performed.
+
+Implemented:
+- Route clicking projects onto valid recorded edges at the current map zoom,
+  interpolates trip time and uses the same player seek path as the timeline.
+  It does not interpolate gaps over 2 seconds, invalid fixes or dateline jumps;
+  repeated positions prefer the current traversal. Route position arrays stay
+  memoized while the playhead moves. Archived tiered seeks work with empty
+  original segment lists and use the existing speed curve.
+- Dashboard fullscreen uses the complete player as its browser fullscreen root,
+  including the timeline/speed graph. A persistent collapse/expand preference
+  affects dashboard mode; single-camera mode hides the lower strip, and back
+  navigation restores the dashboard. Videos stay mounted through these changes.
+- Paused video wheel/button zoom and pointer-drag pan operate on the same video
+  element, constrain the actual letterboxed image, and reset on resume/source
+  change. No transform is applied during normal playback. Pointer cancellation
+  and lost capture stop dragging; zoom controls do not change camera selection.
+- GPS candidate files and batch jobs use one shared Rayon pool of at most two
+  readers. Indexed results retain source/candidate order and canonical ties;
+  boundary validation remains ordered. A serial, locked fallback handles thread
+  creation failure. Cached segments do not submit jobs. VIOFO descriptors use
+  a 16 KiB buffer confined to the descriptor box, preserving descriptor order.
+  Parser semantics/version and DB schema remain v8/v16. Optional environment
+  timing/worker controls are documented in `RELEASE_NOTES.md`.
+
+Validation so far: 74 frontend tests, 331 Rust tests (one existing ignored), and
+frontend typecheck/build pass. Native headless WebKit verified an actual SVG
+route click across a segment boundary, real X11 pointer zoom/pan while paused,
+unchanged video source/time during zoom, dashboard timeline collapse/expand,
+single-camera/dashboard back navigation, Play/Pause and fullscreen exit. No
+video nodes were replaced and no media `emptied` events occurred through zoom
+or fullscreen changes. A three-file native GPS batch handled missing GPS.
+Fresh Ubuntu AppImage CI and focused USB-SSD/real-footage validation remain
+required before reporting this feature branch ready for merging. No real-storage
+speedup factor is claimed from the bounded-concurrency tests.
 
 ## Completed stabilization: PR #3 / 0.5.0
 
@@ -162,9 +207,9 @@ release workflow. A completed merge and a published release are separate states.
 
 ## GPS performance investigation
 
-Follow-up research branch: `perf/gps-extraction`, based on merged 0.5.0. No
-parallel decoder change is implemented or authorized for merge yet; target a
-behaviour-preserving 0.5.1 once measured and validated.
+Initial research notes are on `perf/gps-extraction`. Implementation now continues
+in `feat/route-seek-fullscreen-tools` as part of the user-authorized 0.6.0 feature
+bundle. The investigation below records the starting evidence and test criteria.
 
 The user reports about **20 seconds per 3-minute segment**, with the originals
 on an **external SSD connected over USB**. This is an approximate end-to-end
@@ -237,21 +282,21 @@ Both final GPS resume tests were confirmed and both Ubuntu CI runs for the versi
 
 ## On hold / later work
 
-These are intentionally deferred. Do not silently implement them while finishing PR #3.
+The user features below were subsequently authorized and implemented in the 0.6.0 branch described above. Maintenance items remain tracked separately.
 
-**Next user priorities (recorded, implementation not yet authorized):**
+**User features implemented in the active 0.6.0 branch (awaiting validation):**
 
 - **Seek by clicking the map route.** Clicking a point on the displayed route should seek the video and timeline to its corresponding GPS time. Resolve the nearest position on the route (including between samples), preserving segment/trip time mapping; a general map click must not arbitrarily choose an unrelated route point.
 - **Collapsible timeline in dashboard fullscreen.** In the F/I/R + Map fullscreen layout, allow the timeline and speed graph area to be expanded/collapsed.
 
-1. **Paused-video zoom/pan.** When an individual camera is paused, allow zooming and panning the current image. Prefer stable video-element zoom/pan; if WebKit proves unreliable, capture/extract the current frame to a temporary still while paused, then return to video on resume.
+1. **Paused-video zoom/pan.** Implemented using the existing video element; native WebKit tests passed. No temporary image derivative was needed.
 2. **Vite mixed import warning for `src/ipc/archive.ts`.** The stable cleanup is to use a static `currentArchive` import in `App.tsx` because the module is already statically imported elsewhere. This is cleanup, not a playback fix.
 3. **Large Vite chunk warning (~500+ kB).** Investigate separately. It is not considered the cause of the Linux video flicker/synchronization problems.
 4. **`cargo-sweep`.** Inspect `scripts/cargo-sweep.mjs`, then install/configure `cargo-sweep` and clean old Cargo artifacts carefully. Do not blindly delete build state.
 5. **`NO_STRIP=true`.** Determine its exact effect in the Tauri/AppImage/linuxdeploy path and document concrete release guidance. Do not assume it is the same as Cargo release stripping.
 6. **npm audit findings.** Review `npm audit --omit=dev` and full `npm audit`; make targeted changes only. Do not run `npm audit fix` blindly.
 7. **Upstream contribution cleanup.** When contributing generally useful fixes back to `chrisl8/trip-viewer`, branch from upstream main and cherry-pick/reapply only upstream-suitable changes rather than submitting the whole fork branch.
-8. **Contributor follow-up.** After PR #3 is merged, prepare a concise English follow-up for user review before posting to `gubiq` on PR #2 explaining that his libva/DMABuf fix removed the flicker and that subsequent WebKit synchronization/media-health robustness was added in PR #3.
+8. **Contributor follow-up.** The user approved the English draft and authorized sending it to `gubiq` on PR #2. Awaiting API access; record the actual comment URL after publication.
 
 ## Development principles established by the debugging work
 
