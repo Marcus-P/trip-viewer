@@ -29,7 +29,8 @@ A follow-up to `gubiq` should be drafted in English after PR #3 is merged. The u
 - Merged into `main` with a merge commit for version 0.5.0; source head `9453be2`.
 - The user confirmed both final tests (A → B → A during GPS analysis, and app restart before completion), confirmed successful playback, and explicitly authorized the merge.
 - The versioned head passed both complete Ubuntu CI runs, including version-policy checks, 65 frontend tests, 326 Rust tests (one existing ignored), and AppImage packaging: https://github.com/Marcus-P/trip-viewer/actions/runs/39580478558 and https://github.com/Marcus-P/trip-viewer/actions/runs/39580486824.
-- The merge changes `RELEASE_VERSION` to 0.5.0 and triggers the existing Ubuntu Release workflow. Release-build completion/publication is checked separately; do not confuse a merged PR with an already available release artifact.
+- Merge commit `f9681ea` is on `main`; its complete CI passed: https://github.com/Marcus-P/trip-viewer/actions/runs/39581960886.
+- The Ubuntu release workflow succeeded, including tests, AppImage packaging, desktop integration, license inventories, checksums and GitHub publication: https://github.com/Marcus-P/trip-viewer/actions/runs/39581960789. Version 0.5.0 is published at https://github.com/Marcus-P/trip-viewer/releases/tag/v0.5.0.
 - New GPS performance work belongs on a separate branch from `main`; the investigation below changes no decoder behaviour.
 
 Earlier pending-test/unmerged notes below document intermediate states; this completed status supersedes them.
