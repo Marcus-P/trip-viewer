@@ -1,5 +1,6 @@
 mod app_settings;
 mod archive;
+mod bookmarks;
 mod db;
 mod error;
 #[cfg(target_os = "linux")]
@@ -8,6 +9,7 @@ pub mod gps;
 mod import;
 mod issues;
 mod metadata;
+mod media_health;
 mod migration_v2;
 mod model;
 mod paths;
@@ -254,6 +256,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            bookmarks::list_bookmarks,
+            bookmarks::set_bookmark,
             archive::open_archive,
             archive::close_archive,
             archive::current_archive,
@@ -263,7 +267,11 @@ pub fn run() {
             metadata::probe_file,
             gps::extract_gps,
             gps::extract_gps_batch,
+            gps::ensure_trip_gps,
             gps::load_trip_gps,
+            media_health::load_media_health,
+            media_health::record_media_failure,
+            media_health::record_media_recovery,
             import::discover_sources,
             import::start_import,
             import::start_folder_import,

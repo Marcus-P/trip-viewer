@@ -68,6 +68,8 @@ export interface LibrarySlice {
    *  0012's `trip_gps` table. Absent key → fall back to gpsByFile
    *  (which requires the originals to still be on disk). */
   tripGpsByTrip: Record<string, GpsPoint[]>;
+  gpsPreparationByTrip: Record<string, "loading" | "ready" | "error">;
+  gpsProgressByTrip: Record<string, { completed: number; total: number }>;
   /** Library-wide bytes used + reclaimable, refreshed after every
    *  storage-changing action. `null` until the first refresh resolves. */
   librarySummary: LibraryStorageSummary | null;
@@ -309,6 +311,8 @@ export const useStore = create<AppState>((set) => ({
   scanErrors: [],
   gpsByFile: {},
   tripGpsByTrip: {},
+  gpsPreparationByTrip: {},
+  gpsProgressByTrip: {},
   librarySummary: null,
   reclaimableFilter: false,
   libraryFirstLoadDone: false,
