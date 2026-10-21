@@ -22,6 +22,16 @@ Real-world Ubuntu testing confirmed that the prior video flicker disappeared aft
 
 The approved English follow-up to `gubiq` was posted on PR #2 after the environment network update: https://github.com/Marcus-P/trip-viewer/pull/2#issuecomment-6315937674.
 
+## Active extension: persistent timeline bookmarks / PR #4
+
+The user explicitly accepted the final dashboard/single-camera Play/Pause visibility: no upper transport in dashboard fullscreen; retain it in single-camera fullscreen. CI for that accepted head (`0e40e90`) passed. The user then authorized timeline bookmarks and previous/next bookmark navigation. This extends the still-open PR #4 on `feat/route-seek-fullscreen-tools`; version remains 0.6.0 because the PR has not been merged. No new merge authorization was given.
+
+Bookmarks use the concatenated trip clock (integer milliseconds), independently of GPS readiness. Right-click graph/timeline to add; left-click a numbered amber marker to seek; right-click that marker to remove. Previous/next arrow-and-bar buttons do not wrap at the ends. `+ Bookmark` saves the current position as an accessible alternative. Selection mode disables editing/navigation. Existing original/tier seek mapping handles segment boundaries and archived timelapses.
+
+Migration 0017 adds `trip_bookmarks` in the per-archive SQLite DB (schema head 17). Trip switching and app restart retain marks; trip deletion cascades, ID rewrites cascade, and manual merges rebase marks on the merged segment clock in the same transaction. Archive-only merges use the original speed-curve clock, falling back to the trip span. Archive-root checks reject stale commands aimed at a different archive; frontend generations discard stale asynchronous responses, writes are serialized, and reload waits for pending saves. Save/load errors are visible rather than presenting an unsuccessful save as persistent. Media originals and GPS cache/parser semantics are unchanged.
+
+Validation: 76 frontend tests and typecheck/build; 335 Rust tests (one pre-existing ignored), including SQLite reopen, sorting/deduplication, isolation/deletion, stale archive rejection, trip merge rebasing and archive-only curve timing. Native WebKit exercised actual timeline right-clicks without seeking, next/previous seeks across a segment boundary, restore after trip switching, and persistent removal via IPC. Fresh CI checks follow the pushed bookmark head. The bookmark feature still needs the focused user test; previously accepted route/fullscreen/zoom behaviour remains accepted.
+
 ## Active work: authorized playback tools and GPS analysis / 0.6.0
 
 The user confirmed that the installed 0.5.0 displays the correct version, approved

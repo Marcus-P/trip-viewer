@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store";
 import { usePreferences } from "../../settings/preferences";
 import type { GpsPoint, Segment, TagCategory, Trip } from "../../types/model";
 import { CATEGORY_COLORS } from "../../utils/tagColors";
 import { computeTripTime, tripTotalDuration } from "../../utils/tripTime";
+
+import { adjacentBookmark, bookmarkTimeLabel } from "./bookmarks";
+import { useBookmarks } from "./useBookmarks";
 
 interface Props {
   onSeekTripTime: (tripTime: number) => void;
@@ -90,6 +93,9 @@ export function Timeline({ onSeekTripTime }: Props) {
   const { speedUnit } = usePreferences();
   const trips = useStore((s) => s.trips);
   const loadedTripId = useStore((s) => s.loadedTripId);
+  const archiveRoot = useStore(s => s.currentArchive?.root);
+  const bookmarks = useBookmarks(archiveRoot, loadedTripId ?? undefined);
+  useEffect(() => { setDragTripTime(null); }, [loadedTripId, archiveRoot]);
   const activeSegmentId = useStore((s) => s.activeSegmentId);
   const currentTime = useStore((s) => s.currentTime);
   const sourceMode = useStore((s) => s.sourceMode);
@@ -219,7 +225,7 @@ export function Timeline({ onSeekTripTime }: Props) {
       updateHover(e.clientX);
       // In selection mode the timeline is a multi-select widget, not a
       // seek widget. Clicks are handled per-segment-rect below.
-      if (selectionMode) return;
+      if (selectionMode || e.button !== 0) return;
 
       // WebKitGTK/GStreamer turns currentTime assignments into full pipeline
       // flushes. Preview the drag locally and perform exactly one real seek
@@ -233,10 +239,10 @@ export function Timeline({ onSeekTripTime }: Props) {
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
       updateHover(e.clientX);
-      if (selectionMode || e.buttons === 0) return;
+      if (selectionMode || dragTripTime === null || (e.buttons & 1) === 0) return;
       setDragTripTime(xToTripTime(e.clientX));
     },
-    [xToTripTime, selectionMode, updateHover],
+    [xToTripTime, selectionMode, updateHover, dragTripTime],
   );
 
   const finishTimelineSeek = useCallback(
@@ -255,6 +261,10 @@ export function Timeline({ onSeekTripTime }: Props) {
 
   if (!trip || totalDuration <= 0) return null;
 
+  const bookmarkTimes = bookmarks.times.filter(ms => ms <= Math.round(totalDuration * 1000));
+  const previousBookmark = adjacentBookmark(bookmarkTimes, tripTime, -1);
+  const nextBookmark = adjacentBookmark(bookmarkTimes, tripTime, 1);
+  const setAtTime = (time: number) => void bookmarks.setBookmark(Math.round(Math.max(0, Math.min(totalDuration, time)) * 1000), true);
   const displayedTripTime = dragTripTime ?? tripTime;
   const playheadX = (displayedTripTime / totalDuration) * 100;
   // Archive-only trips have empty segments — render a single full-width
@@ -396,7 +406,20 @@ export function Timeline({ onSeekTripTime }: Props) {
       ? null
       : SPEED_AREA_H * (1 - hoverSpeed.speed / speedScale.max);
 
-  return (
+  return (<>
+    <div className="flex flex-wrap items-center gap-2 border-t border-neutral-800 px-3 py-1 text-xs text-neutral-300">
+      <button type="button" title="Previous bookmark" aria-label="Previous bookmark" disabled={selectionMode || previousBookmark === null}
+        className="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-30" onClick={() => previousBookmark !== null && onSeekTripTime(previousBookmark)}>
+        <svg aria-hidden width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 3v12M14 4l-7 5 7 5Z" /></svg>
+      </button>
+      <button type="button" title="Next bookmark" aria-label="Next bookmark" disabled={selectionMode || nextBookmark === null}
+        className="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-30" onClick={() => nextBookmark !== null && onSeekTripTime(nextBookmark)}>
+        <svg aria-hidden width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M14 3v12M4 4l7 5-7 5Z" /></svg>
+      </button>
+      <button type="button" disabled={!bookmarks.ready || selectionMode} onClick={() => setAtTime(tripTime)} className="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-30">+ Bookmark</button>
+      <span className="text-neutral-500">Right-click graph to add · right-click marker to remove</span>
+      {bookmarks.error && <span role="alert" className="text-amber-300">{bookmarks.error}</span>}
+    </div>
     <div
       data-tripviewer-timeline
       style={{ height: "var(--tripviewer-timeline-height, 3.5rem)" }}
@@ -411,6 +434,7 @@ export function Timeline({ onSeekTripTime }: Props) {
             ? "absolute inset-0 h-full w-full cursor-default"
             : "absolute inset-0 h-full w-full cursor-pointer"
         }
+        onContextMenu={e => { e.preventDefault(); if (!selectionMode) setAtTime(xToTripTime(e.clientX)); }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finishTimelineSeek}
@@ -456,7 +480,7 @@ export function Timeline({ onSeekTripTime }: Props) {
         })}
 
         {/* Speed curve */}
-        {speedPath && (
+      {speedPath && (
           <path
             d={speedPath}
             fill="none"
@@ -492,6 +516,9 @@ export function Timeline({ onSeekTripTime }: Props) {
           />
         )}
 
+        {bookmarkTimes.map(ms => <line key={`bookmark-line-${ms}`} x1={`${ms / (totalDuration * 10)}%`} x2={`${ms / (totalDuration * 10)}%`}
+          y1={0} y2={HEIGHT} stroke="#fbbf24" strokeWidth={1} vectorEffect="non-scaling-stroke" pointerEvents="none" />)}
+
         {/* Playhead */}
         <line
           x1={`${playheadX}%`}
@@ -504,6 +531,17 @@ export function Timeline({ onSeekTripTime }: Props) {
           pointerEvents="none"
         />
       </svg>
+
+        {bookmarkTimes.map((ms, index) => <button type="button" key={ms}
+        aria-label={`Bookmark ${index + 1} at ${bookmarkTimeLabel(ms)}`}
+        title={`Bookmark ${index + 1} · ${bookmarkTimeLabel(ms)} · Click to seek, right-click to remove`}
+        disabled={selectionMode}
+        className="absolute top-0 z-20 h-5 w-4 rounded-b bg-amber-400 text-[10px] font-bold text-neutral-950 disabled:opacity-40"
+        style={{ left: `${ms / (totalDuration * 10)}%`, transform: ms === 0 ? undefined : ms >= totalDuration * 1000 - 1 ? "translateX(-100%)" : "translateX(-50%)" }}
+        onClick={() => onSeekTripTime(ms / 1000)}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!selectionMode) void bookmarks.setBookmark(ms, false); }}>
+        {index + 1}
+      </button>)}
 
       {speedPath && (
         <div className="pointer-events-none absolute inset-0 text-[9px] text-neutral-500">
@@ -543,5 +581,5 @@ export function Timeline({ onSeekTripTime }: Props) {
         </div>
       )}
     </div>
-  );
+  </>);
 }

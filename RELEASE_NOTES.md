@@ -16,6 +16,18 @@ Playback tools and bounded GPS analysis, building on the user-validated 0.5.0.
 - Archived timelapses can seek via trip time even when no original segment
   list remains, using the existing speed-curve mapping.
 
+## Timeline bookmarks
+
+- Right-click the graph/timeline to save a numbered bookmark. Click its marker
+  to seek; right-click the marker to remove it. Previous/next arrow-and-bar
+  buttons jump between bookmarks without wrapping. `+ Bookmark` saves the
+  current position.
+- Bookmarks persist per trip in the archive database across trip changes and
+  restarts. They do not depend on GPS analysis and use the existing seek mapping
+  in both Original and timelapse playback. Manual trip merges rebase positions.
+- Archive database schema advances to 17; older builds supporting only schema
+  16 cannot open an archive upgraded by this build.
+
 ## GPS analysis
 
 - Independent candidate files share a read pool capped at two workers across

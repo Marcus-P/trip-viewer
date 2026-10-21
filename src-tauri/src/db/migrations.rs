@@ -7,7 +7,7 @@ use crate::error::AppError;
 /// `migrations/`. Compared against `PRAGMA user_version` on open so we
 /// can refuse archives written by a newer Trip Viewer (the schema
 /// version would be ahead of what this build knows how to apply).
-pub const HEAD_VERSION: u32 = 16;
+pub const HEAD_VERSION: u32 = 17;
 
 const M0001: &str = include_str!("migrations/0001_init.sql");
 const M0002: &str = include_str!("migrations/0002_places.sql");
@@ -44,6 +44,7 @@ fn migrations() -> Migrations<'static> {
             "migrations/0015_trip_gps_source_signature.sql"
         )),
         M::up(include_str!("migrations/0016_gps_segment_checkpoints.sql")),
+        M::up(include_str!("migrations/0017_trip_bookmarks.sql")),
     ])
 }
 
