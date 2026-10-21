@@ -292,6 +292,15 @@ Both final GPS resume tests were confirmed and both Ubuntu CI runs for the versi
 
 ## On hold / later work
 
+**Channel visibility checkboxes (record only; implementation not yet authorized).**
+Allow Front, Interior and Rear to be individually shown/hidden using checkboxes.
+Hidden channels must consume no video tile or placeholder space; the layout
+must redistribute the available area among the selected channels and map.
+Support one-, two- and three-camera setups without reserving empty Interior or
+Rear cells. This is a display/layout preference, not a request to delete or
+modify media. The user explicitly asked to record this idea only and will first
+provide feedback on the current bookmark build.
+
 The user features below were subsequently authorized and implemented in the 0.6.0 branch described above. Maintenance items remain tracked separately.
 
 **User features implemented in the active 0.6.0 branch (user validation confirmed above):**
