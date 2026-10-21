@@ -90,21 +90,29 @@ export function VehicleMarker({
     );
   }, [loadedTripId, tripGpsPoints, map]);
 
-  // First-play zoom-in: snap to the vehicle once per trip when
-  // playback first starts and we have a usable interpolated point.
-  // Subsequent plays don't re-zoom — the user owns zoom from here.
-  // Intentionally per-trip, NOT per-segment: switching segments
-  // within a trip lets pan-follow bring the new vehicle position
-  // into view at whatever zoom the user has chosen, instead of
-  // snapping back to 15× and overriding their context view.
+  // First-play zoom-in: establish the vehicle-level view once per trip as
+  // soon as playback starts. If playback begins before the first GPS fix,
+  // use the trip's first recorded point rather than waiting for that fix to
+  // arrive mid-playback. On WebKitGTK the old behaviour could trigger a
+  // Leaflet zoom animation at exactly the moment the first GPS point became
+  // live, adding a compositor spike while the video pipelines were decoding.
+  // Use a non-animated setView here; normal follow-mode below may animate later
+  // once playback is established.
   useEffect(() => {
     if (!loadedTripId || zoomedInTripRef.current === loadedTripId) return;
     if (!isPlaying) return;
-    if (!interp || interp.stale) return;
+
+    const target =
+      interp && !interp.stale
+        ? ([interp.lat, interp.lon] as [number, number])
+        : tripGpsPoints.length > 0
+          ? ([tripGpsPoints[0].lat, tripGpsPoints[0].lon] as [number, number])
+          : null;
+    if (!target) return;
 
     zoomedInTripRef.current = loadedTripId;
-    map.setView([interp.lat, interp.lon], 15, { animate: true });
-  }, [loadedTripId, isPlaying, interp, map]);
+    map.setView(target, 15, { animate: false });
+  }, [loadedTripId, isPlaying, interp, tripGpsPoints, map]);
 
   // Keep the vehicle close to the visual center without panning on every
   // GPS sample. The marker may move inside a small square dead zone around

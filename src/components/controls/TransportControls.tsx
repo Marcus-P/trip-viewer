@@ -75,6 +75,8 @@ export function TransportControls({ engine, onSourceChange }: Props) {
   const sourceMode = useStore((s) => s.sourceMode);
   const activeSpeedCurve = useStore((s) => s.activeSpeedCurve);
   const timelapseJobs = useStore((s) => s.timelapseJobs);
+  const gpsPreparation = useStore((s) => loadedTripId ? s.gpsPreparationByTrip[loadedTripId] : undefined);
+  const gpsProgress = useStore((s) => loadedTripId ? s.gpsProgressByTrip[loadedTripId] : undefined);
   const disabled = !engine;
 
   const trip = trips.find((t) => t.id === loadedTripId);
@@ -171,6 +173,27 @@ export function TransportControls({ engine, onSourceChange }: Props) {
         →{" "}
         <span className="text-neutral-300">{effectiveRate}×</span> effective
       </span>
+
+      {trip && !engine && (
+        <span role="status" className="text-xs text-neutral-400">Waiting for a playable camera…</span>
+      )}
+      {gpsPreparation === "loading" && (
+        <span role="status" className="flex items-center gap-2 text-xs text-blue-300">
+          <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+          {gpsProgress
+            ? `GPS: ${gpsProgress.completed} / ${gpsProgress.total} segments`
+            : "Preparing GPS in the background…"}
+          {gpsProgress && gpsProgress.total > 0 && (
+            <progress aria-label="GPS segments prepared" className="h-1.5 w-20 accent-blue-400"
+              value={gpsProgress.completed} max={gpsProgress.total} />
+          )}
+        </span>
+      )}
+      {gpsPreparation === "error" && (
+        <span role="status" className="text-xs text-amber-300">
+          GPS preparation failed. Select the trip again to retry.
+        </span>
+      )}
 
       <div className="ml-auto shrink-0 font-mono text-xs tabular-nums text-neutral-400">
         {formatTime(tripTime)} / {formatTime(totalDuration)}

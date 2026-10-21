@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSyncEngine } from "../../engine/useSyncEngine";
+import { prepareTripGps } from "../../state/gpsPreparation";
 import { useStore } from "../../state/store";
 import type { Channel, Segment } from "../../types/model";
 import {
@@ -27,6 +28,7 @@ import { Timeline } from "../timeline/Timeline";
 import { WelcomePanel } from "../welcome/WelcomePanel";
 import { decideShowMap } from "./decideShowMap";
 import { VideoGrid } from "./VideoGrid";
+import { healthyLineup } from "./channelHealth";
 
 /** Map the backend's F/I/R channel code to the frontend's canonical
  *  label. Tier synthesis uses this to build Channel objects whose
@@ -51,6 +53,21 @@ export function PlayerShell() {
   const channelRefs = useRef<Map<string, HTMLVideoElement | null>>(new Map());
   const shouldAutoPlay = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
+  // Media failures are scoped to the current source/segment. A failed camera
+  // stays visible with its error overlay but is removed from the active
+  // SyncEngine so healthy cameras can continue. The next source gets a fresh
+  // attempt automatically.
+  const [failedChannelLabels, setFailedChannelLabels] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const failedChannelLabelsRef = useRef<Set<string>>(new Set());
+  const stickyMasterRef = useRef<string | null>(null);
+  // Once the canonical master fails, keep the promoted healthy camera as the
+  // clock for the rest of this source. A recovered Front rejoins as a slave
+  // rather than forcing another mid-segment master swap.
+  const [stickySyncMasterLabel, setStickySyncMasterLabel] = useState<
+    string | null
+  >(null);
   // True when we entered the current tier mode automatically because
   // playback (or a seek, or a trip load) crossed into a tombstone span
   // in Original mode. The flip-back effect uses this to switch back
@@ -178,12 +195,99 @@ export function PlayerShell() {
     return m;
   }, [sourceMode, trip, timelapseJobs]);
 
+  const syncChannelLabels = useMemo(() => {
+    return healthyLineup(channelLabels, failedChannelLabels, stickySyncMasterLabel);
+  }, [channelLabels, failedChannelLabels, stickySyncMasterLabel]);
+  const syncMasterLabel = syncChannelLabels[0] ?? null;
+
   const engine = useSyncEngine(
     channelRefs,
-    channelLabels,
+    syncChannelLabels,
     activeSegmentForVideo?.id ?? null,
     channelCurves,
   );
+
+  // A segment/source boundary is the natural retry point. We never guess a
+  // number of seconds to skip inside a corrupt file. Background recovery can
+  // rejoin cameras sooner, while a new source resets every channel's state.
+  useEffect(() => {
+    failedChannelLabelsRef.current = new Set();
+    setFailedChannelLabels(new Set());
+    setStickySyncMasterLabel(null);
+    stickyMasterRef.current = null;
+  }, [activeSegmentForVideo?.id]);
+
+  const handleChannelMediaError = useCallback(
+    (label: string, message: string, cached: boolean) => {
+      const state = useStore.getState();
+      const failed = new Set(failedChannelLabelsRef.current);
+      if (failed.has(label)) return;
+      failed.add(label);
+      failedChannelLabelsRef.current = failed;
+
+      const healthy = healthyLineup(channelLabels, failed, stickyMasterRef.current);
+
+      // Preserve logical position and play intent while the engine rebuilds
+      // without this camera. If the failed channel owned the clock, promote
+      // the next healthy channel and keep it sticky for this source.
+      pendingSeekRef.current = state.currentTime;
+      if (state.isPlaying && healthy.length > 0) {
+        shouldAutoPlay.current = true;
+      } else if (healthy.length === 0) {
+        shouldAutoPlay.current = false;
+        state.setIsPlaying(false);
+      }
+
+      stickyMasterRef.current = healthy[0] ?? null;
+      setStickySyncMasterLabel(stickyMasterRef.current);
+
+      setFailedChannelLabels(new Set(failed));
+
+      console.warn(
+        `[player] ${label} removed from sync for current source: ${message}`,
+      );
+
+      // GPS must not remain tied to a camera file we just proved is damaged.
+      // Rebuild the persisted trip trace once, excluding every failed camera
+      // in this segment. The backend can then select another healthy channel
+      // as the GPS provider and persists that repaired track for later runs.
+      if (!cached && state.sourceMode === "original" && state.loadedTripId) {
+        const currentTrip = state.trips.find(
+          (candidate) => candidate.id === state.loadedTripId,
+        );
+        const segmentId =
+          state.activeSegmentId ?? currentTrip?.segments[0]?.id ?? null;
+        if (currentTrip && segmentId) {
+          const excluded = {
+            [segmentId]: Array.from(failed),
+          };
+          void prepareTripGps(currentTrip, excluded, true)
+            .catch((error) => {
+              console.error("[player] GPS failover refresh failed:", error);
+            });
+        }
+      }
+    },
+    [channelLabels],
+  );
+
+  const handleChannelMediaRecovered = useCallback((label: string) => {
+    const failed = new Set(failedChannelLabelsRef.current);
+    if (!failed.delete(label)) return;
+    failedChannelLabelsRef.current = failed;
+    const healthy = healthyLineup(channelLabels, failed, stickyMasterRef.current);
+    stickyMasterRef.current = healthy[0] ?? null;
+    setStickySyncMasterLabel(stickyMasterRef.current);
+
+    const state = useStore.getState();
+    pendingSeekRef.current = state.currentTime;
+    if (state.isPlaying) shouldAutoPlay.current = true;
+    setFailedChannelLabels(new Set(failed));
+
+    console.info(
+      `[player] ${label} recovered and will rejoin sync at ${state.currentTime.toFixed(2)}s`,
+    );
+  }, [channelLabels]);
 
   /**
    * Swap playback source. Preserves trip-time and play state: we
@@ -348,7 +452,7 @@ export function PlayerShell() {
     if (sourceMode !== "original") {
       // Tiered mode still gets an "ended" event (the single file
       // finished). Stop playback but don't try to advance segments.
-      const masterLabel = activeSegmentForVideo.channels[0]?.label;
+      const masterLabel = syncMasterLabel;
       if (!masterLabel) return;
       const master = channelRefs.current.get(masterLabel);
       if (!master) return;
@@ -357,7 +461,7 @@ export function PlayerShell() {
       return () => master.removeEventListener("ended", onEnded);
     }
 
-    const masterLabel = activeSegmentForVideo.channels[0]?.label;
+    const masterLabel = syncMasterLabel;
     if (!masterLabel) return;
     const master = channelRefs.current.get(masterLabel);
     if (!master) return;
@@ -418,19 +522,28 @@ export function PlayerShell() {
     // deps), so adding it to the deps array doesn't churn the effect;
     // it just satisfies exhaustive-deps for the closure.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSegmentForVideo, sourceMode]);
+  }, [activeSegmentForVideo, sourceMode, syncMasterLabel]);
 
-  // Auto-play after segment advance, cross-segment seek, or source switch.
+  // Restore position before playback after a segment/source transition.
+  // Starting playback first and seeking immediately afterwards races two
+  // WebKit/GStreamer pipeline flushes and can leave one camera wedged or
+  // permanently offset.
   useEffect(() => {
     if (!engine) return;
-    if (shouldAutoPlay.current) {
-      shouldAutoPlay.current = false;
-      void engine.play();
-    }
-    if (pendingSeekRef.current !== null) {
-      engine.seek(pendingSeekRef.current);
-      pendingSeekRef.current = null;
-    }
+
+    const pendingSeek = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    const autoPlay = shouldAutoPlay.current;
+    shouldAutoPlay.current = false;
+
+    void (async () => {
+      if (pendingSeek !== null) {
+        await engine.seek(pendingSeek, { resume: false });
+      }
+      if (autoPlay) {
+        await engine.play();
+      }
+    })();
   }, [engine]);
 
   // In tiered mode the engine's tick writes file-time to
@@ -521,7 +634,8 @@ export function PlayerShell() {
         }
         const currentSegId = activeSegmentId ?? trip.segments[0]?.id;
         if (target.activeSegmentId === currentSegId) {
-          engine?.seek(target.segmentLocalTime);
+          if (engine) void engine.seek(target.segmentLocalTime);
+          else useStore.getState().setCurrentTime(target.segmentLocalTime);
         } else {
           pendingSeekRef.current = target.segmentLocalTime;
           if (isPlaying) shouldAutoPlay.current = true;
@@ -535,7 +649,7 @@ export function PlayerShell() {
         // current segment for tags; useEffect above will also fire on
         // the currentTime change, so this write + engine.seek keeps
         // everything consistent.
-        engine?.seek(target.fileTime);
+        void engine?.seek(target.fileTime);
         if (target.virtualActiveSegmentId) {
           useStore.setState({ activeSegmentId: target.virtualActiveSegmentId });
         }
@@ -619,6 +733,9 @@ export function PlayerShell() {
         <VideoGrid
           channelRefs={channelRefs}
           activeSegment={activeSegmentForVideo}
+          syncMasterLabel={syncMasterLabel}
+          onChannelMediaError={handleChannelMediaError}
+          onChannelMediaRecovered={handleChannelMediaRecovered}
         />
         {showMap && <MapPanel activeSegment={activeSegmentForUi} />}
         <DriftHud />

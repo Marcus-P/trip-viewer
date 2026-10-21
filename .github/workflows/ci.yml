@@ -11,9 +11,15 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
+      - name: Validate application version
+        env:
+          VERSION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.ref == 'refs/heads/main' && github.event.before || '' }}
+        run: node scripts/check-version.mjs
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Ubuntu build dependencies
         run: |
@@ -49,3 +55,27 @@ jobs:
           test -s "$ICON"
           grep -Fq "Exec=$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage" "$DESKTOP"
           grep -Fq "Icon=trip-viewer" "$DESKTOP"
+      - name: Prepare downloadable Ubuntu test build
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -n "$SOURCE"
+          VERSION="$(node -p "require('./package.json').version")"
+          TEST_APPIMAGE="Trip.Viewer_${VERSION}_test-${GITHUB_SHA:0:7}_Ubuntu-24.04_amd64.AppImage"
+          OUT="${RUNNER_TEMP}/trip-viewer-test-build"
+          mkdir -p "$OUT"
+          cp "$SOURCE" "$OUT/$TEST_APPIMAGE"
+          cp scripts/install-trip-viewer-ubuntu.sh LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
+          printf 'Trip Viewer Ubuntu 24.04 test build\nCommit: %s\nRun: %s/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" \
+            > "$OUT/BUILD_INFO.txt"
+          cd "$OUT"
+          sha256sum "$TEST_APPIMAGE" install-trip-viewer-ubuntu.sh > SHA256SUMS.txt
+      - name: Upload Ubuntu test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trip-Viewer-Ubuntu-24.04-${{ github.sha }}
+          path: ${{ runner.temp }}/trip-viewer-test-build/
+          if-no-files-found: error
+          retention-days: 30
