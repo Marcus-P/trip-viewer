@@ -46,7 +46,7 @@ jobs:
   linux:
     name: Linux checks
     needs: scope
-    if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true'
+    if: ${{ !cancelled() && (needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -86,13 +86,13 @@ jobs:
         if: needs.scope.outputs.audit == 'true'
         run: npm audit --omit=dev --audit-level=high
       - name: Prepare application and dependency notices
-        if: needs.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         run: python3 scripts/prepare-release-licenses.py
       - name: Build Ubuntu packages
-        if: needs.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         run: NO_STRIP=true npm run tauri -- build --bundles appimage,deb
       - name: Validate Ubuntu installers
-        if: needs.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -114,7 +114,7 @@ jobs:
           dpkg-query -W trip-viewer
           test -x /usr/bin/tripviewer
       - name: Prepare one downloadable installer for testing
-        if: needs.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -129,7 +129,7 @@ jobs:
           cd "$OUT"
           sha256sum "$DEST" > SHA256SUMS.txt
       - name: Upload Ubuntu test installer
-        if: needs.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         uses: actions/upload-artifact@v5
         with:
           name: Trip-Viewer-Ubuntu-24.04-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
@@ -140,7 +140,7 @@ jobs:
 
   desktop:
     needs: scope
-    if: needs.scope.outputs.bundle == 'true'
+    if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
     permissions:
       contents: read
     uses: ./.github/workflows/desktop-packages.yml
@@ -151,7 +151,7 @@ jobs:
   # Preserve the required status name and require every relevant platform.
   # Docs/version-only changes still get a successful lightweight gate.
   ubuntu:
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [scope, linux, desktop]
     runs-on: ubuntu-24.04
     permissions: {}
