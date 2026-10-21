@@ -42,6 +42,9 @@ to a release after its workflow succeeds. Feature-branch CI artifacts include
 commit IDs and do not represent a stable release by themselves.
 
 PR #3 released 0.5.0 with progressive/resumable GPS and playback recovery.
-Open PR #4 combines new capabilities with GPS performance work, so its version
-is 0.6.0. Further documentation commits in that same unmerged PR keep 0.6.0.
-A later separate maintenance-only PR increments PATCH from the then-current main.
+PR #4 released 0.6.0 with new playback capabilities and GPS performance work.
+A later separate maintenance-only PR increments PATCH from the then-current main,
+including a documentation correction under this fork's every-merged-PR rule.
+For example, correcting the post-release documentation uses 0.6.1 without changing
+application behaviour. Do not describe that version as published before its own
+release workflow succeeds. Use the Latest Release link for current downloads.

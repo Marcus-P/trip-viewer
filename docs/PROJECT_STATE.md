@@ -1,31 +1,51 @@
 # Trip Viewer project state
 
-Current hand-off for the Marcus-P fork. Preserve upstream authorship, logos/icons,
-MIT/dependency notices and original media. The [documentation index](README.md)
-is the entry point; the [prior development record](history/PROJECT_STATE-before-doc-refresh.md)
-retains detailed debugging history and earlier acceptance results.
+Current hand-off for the Marcus-P fork of [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer).
+Preserve upstream authorship, logos/icons, MIT/dependency notices and original
+media. The [documentation index](README.md) is the entry point; the
+[prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
+the debugging and earlier acceptance history.
 
-## Final 0.6.0 integration and cleanup plan
+## Releases and documentation status
 
-The user authorized incorporating the two upstream commits, reducing redundant CI/artifacts, preparing a final single user test, and cleaning obsolete branches/artifacts. Preserve published releases/license assets. Main is owner-protected: **wait for the final user test, then the owner clicks Merge on PR #4**. Do not merge before that test or bypass rules.
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest) is the
+authority for the currently published stable download. A checkout's version in
+`RELEASE_VERSION`, an open PR or a CI artifact is not proof of publication.
+Keep current-download links and installation commands independent of a manually
+maintained "latest version" number; resolve one published tag before downloading.
 
-Upstream `2534f65` (developer guidance) and `a9617fc` (bulk trip selection/deletion, archive-only merge safety and scoped orphan timelapse cleanup) are integrated as actual ancestry so the fork will no longer be two commits behind after PR #4 merges. Authorship remains intact. The upstream slow reconciliation/master-led Play behaviour already exists in our stronger, user-validated SyncEngine; retain its seek timeouts, generation cancellation, audio policy and one reconciler rather than adding a second timer or regressing transport. Added a rejected-slave regression check. Upstream archive-only guards run before modification; our bookmark rebasing remains inside the merge transaction.
+Release record: the owner accepted the final 0.6.0 integration test and merged
+[PR #4](https://github.com/Marcus-P/trip-viewer/pull/4) as
+`865bfcd841cfd7e1be6a54799943ac06f7b1f80a`. The final PR CI and
+[merged-tree release run 39664733283](https://github.com/Marcus-P/trip-viewer/actions/runs/39664733283)
+passed. [Stable 0.6.0](https://github.com/Marcus-P/trip-viewer/releases/tag/v0.6.0)
+was published with ten assets; its tag points to that merge commit. The downloaded
+checksum manifest matched GitHub asset digests for both AppImage and bundle.
+The [acceptance record](FINAL_060_CHECK.md) is complete, not a pending test or merge.
 
-Latest local verification: **85 frontend tests, typecheck/build, 339 Rust tests (one existing ignored)**. These include selection/range semantics, sequential bulk failures, rejected slave playback, archive-only merge-loss prevention and merge-scoped orphan cleanup. Native final checks passed: bookmarks/cross-segment seeking, channel visibility/fullscreen/Play-Pause, Ctrl/Shift trip selection, both bulk scope dialogs and merge-dialog cancellation with all nine scratch files intact. Legacy 1/2/3/4-channel synthetic smoke was repeated. Required Ubuntu AppImage CI is the last automated gate before handing off the final test build. The maintainer's real-camera scope remains exclusively VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS.
+Documentation maintenance 0.6.1 corrects the stale pre-release descriptions and
+0.5.0 installation commands that remained after publication. It changes no
+application behaviour, parser version or database schema and needs no new
+real-footage acceptance test. Under the existing every-merged-PR version rule,
+this separate maintenance change increments PATCH. Publication is still verified
+through Latest Release rather than inferred from the source version.
 
-CI now runs once per PR update (or manual dispatch), with concurrency cancelling superseded runs. No duplicate push+PR runs; main is validated/published by the release workflow after the owner merge. Test artifacts expire after 7 days. Remove obsolete CI test artifacts only after the final package is available, keeping that one candidate for testing. Existing stable releases/assets are version history, not temporary CI artifacts.
+## Integrated upstream work and cleanup
 
-The user approved the outreach text, but requests the **upstream PR after successful final test and owner merge**. Do not post a duplicate issue comment now. A whole fork-main PR would also replace upstream updater/release configuration and flood the review with fork/history docs. Prepare a focused upstream contribution branch based on current chrisl8 main, retaining its updater/release setup and authorship; offer the useful camera/playback features and tests with the approved VIOFO/Ubuntu-only real-test scope. Coordinate with existing A129 PR #12; do not claim other real cameras have been tested here. After owner merge/release, remove only obsolete merged branches, keep main and any active upstream contribution branch, prune superseded test artifacts and publish the upstream PR with the approved message.
+Upstream commits 2534f65 and a9617fc are ancestors of the 0.6.0 merge, preserving
+their authorship. They add bulk trip selection/deletion, archive-only merge safety
+and scoped orphan timelapse cleanup. The fork's stronger seek/audio/cancellation
+safeguards and single reconciler remain; bookmark rebasing stays transactional.
+The fork was zero commits behind upstream a9617fc after integration. Check live
+upstream history before treating that observation as a permanent ahead/behind count.
 
-The concrete final test and merge location are in [FINAL_060_CHECK.md](FINAL_060_CHECK.md).
-
-## Origin and release state
-
-- Parent/source repository: [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer), verified through GitHub metadata.
-- Stable/default branch: `main`. Published stable release: **0.5.0**, merge `f9681ea`.
-- Open candidate: **PR #4**, branch `feat/route-seek-fullscreen-tools`, version **0.6.0**. New commits in this same unmerged PR keep that version. It is not a published stable 0.6.0 download.
-- Only the owner merges protected main. The final owner merge is gated on the requested single test; accepted earlier feature tests remain established.
-- Preserve `com.tripviewer.app` identity and upstream icon assets.
+The obsolete feat/route-seek-fullscreen-tools, feature/viofo-a229-pro,
+fix/webkit-sync-stability and perf/gps-extraction branches were verified as
+ancestors of main and deleted. All temporary CI artifacts were removed after
+0.6.0 release verification. Keep published release/license history. Keep active
+PR branches until they are merged or closed, including the upstream contribution.
+CI runs once per PR update, cancels superseded work and retains test packages for
+seven days. Main's release workflow verifies the merged tree before publication.
 
 ## Scope and accepted functional tests
 
@@ -57,11 +77,10 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 
 ## Validation evidence
 
-- Latest local full suite: **85 frontend tests**, **339 Rust tests passed**, one pre-existing ignored. Prior frontend typecheck/build and native WebKit feature checks passed; the upstream integration keeps the validated transport implementation.
-- Functional head `9045fcf` passed both complete Ubuntu CI runs including AppImage/installer checks. New documentation commits receive fresh CI; do not assert their status before checking.
-- Native WebKit verified camera visibility 3→2→1→0 and restoration, saved preferences, dashboard controls, advancing Play/Pause with a hidden canonical master, and unchanged video nodes without media reloads. Native bookmark checks covered no-seek right-clicks, cross-segment navigation, trip-switch restore and persistent removal; SQLite reopen/merge/identity tests passed.
-- This documentation refresh also verified unchanged legacy naming/grouping and Wolf Box/Miltona decoder files against shared ancestor `82c377d` and inspected upstream main `a9617fc`. Native synthetic H.264 scans/playback passed Wolf Box 3, Thinkware 2, Miltona 1 and Generic 4 channels. These fixtures contain no proprietary legacy GPS; no real-camera certification follows. Details: [compatibility](COMPATIBILITY.md).
-- Upstream/current logos/icons, LICENSE and all existing third-party notice text are retained by this documentation refresh.
+- The accepted 0.6.0 tree and the separate upstream contribution each passed 85 frontend tests, typecheck/build and 339 Rust tests (one existing ignored). Final PR CI and the merged-main Ubuntu release succeeded. Documentation-only corrections do not invalidate the accepted playback test.
+- Native WebKit verified cross-segment bookmarks/seeking, camera visibility 3→2→1→0 and restoration, saved preferences, dashboard controls, advancing Play/Pause with a hidden canonical master, and unchanged video nodes without media reloads. Bulk-selection delete/merge dialogs were cancelled with all scratch files retained.
+- Native synthetic H.264 scans/playback passed Wolf Box 3, Thinkware 2, Miltona 1 and Generic 4 channels. Their naming/grouping and Wolf Box/Miltona decoder files were unchanged from the shared upstream base. These fixtures contain no proprietary legacy GPS; no real-camera certification follows. Details: [compatibility](COMPATIBILITY.md).
+- Original/current logos/icons, LICENSE and existing third-party notice text remain intact. Archive schema is 17 and GPS parser version is 8.
 
 ## Branch protection: active and verified
 
@@ -78,21 +97,28 @@ owner-run setup/recovery helper. No destructive push/merge was used to test it.
 
 ## Contributor/upstream communication
 
-The approved follow-up to `gubiq` was posted:
-https://github.com/Marcus-P/trip-viewer/pull/2#issuecomment-6315937674.
+The approved follow-up to gubiq was posted in
+[fork PR #2](https://github.com/Marcus-P/trip-viewer/pull/2#issuecomment-6315937674).
 
-The user approved the report text to upstream owner **chrisl8** and asks to use it in the upstream PR **after final test and owner merge**. Do not post a duplicate issue comment before that stage. State origin/attribution and the
-exclusive VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS hands-on test scope, while
-separating automated/synthetic evidence for other cameras from hardware tests.
-Upstream issue #8 concerns A129 footage and PR #12 (alinnastac) adds A129 Duo
-support; neither is proof that this fork was tested on A129. Coordinate
-respectfully and avoid representing this fork’s Ubuntu changes as an upstream
-regression fix for hardware not tested here.
+The owner created [upstream PR #16](https://github.com/chrisl8/trip-viewer/pull/16)
+after the cloud integration's create-PR request returned HTTP 403. It offers
+Marcus-P:contrib/viofo-playback-tools at 8b634af, based on upstream a9617fc. The
+message exactly matches the approved text, including exclusive VIOFO A229 Pro
+3CH / Ubuntu 24.04 LTS hands-on testing and the limits of synthetic legacy checks.
+Do not create a duplicate PR or issue notification. Preserve the contribution
+branch while the upstream PR is open; use its page for current review/CI status.
+Its first Verify updater dry-run awaited maintainer approval, not a failed test.
+Do not approve or bypass the upstream maintainer gate.
+
+The contribution preserves gubiq's commits/co-author notices and upstream's
+updater, application versions, signing and release workflows. It excludes the
+fork's release policy and large documentation refresh. Coordinate with A129
+[PR #12](https://github.com/chrisl8/trip-viewer/pull/12); neither it nor issue #8
+proves this fork was tested with A129 recordings.
 
 ## Remaining work / deferred ideas
 
-- Owner review/merge of PR #4 after fresh CI. No separate application rebuild is needed solely to review documentation.
-- The message is approved; wait for final test/owner merge, then create the focused upstream PR using that text and current release facts.
+- Await upstream review of PR #16; retain its branch and address concrete review findings when requested.
 - Broader original-recording camera/firmware, codec and OS validation remains open; preserve existing support and test evidence.
 - Maintenance: mixed static/dynamic `archive.ts` Vite import warning, large bundle, careful cargo-sweep setup, exact toolchain `NO_STRIP` effects, targeted dependency/audit review. Do not conflate these with a media regression or run blind audit fixes.
 - Further feature proposals (unapproved): audio-source picker, mirror views, clip/snapshot/GPS exports; preserve historical design ideas without claiming implementation.

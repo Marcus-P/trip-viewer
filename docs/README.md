@@ -11,11 +11,11 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Linux setup](../LINUX_DEV_SETUP.md) | Ubuntu build/runtime requirements and other-distro references |
 | [Architecture](../DESIGN.md) | Current components, clocks, storage and inherited decisions |
 | [Timelapse alignment](../TIMELAPSE_ALIGNMENT_REDESIGN.md) | Actual curve format versus the historical proposal |
-| [Final 0.6.0 test](FINAL_060_CHECK.md) | One integration test, exact owner merge location and post-merge cleanup |
+| [0.6.0 acceptance record](FINAL_060_CHECK.md) | Completed integration test, owner merge, release and cleanup |
 | [Releasing](../RELEASING.md) | Builds, assets, license inventories and owner-only merges |
 | [Versioning](VERSIONING.md) | Version increments and synchronized version files |
 | [Branch protection](BRANCH_PROTECTION.md) | Active main rules, owner bypass scope and verification |
-| [Release notes](../RELEASE_NOTES.md) | 0.6.0 candidate changes and compatibility implications |
+| [Release notes](../RELEASE_NOTES.md) | Changes and compatibility implications; published assets are on Latest Release |
 | [Project state](PROJECT_STATE.md) | Current hand-off, accepted tests and remaining work |
 | [Agent instructions](../AGENTS.md) / [Claude entry point](../CLAUDE.md) | Contributor working rules |
 | [Third-party notices](../THIRD_PARTY_NOTICES.md) / [MIT license](../LICENSE) | Source, dependency and asset notices |

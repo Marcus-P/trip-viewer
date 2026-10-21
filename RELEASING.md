@@ -8,14 +8,21 @@ Keep the original icons, [MIT notice](LICENSE) and
 
 ## Stable versus candidate
 
-Published stable: **0.5.0**. The open 0.6.0 candidate is **PR #4**. Owner-confirmed
-manual checks cover VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS. Use
+Use [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
+as the authority for the published stable version. Version 0.6.0 was published
+after PR #4 merged and its release workflow succeeded. Owner-confirmed manual
+checks cover VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS. Use
 [compatibility evidence](docs/COMPATIBILITY.md) to describe other cameras; do not
 promote parser tests or synthetic media into hardware certification.
 
 A feature branch/test artifact is not a stable release. Merge, successful release
 workflow, uploaded assets and installed local version are separate events.
 Only advertise a new stable download after its release workflow succeeds.
+Use the Latest Release link for current downloads and dynamically resolve the
+release tag in installation commands, as in the README. Describe completed
+releases in the past tense; do not leave an old PR's pending instructions as the
+current project state. A checkout's package version may be newer than the latest
+published download while its PR or release workflow is pending.
 
 ## Prepare the PR
 

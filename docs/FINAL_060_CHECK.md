@@ -1,46 +1,46 @@
-# Final 0.6.0 test and owner merge
+# Completed 0.6.0 acceptance and release
 
-This final candidate combines the accepted fork features with upstream commits
-2534f65 and a9617fc. The real-footage test scope is VIOFO A229 Pro 3CH on Ubuntu
-24.04 LTS. Existing camera support remains implemented without a new hardware claim.
+The owner accepted the final integration test, merged
+[PR #4](https://github.com/Marcus-P/trip-viewer/pull/4), and the
+[release workflow](https://github.com/Marcus-P/trip-viewer/actions/runs/39664733283)
+succeeded. [Version 0.6.0 is published](https://github.com/Marcus-P/trip-viewer/releases/tag/v0.6.0).
+For the current stable download and installation, use
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest) and the
+[README](../README.md#download-and-install).
 
-## One final test
+This is a completed acceptance record, not a request to repeat the test or merge
+an already merged PR. The deleted feature branch and expired/removed CI packages
+are not current installation sources.
 
-Install the final test AppImage from PR #4's latest successful CI artifact, or
-build the latest `feat/route-seek-fullscreen-tools` branch as in the Linux guide.
-Check that version 0.6.0 is shown and that the build corresponds to the final PR head.
+## Accepted integration test
 
-In one session:
+The final build combined the fork features with upstream commits 2534f65 and
+a9617fc. Hands-on footage testing covered exclusively VIOFO A229 Pro 3CH on
+Ubuntu 24.04 LTS; existing camera support remains without a new hardware claim.
 
-1. Play a familiar trip, seek over a segment boundary, then Pause/Play. Check a
-   bookmark, the camera checkboxes and dashboard timeline briefly; their earlier
-   acceptance is retained, this is an integration smoke check.
-2. In the trip sidebar, Ctrl-click two trips and Shift-click a range. Open the
-   new Delete originals/Delete trips confirmation, verify its stated scope and
-   press **Cancel**. No original recordings need to be deleted for this check.
-3. Restart once and confirm the bookmarked trip still loads and keeps its mark.
+The owner confirmed:
+
+1. Playback, seeking across a segment boundary and Pause/Play, with a brief
+   check of bookmarks, camera checkboxes and dashboard timeline.
+2. Ctrl-click and Shift-click multi-trip selection, opening the new deletion
+   confirmation, checking its scope and cancelling without deleting originals.
+3. Restarting the app and confirming the bookmarked trip retained its mark.
 
 Archive-only merge-loss guards, scoped orphan cleanup and partial bulk failures
-are covered by automated tests; no destructive manual test on valuable footage
-is required. Report "Test okay" or the specific failed step.
+were covered by automated tests. No destructive test on valuable footage was
+required. The final PR check and the merged-tree release workflow both passed.
 
-## Owner merge after the test
+## Merge and cleanup record
 
-Open https://github.com/Marcus-P/trip-viewer/pull/4. Once the test is accepted
-and the required `ubuntu` check is green, use **Merge pull request**, then
-**Confirm merge**. The actual target is `main` (the repository's stable branch).
-Use the normal merge commit to retain contributor and upstream ancestry.
-Do not use squash/rebase/force/admin options to bypass a blocked check.
+The owner merged PR #4 with a normal merge commit,
+`865bfcd841cfd7e1be6a54799943ac06f7b1f80a`, preserving contributor/upstream
+ancestry. The stable tag points to that commit. The release includes the AppImage,
+installer, checksums and license material. Publishing does not automatically
+replace an app already installed on a user's computer.
 
-The release workflow then builds and publishes 0.6.0. Publication is complete
-only after that workflow succeeds; updating GitHub main does not replace the
-locally installed app automatically.
-
-## After merge
-
-The approved upstream message is used in a focused PR to chrisl8/trip-viewer,
-without replacing that project's updater/release setup. Do not send a duplicate
-issue notification beforehand. Remove obsolete merged fork branches after
-ancestry verification; retain main and any active contribution branch. Remove
-superseded test artifacts, retaining the final candidate until the stable 0.6.0
-release is verified. Published release/license assets remain version history.
+Obsolete merged branches and all temporary CI packages were removed after
+release verification; published release/license history remains. The approved
+message is now in [upstream PR #16](https://github.com/chrisl8/trip-viewer/pull/16),
+whose separate contribution branch retains upstream updater/release configuration.
+Keep that contribution branch while the PR is open. See
+[project state](PROJECT_STATE.md) for the current hand-off.

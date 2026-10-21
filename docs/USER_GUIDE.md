@@ -1,7 +1,8 @@
 # User guide
 
-This guide describes the 0.6.0 candidate on PR #4. Stable 0.5.0 lacks the newly
-added bookmarks, camera checkboxes, route seeking and paused zoom controls.
+This guide describes the features released in 0.6.0, including bookmarks, camera
+checkboxes, route seeking and paused zoom. Download a published build from
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
 The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
 
 ## Open an archive and select a trip

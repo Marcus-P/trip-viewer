@@ -94,6 +94,6 @@ not an implemented delivery channel. See [releasing](RELEASING.md).
 
 Unimplemented ideas remain proposals: alternative audio source, mirrored video,
 clip/snapshot/GPX exports and broader hardware/platform validation. Camera
-visibility, bookmarks and route seeking are implemented in the 0.6.0 candidate;
+visibility, bookmarks and route seeking were released in 0.6.0;
 they are no longer roadmap-only items. Consult [project state](docs/PROJECT_STATE.md)
 for active work rather than treating historical design aspirations as commitments.
