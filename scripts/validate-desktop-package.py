@@ -103,7 +103,7 @@ else:
         assert info["CFBundleIdentifier"] == "com.tripviewer.app"
         assert info["CFBundleShortVersionString"] == version
         binary = installed / "Contents/MacOS" / info["CFBundleExecutable"]
-        checked(["lipo", "-verify_arch", "arm64", "x86_64", str(binary)])
+        checked(["lipo", str(binary), "-verify_arch", "arm64", "x86_64"])
         checked(["codesign", "--verify", "--deep", "--strict", str(installed)])
         check_notices(installed / "Contents/Resources/licenses")
         assert list((installed / "Contents/Resources").glob("*.icns")), "Missing original icon"
