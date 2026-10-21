@@ -81,26 +81,31 @@ if args.platform == "Windows-x64":
 else:
     assert sys.platform == "darwin"
     bundle = root / "src-tauri/target/universal-apple-darwin/release/bundle"
-    app = bundle / "macos/Trip Viewer.app"
-    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    assert info["CFBundleIdentifier"] == "com.tripviewer.app"
-    assert info["CFBundleShortVersionString"] == version
-    binary = app / "Contents/MacOS" / info["CFBundleExecutable"]
-    checked(["lipo", "-verify_arch", "arm64", "x86_64", str(binary)])
-    checked(["codesign", "--verify", "--deep", "--strict", str(app)])
-    check_notices(app / "Contents/Resources/licenses")
-    assert list((app / "Contents/Resources").glob("*.icns")), "Missing original icon"
     images = list((bundle / "dmg").glob("*.dmg"))
-    assert len(images) == 1
-    with tempfile.TemporaryDirectory(prefix="trip-viewer-dmg-") as mount:
-        checked(["hdiutil", "attach", str(images[0]), "-readonly", "-nobrowse", "-mountpoint", mount])
+    assert len(images) == 1, "Expected one built Mac disk image"
+    # With --bundles dmg, Tauri can remove its intermediate .app. Validate the
+    # delivered image and copy its app as a user would, not a staging directory.
+    with tempfile.TemporaryDirectory(prefix="trip-viewer-install-") as work:
+        work = pathlib.Path(work)
+        mount = work / "image"
+        mount.mkdir()
+        checked(["hdiutil", "attach", str(images[0]), "-readonly", "-nobrowse", "-mountpoint", str(mount)])
         try:
-            mounted = pathlib.Path(mount) / "Trip Viewer.app"
-            other = mounted / "Contents/MacOS" / info["CFBundleExecutable"]
-            assert other.read_bytes() == binary.read_bytes(), "DMG payload differs"
-            assert (pathlib.Path(mount) / "Applications").is_symlink()
-            check_notices(mounted / "Contents/Resources/licenses")
+            apps = list(mount.glob("*.app"))
+            assert len(apps) == 1, "Expected one app in the disk image"
+            assert (mount / "Applications").is_symlink()
+            installed = work / "Applications" / apps[0].name
+            installed.parent.mkdir()
+            checked(["ditto", str(apps[0]), str(installed)])
         finally:
-            checked(["hdiutil", "detach", mount])
-    smoke(binary)
+            checked(["hdiutil", "detach", str(mount)])
+        info = plistlib.loads((installed / "Contents/Info.plist").read_bytes())
+        assert info["CFBundleIdentifier"] == "com.tripviewer.app"
+        assert info["CFBundleShortVersionString"] == version
+        binary = installed / "Contents/MacOS" / info["CFBundleExecutable"]
+        checked(["lipo", "-verify_arch", "arm64", "x86_64", str(binary)])
+        checked(["codesign", "--verify", "--deep", "--strict", str(installed)])
+        check_notices(installed / "Contents/Resources/licenses")
+        assert list((installed / "Contents/Resources").glob("*.icns")), "Missing original icon"
+        smoke(binary)
 print(args.platform + ": package identity, architecture, notices and basic launch pass")
