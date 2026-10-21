@@ -1,5 +1,6 @@
 export interface LayoutPreferences {
   sidebarCollapsed: boolean;
+  dashboardTimelineCollapsed: boolean;
   primaryShare: number;
   secondarySplit: number;
   mapShare: number;
@@ -10,6 +11,7 @@ const STORAGE_KEY = "tripviewer.layout.v1";
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
   sidebarCollapsed: false,
+  dashboardTimelineCollapsed: false,
   primaryShare: 2 / 3,
   secondarySplit: 0.5,
   mapShare: 0.25,
@@ -30,6 +32,7 @@ function normalize(
   const timeline = value?.timelineHeightPx;
   return {
     sidebarCollapsed: value?.sidebarCollapsed === true,
+    dashboardTimelineCollapsed: value?.dashboardTimelineCollapsed === true,
     primaryShare: clamp(
       finiteOr(value?.primaryShare, DEFAULT_LAYOUT_PREFERENCES.primaryShare),
       0.35,

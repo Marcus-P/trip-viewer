@@ -51,6 +51,7 @@ const IS_MAC =
   navigator.userAgent.includes("Mac OS X");
 
 interface Props {
+  onFullscreenKindChange: (kind: "dashboard" | "video" | null) => void;
   /** Shared map of label → <video> element, populated by callback refs.
    *  Stable identity across renders so useSyncEngine doesn't re-run. */
   channelRefs: MutableRefObject<Map<string, HTMLVideoElement | null>>;
@@ -101,6 +102,7 @@ function gridStyle(
 }
 
 export function VideoGrid({
+  onFullscreenKindChange,
   channelRefs,
   activeSegment,
   syncMasterLabel,
@@ -121,6 +123,7 @@ export function VideoGrid({
   const singleFullscreenLabel =
     fullscreenView?.kind === "video" ? fullscreenView.label : null;
   const fullscreenActive = fullscreenView !== null;
+  useEffect(() => { onFullscreenKindChange(fullscreenView?.kind ?? null); }, [fullscreenView?.kind, onFullscreenKindChange]);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -222,7 +225,7 @@ export function VideoGrid({
   // fullscreen.
   useEffect(() => {
     const onFullscreenChange = () => {
-      const viewingArea = gridRef.current?.parentElement ?? null;
+      const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]") ?? null;
       if (viewingArea && document.fullscreenElement === viewingArea) return;
       if (fullscreenStackRef.current.length === 0) return;
 
@@ -423,7 +426,7 @@ export function VideoGrid({
   }
 
   async function openLogicalFullscreen(target: FullscreenView) {
-    const viewingArea = gridRef.current?.parentElement;
+    const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]");
     if (!viewingArea) return;
 
     // Self-heal if browser fullscreen was lost before its event reached us.
@@ -446,7 +449,7 @@ export function VideoGrid({
   }
 
   async function exitLogicalFullscreen() {
-    const viewingArea = gridRef.current?.parentElement;
+    const viewingArea = gridRef.current?.closest<HTMLElement>("[data-tripviewer-player]");
     if (!viewingArea) return;
 
     const currentStack = fullscreenStackRef.current;

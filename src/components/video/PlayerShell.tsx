@@ -25,6 +25,7 @@ import { DriftHud } from "../hud/DriftHud";
 import { MapPanel } from "../map/MapPanel";
 import { SegmentTagBar } from "../review/SegmentTagBar";
 import { Timeline } from "../timeline/Timeline";
+import { getLayoutPreferences, saveLayoutPreferences } from "../../settings/layout";
 import { WelcomePanel } from "../welcome/WelcomePanel";
 import { decideShowMap } from "./decideShowMap";
 import { VideoGrid } from "./VideoGrid";
@@ -79,6 +80,10 @@ export function PlayerShell() {
   const activeSpeedCurve = useStore((s) => s.activeSpeedCurve);
   const timelapseJobs = useStore((s) => s.timelapseJobs);
   const tripGpsByTrip = useStore((s) => s.tripGpsByTrip);
+  const [fullscreenKind, setFullscreenKind] = useState<"dashboard" | "video" | null>(null);
+  const [timelineCollapsed, setTimelineCollapsed] = useState(() => getLayoutPreferences().dashboardTimelineCollapsed);
+  useEffect(() => { saveLayoutPreferences({ dashboardTimelineCollapsed: timelineCollapsed }); }, [timelineCollapsed]);
+
 
   // The "real" current segment — from the trip's segment list, based
   // on store.activeSegmentId. Drives SegmentTagBar and MapPanel in
@@ -728,16 +733,17 @@ export function PlayerShell() {
   const gridCols = showMap ? "grid-cols-[2fr_1fr_1fr]" : "grid-cols-[3fr_1fr]";
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-tripviewer-player className="flex h-full w-full flex-col bg-neutral-950">
       <div className={`relative grid min-h-0 flex-1 ${gridCols} gap-2 p-2`}>
         <VideoGrid
+          onFullscreenKindChange={setFullscreenKind}
           channelRefs={channelRefs}
           activeSegment={activeSegmentForVideo}
           syncMasterLabel={syncMasterLabel}
           onChannelMediaError={handleChannelMediaError}
           onChannelMediaRecovered={handleChannelMediaRecovered}
         />
-        {showMap && <MapPanel activeSegment={activeSegmentForUi} />}
+        {showMap && <MapPanel activeSegment={activeSegmentForUi} onSeekTripTime={seekToTripTime} />}
         <DriftHud />
       </div>
       {!gpsSupported && activeSegmentForUi && (
@@ -745,13 +751,22 @@ export function PlayerShell() {
           This camera model doesn&rsquo;t record GPS data.
         </div>
       )}
-      <div className="border-t border-neutral-800 bg-neutral-950">
+      {fullscreenKind === "dashboard" && (
+        <div className="flex justify-end border-t border-neutral-800 bg-neutral-950 px-4 py-1">
+          <button type="button" aria-expanded={!timelineCollapsed} aria-controls="viewer-timeline"
+            onClick={() => setTimelineCollapsed(v => !v)}
+            className="rounded px-3 py-1 text-xs text-blue-300 hover:bg-neutral-800">
+            {timelineCollapsed ? "Show timeline and speed" : "Hide timeline and speed"}
+          </button>
+        </div>
+      )}
+      <div id="viewer-timeline" hidden={fullscreenKind === "video" || (fullscreenKind === "dashboard" && timelineCollapsed)} className="border-t border-neutral-800 bg-neutral-950">
         {activeSegmentForUi && <SegmentTagBar segment={activeSegmentForUi} />}
         <div className="px-4 pt-1">
           <Timeline onSeekTripTime={seekToTripTime} />
         </div>
       </div>
-      <TransportControls engine={engine} onSourceChange={onSourceChange} />
+      <div hidden={fullscreenKind === "video"}><TransportControls engine={engine} onSourceChange={onSourceChange} /></div>
       <KeyboardShortcuts engine={engine} />
     </div>
   );
