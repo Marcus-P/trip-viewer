@@ -40,3 +40,13 @@ The Trip Viewer icon files are inherited from the upstream MIT-licensed reposito
 ## Compatibility names
 
 "VIOFO" and "A229 Pro" are used descriptively to identify compatible hardware. No VIOFO logo, firmware, proprietary application code or other VIOFO asset is included.
+
+## Upstream provenance retained by this fork
+
+This repository is the Marcus-P fork of [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer).
+The original authors’ and contributors’ credit, MIT copyright/permission text,
+and inherited icon assets are retained. Documentation changes do not transfer
+ownership or relicense original code, logos/icons, or dependencies. Linux
+libva/DMABuf fixes incorporated through fork PR #2 are credited to contributor
+[gubiq](https://github.com/gubiq). The README also identifies the AI-assisted
+fork development and the maintainer’s limited VIOFO/Ubuntu functional-test scope.

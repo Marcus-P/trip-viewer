@@ -1,6 +1,8 @@
-# Trip Viewer 0.6.0
+# Trip Viewer 0.6.0 candidate
 
-Playback tools and bounded GPS analysis, building on the user-validated 0.5.0.
+Open PR #4, not yet a published stable release. Builds on stable 0.5.0 and the
+original [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer) project.
+The upstream logos/icons, MIT notice and dependency license notices are retained.
 
 ## New playback tools
 
@@ -56,9 +58,17 @@ footage; existing cached trips intentionally do not repeat extraction.
 
 ## Validation and release status
 
-Automated frontend/Rust tests and native WebKit interaction checks are recorded
-in `docs/PROJECT_STATE.md`. This feature branch is a test build until its Ubuntu
-CI and the focused real-footage checks have passed and merging is authorized.
+The maintainer’s functional checks used **only VIOFO A229 Pro 3CH on Ubuntu
+24.04 LTS**. Route seeking, fullscreen timeline, paused zoom, bookmarks including
+restart, and camera checkboxes have been accepted. Other implemented cameras
+remain available; [automated/synthetic compatibility checks](docs/COMPATIBILITY.md)
+do not certify their real recordings or imply they stopped working.
+
+The latest functional head passed Ubuntu CI; local verification has 80 frontend
+and 335 Rust tests passing (one existing ignored). Documentation changes receive
+fresh CI. Main protection is active; the repository owner merges only after the
+required checks. This candidate becomes a stable download only after merge and a
+successful release workflow. See [project state](docs/PROJECT_STATE.md).
 
 ## License
 
