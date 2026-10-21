@@ -1,7 +1,7 @@
 # User guide
 
-This guide covers the playback features released in 0.6.0 and the Ubuntu
-installation/update interface introduced by 0.7.0. Download a published build from
+This guide covers playback controls, Ubuntu installation and updates.
+Download the latest published stable build from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
 The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
 

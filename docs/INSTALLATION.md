@@ -1,9 +1,10 @@
 # Install and update on Ubuntu without a terminal
 
-The GUI installer is introduced by 0.7.0 for **Ubuntu 24.04 LTS x86_64**. It is
-available once that release workflow has succeeded. If the latest release has
-no `.deb` asset, use its AppImage option instead. Other distributions, cameras
-and operating systems are not newly certified by this installation guide.
+Download the `.deb` installer for **Ubuntu 24.04 LTS x86_64** from
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
+If your release has no `.deb` asset, use its AppImage option instead.
+Other distributions, cameras and operating systems are not newly certified by
+this installation guide.
 
 ## First installation
 

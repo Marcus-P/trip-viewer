@@ -9,8 +9,7 @@ Keep the original icons, [MIT notice](LICENSE) and
 ## Stable versus candidate
 
 Use [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
-as the authority for the published stable version. Version 0.6.0 was published
-after PR #4 merged and its release workflow succeeded. Owner-confirmed manual
+as the authority for the published stable version. Owner-confirmed manual
 checks cover VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS. Use
 [compatibility evidence](docs/COMPATIBILITY.md) to describe other cameras; do not
 promote parser tests or synthetic media into hardware certification.
@@ -23,6 +22,9 @@ release tag in installation commands, as in the README. Describe completed
 releases in the past tense; do not leave an old PR's pending instructions as the
 current project state. A checkout's package version may be newer than the latest
 published download while its PR or release workflow is pending.
+Keep current download/install instructions version-neutral. Release history and
+merge records belong in [release notes](RELEASE_NOTES.md) and the
+[project record](docs/PROJECT_STATE.md), not in current download instructions.
 
 ## Prepare the PR
 
