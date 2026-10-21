@@ -24,6 +24,28 @@ was published after [PR #4](https://github.com/Marcus-P/trip-viewer/pull/4) merg
 and its release workflow succeeded. A source branch or expiring Actions test
 artifact is not a published release; the release page is the download authority.
 
+### Install and update without a terminal
+
+Starting with 0.7.0, published Ubuntu 24.04 LTS x86_64 releases include a `.deb`
+installer. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest),
+expand **Assets**, download `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb`, close
+Trip Viewer and double-click the package. Choose **Install** (or **Update**) in
+Ubuntu's App Center/Software Install, then launch **Trip Viewer** from Applications.
+No GitHub account or command line is needed for a public release download.
+
+The app checks published stable releases and shows an update hint in the navigation
+bar. **Settings → Application updates** also has **Check for updates** and a download
+button. Download the new package, close the app and double-click it to upgrade.
+This is a user-confirmed package update, not an unattended background installation.
+Only releases built from merged `main` are offered, not every source commit or PR.
+
+The installer appears after the release workflow succeeds. If Latest Release has
+no `.deb` asset yet, use the AppImage option below. Existing AppImage users should
+follow the [migration instructions](docs/INSTALLATION.md#switching-from-an-appimage)
+to avoid an older user shortcut masking the installed package.
+
+### AppImage and command-line installation
+
 Ubuntu 24.04 LTS x86_64 command-line installation of the latest release
 (requires the [GitHub CLI](https://cli.github.com/), `gh`). Close the running app
 first. The command resolves one release tag and downloads its bundle, including

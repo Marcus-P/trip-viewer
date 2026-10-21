@@ -3,9 +3,10 @@ set -euo pipefail
 
 APP_ID="com.tripviewer.app"
 APP_NAME="Trip Viewer"
-INSTALL_DIR="${HOME}/.local/opt/trip-viewer"
-APPLICATIONS_DIR="${HOME}/.local/share/applications"
-ICONS_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
+USER_INSTALL_ROOT="${TRIPVIEWER_INSTALL_ROOT:-${HOME}}"
+INSTALL_DIR="${USER_INSTALL_ROOT}/.local/opt/trip-viewer"
+APPLICATIONS_DIR="${USER_INSTALL_ROOT}/.local/share/applications"
+ICONS_DIR="${USER_INSTALL_ROOT}/.local/share/icons/hicolor/256x256/apps"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 APPIMAGE="${1:-}"

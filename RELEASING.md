@@ -1,7 +1,7 @@
 # Releasing the Marcus-P fork
 
 This fork of [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer) currently
-publishes Ubuntu 24.04 LTS x86_64 AppImages. Existing Windows/macOS target code
+publishes Ubuntu 24.04 LTS x86_64 AppImages and `.deb` installers. Existing Windows/macOS target code
 is retained; these are not newly validated/released platforms for this fork.
 Keep the original icons, [MIT notice](LICENSE) and
 [third-party notices](THIRD_PARTY_NOTICES.md).
@@ -31,25 +31,39 @@ version entries in `package-lock.json`, the app entries in `src-tauri/Cargo.toml
 and `src-tauri/Cargo.lock`, and `RELEASE_VERSION`. Update release notes and docs
 so a candidate is not mislabeled as already published.
 
+Run checks relevant to the diff; the required `ubuntu` job selects them automatically.
+
+| Changed area | Relevant PR checks |
+| --- | --- |
+| Documentation plus version-only metadata | Documentation links/shell examples, synchronized version increment and mandatory release notes |
+| Frontend | Frontend tests and typecheck/build; native package build for playback/desktop changes |
+| Backend | Rust tests and frontend/backend command registry; package build |
+| Ubuntu packaging/installer | Build and validate AppImage and `.deb`, including dependencies, desktop identity and notices |
+| CI policy/scripts | Policy tests; workflow changes exercise the full pipeline once |
+| Runtime Node dependencies | Runtime dependency audit |
+
+Documentation-only PRs do not install native build dependencies, run frontend/Rust
+suites, build test packages or upload artifacts. They still increase PATCH under
+the owner's every-merge rule and update release notes. Their later merged-main
+release must build packages once to embed that new version; it does not repeat
+irrelevant unit tests. Manual dispatch deliberately selects the full pipeline.
+
+For a deliberate local Ubuntu package build:
+
 ```bash
 npm ci
 node scripts/check-version.mjs
-npm test
-npm run build
-npm audit --omit=dev --audit-level=high
-cargo test --locked --manifest-path src-tauri/Cargo.toml
-NO_STRIP=true npm run tauri -- build --bundles appimage
+python3 scripts/prepare-release-licenses.py
+NO_STRIP=true npm run tauri -- build --bundles appimage,deb
+DEB="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+python3 scripts/prepare-ubuntu-deb.py "$DEB"
+python3 scripts/validate-ubuntu-deb.py "$DEB"
 ```
 
-CI runs once for each PR update, cancels superseded work, and retains test packages
-for seven days. Manual dispatch is available for a deliberate standalone test.
-Main does not get a redundant CI build: the release workflow verifies its merged
-tree before publication.
-
-CI additionally compares the version to the PR’s base. Validate the Ubuntu desktop
-integration helper against the built AppImage using an isolated test home, as in
-`.github/workflows/ci.yml`. Record relevant real-footage checks and their actual
-hardware/OS scope, retaining authorship and a merge commit for contributions.
+CI runs once per PR update and cancels superseded work. Packaging changes produce
+one downloadable `.deb` test installer with checksums/build information, retained
+for seven days. Do not upload a second AppImage copy for the same GUI installer
+test. The stable AppImage remains supported and its helper is verified separately.
 
 ## Protected merge and release workflow
 
@@ -60,22 +74,30 @@ direct pushes, force pushes or `--admin` bypasses. Details and verification are 
 [branch protection](docs/BRANCH_PROTECTION.md).
 
 When a merged commit changes `RELEASE_VERSION`, `.github/workflows/release.yml`
-validates the tree, tests/audits it, builds the AppImage and installer, checks the
-launcher, generates license inventories/checksums, creates `vX.Y.Z`, and publishes
-a GitHub Release. Existing tags are rejected rather than overwritten.
+validates the version/notes and builds the merged AppImage and Debian installer.
+Relevant tests/audits already ran before the protected PR merge; they are not
+repeated here. It checks package contents and launcher integration, includes
+license inventories/texts, creates checksums and publishes `vX.Y.Z`. Relative
+release-note links are resolved against the published commit. Existing tags are rejected rather than overwritten.
 
-The stable AppImage name is `Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.AppImage`.
+Stable filenames are `Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.AppImage` and
+`Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.deb`.
 CI test artifacts instead include a commit ID and expire after their retention
 period. Published release assets persist until deliberately removed.
 
 ## Updater, desktop identity and licensing
 
 The upstream private updater key is not available to this fork and must not be
-used. Updater artifacts/UI/endpoint are disabled; release SHA-256 manifests provide
-integrity checks for manually downloaded assets. This is distinct from upstream
-signed-updater trust and depends on the release distribution channel.
+used. The old native signed updater plugin/artifacts/endpoint are disabled and
+the unused plugin dependency/permission are removed. The replacement release
+hint reads the public fork release API and opens the Ubuntu package download
+for a user-confirmed install. Release SHA-256 manifests provide integrity checks
+for downloaded assets. This is distinct from signed unattended updater trust
+and depends on the GitHub release distribution channel.
 
-The installer uses `com.tripviewer.app`, the existing icon and GTK app-ID support.
+Both installers use `com.tripviewer.app`, the existing icon and GTK app-ID support.
+The Debian launcher is normalized to that desktop identity, with its package
+checksums regenerated. Package upgrades touch installed files, not user archives.
 Do not change the identifier as release cleanup: it affects launcher grouping and
 application compatibility. Installation paths and source-build updates are in
 [Linux setup](LINUX_DEV_SETUP.md).

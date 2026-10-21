@@ -6,6 +6,8 @@ The existing logos/icons and source/dependency license notices are retained.
 | Document | Purpose |
 | --- | --- |
 | [Project README](../README.md) | Origin, current release, download and installation |
+| [Installation and updates](INSTALLATION.md) | Ubuntu double-click install, release checks and AppImage migration |
+| [Consistency review](CONSISTENCY_REVIEW.md) | Version, docs, IPC, schema, packaging and CI findings |
 | [User guide](USER_GUIDE.md) | Player, map, timeline, bookmarks, camera visibility and library workflows |
 | [Compatibility](COMPATIBILITY.md) | Camera/platform evidence and limits of functional testing |
 | [Linux setup](../LINUX_DEV_SETUP.md) | Ubuntu build/runtime requirements and other-distro references |

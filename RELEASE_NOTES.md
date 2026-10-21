@@ -1,24 +1,53 @@
-# Trip Viewer 0.6.1
+# Trip Viewer 0.7.0
 
-Documentation maintenance after the 0.6.0 release:
+## Ubuntu installation and updates
 
-- Corrects the README, user guide, release guide, architecture notes and project
-  hand-off that still described 0.6.0 as an unmerged candidate and directed users
-  to 0.5.0.
-- Uses [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
-  for current downloads. The command-line instructions resolve one published
-  tag, verify its bundle and retain its license material instead of pinning an
-  obsolete app version.
-- Records the completed 0.6.0 test, merge, publication and cleanup, plus the
-  offered upstream contribution in PR #16. Historical development notes and
-  original project attribution, icons and license notices remain.
+- Adds an Ubuntu 24.04 LTS x86_64 `.deb` installer for download and double-click
+  installation/upgrades. The package includes playback dependencies, the original
+  icon, the stable desktop/application identity and source/dependency notices.
+- The navigation bar and Settings check the fork's published stable GitHub release.
+  New releases offer an installer download; installation is confirmed by the user
+  through Ubuntu. Failed/offline checks do not stop playback, requests time out,
+  concurrent checks share a cache, and newer test builds are not offered downgrades.
+- Keeps the standalone AppImage and existing launcher helper. The upstream
+  signed-updater integration remains disabled; its unused dependency/permission is
+  removed. No private upstream signing key is used and no automatic background
+  package installation is introduced.
 
-No player/GPS features, database migrations or dependencies change. Archive
-schema remains 17 and GPS parser version remains 8. The accepted real-footage
-test scope remains exclusively VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.
+## Consistency fixes
 
-A checkout's version is not proof of publication; the current stable assets are
-on Latest Release. The following is the retained 0.6.0 release record.
+- Fixes the Report a bug link to target this fork, and makes the empty-library
+  message camera-neutral rather than implying only Wolf Box is supported.
+- Registers the existing Miltona GPS diagnostic-export backend command used by
+  the visible UI. This is an IPC consistency fix, not new Miltona hardware validation.
+- Corrects stale pre-release documentation and old 0.5.0 installation instructions.
+  Current downloads use Latest Release; the 0.6.0 acceptance/merge/release record
+  is completed. Upstream attribution, logos and license notices are retained.
+- Release notes are mandatory and must match the proposed version. Every merge,
+  including documentation-only work, still increments the app version as requested.
+
+## Relevant checks and artifacts
+
+- PR CI selects checks by changed area. Documentation plus version-only metadata
+  uses light version/release-note/link/shell checks, with no frontend/Rust suites,
+  native build dependencies, package build or test artifact.
+- Frontend, backend, runtime dependency and packaging changes select their own
+  checks. CI-policy tests cover documentation, version-only changes, dependency
+  changes, unknown files and the mandatory release-note/version gates. The required
+  ubuntu status remains active for light PRs instead of being skipped entirely.
+- Packaging PRs upload one small Debian test installer, not duplicate AppImage and
+  installer artifacts. Retention remains seven days. The release workflow builds
+  the actual merged packages once without repeating the protected PR's unit suites.
+- Release-note links point to the published source commit. Installer tests use an
+  explicit isolated installation root without replacing the process HOME variable.
+
+The database schema remains 17 and GPS parser remains 8. Hands-on camera testing
+remains exclusively VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS; automated/synthetic
+legacy checks do not certify other original recordings or operating systems.
+See the [installation guide](docs/INSTALLATION.md) and
+[consistency review](docs/CONSISTENCY_REVIEW.md). A source version is not proof of
+publication; stable assets appear on [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
+after the owner merge and successful release workflow.
 
 ---
 

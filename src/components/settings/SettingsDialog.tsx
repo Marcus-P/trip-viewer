@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ReleaseUpdates } from "./ReleaseUpdates";
 import {
   savePreferences,
   usePreferences,
@@ -46,7 +47,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-2xl"
       >
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 id="settings-title" className="text-base font-semibold text-neutral-100">
@@ -128,6 +129,7 @@ export function SettingsDialog({ open, onClose }: Props) {
           </label>
         </div>
 
+        <div className="mt-5"><ReleaseUpdates /></div>
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"

@@ -23,12 +23,17 @@ was published with ten assets; its tag points to that merge commit. The download
 checksum manifest matched GitHub asset digests for both AppImage and bundle.
 The [acceptance record](FINAL_060_CHECK.md) is complete, not a pending test or merge.
 
-Documentation maintenance 0.6.1 corrects the stale pre-release descriptions and
-0.5.0 installation commands that remained after publication. It changes no
-application behaviour, parser version or database schema and needs no new
-real-footage acceptance test. Under the existing every-merged-PR version rule,
-this separate maintenance change increments PATCH. Publication is still verified
-through Latest Release rather than inferred from the source version.
+The 0.7.0 work combines the documentation correction with an Ubuntu Debian
+installer, published-release awareness, relevant CI selection and the consistency
+fixes described in [the review](CONSISTENCY_REVIEW.md). It is a MINOR increment
+from 0.6.0. No 0.6.1 release was published. Use the release page for publication
+status rather than treating the source version as already released.
+
+The owner explicitly retained an increment and mandatory release notes for every
+merge, including pure documentation. PR checks must still be relevant: docs plus
+version-only metadata use lightweight checks and no test package. Their merged
+release builds packages once to embed the new version. Do not repeat accepted
+playback tests for a docs edit. Preserve this preference in subsequent work.
 
 ## Integrated upstream work and cleanup
 
@@ -44,8 +49,11 @@ fix/webkit-sync-stability and perf/gps-extraction branches were verified as
 ancestors of main and deleted. All temporary CI artifacts were removed after
 0.6.0 release verification. Keep published release/license history. Keep active
 PR branches until they are merged or closed, including the upstream contribution.
-CI runs once per PR update, cancels superseded work and retains test packages for
-seven days. Main's release workflow verifies the merged tree before publication.
+CI runs once per PR update and cancels superseded work. It selects frontend,
+backend, packaging, dependency and documentation checks from the diff. Packaging
+changes upload one Debian test installer for seven days; docs/metadata-only work
+creates none. Main builds the actual release packages once without repeating the
+protected PR’s unit suites.
 
 ## Scope and accepted functional tests
 
@@ -73,9 +81,15 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 - Camera checkboxes save hidden labels in layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
 - Fullscreen uses one player root and logical dashboard/video navigation. Dashboard has the lower transport/timeline toggle; single-camera keeps upper Play/Pause. Paused zoom/pan resets on resume/source change.
 - Timeline/map/bookmarks reuse trip-time seeking. Bookmarks are integer milliseconds in the archive DB, independently of GPS. Right-click graph adds; marker left-click seeks/right-click removes; arrow-bar buttons navigate without wrapping. Writes serialize; archive checks/stale-response guards protect switching. ID changes cascade and merges rebase positions transactionally.
+- Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute cache and offers a validated same-repository Ubuntu package download. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.
+- Ubuntu Debian packages include playback dependencies, original icons and complete license material. The normalized desktop ID remains com.tripviewer.app. Package upgrades do not alter archive/user data; old AppImage launchers may need user-level migration as documented in the installation guide.
+- Report a bug targets the fork; empty-folder guidance is camera-neutral. The existing Miltona GPS export is registered in Tauri, matching the UI invocation. This is not additional real-Miltona validation.
 - Timelapse persisted speed-curve envelope remains **v1**. The inherited v2 proposal and old reported spike are historical, not an assertion that this checkout writes all proposed fields. See the corrected [alignment note](../TIMELAPSE_ALIGNMENT_REDESIGN.md).
 
 ## Validation evidence
+
+- Local 0.7.0 checks: 92 frontend tests, frontend typecheck/build, 339 Rust tests (one existing ignored), thirteen CI/version-policy tests, 56 IPC calls and 17 DB migrations checked. The Debian package built and its identity, declared dependencies, desktop entry, icon and six notice files were validated. Ubuntu CI is the required final package gate; do not infer its outcome before checking.
+- Native 0.7.0 WebKit checked update availability with synthetic GitHub responses, the download button, offline non-blocking behaviour, no downgrade and unchanged video elements. The native diagnostic IPC command responds. A live GitHub check returned the actual published 0.6.0 and correctly classified the installed 0.7.0 build as newer, without offering a downgrade. Camera visibility 3→2→1→0, map-only, saved choices, dashboard controls and hidden-master Play/Pause passed. GUI installation through Ubuntu App Center still needs the small owner acceptance check; these are not new hardware-camera certifications.
 
 - The accepted 0.6.0 tree and the separate upstream contribution each passed 85 frontend tests, typecheck/build and 339 Rust tests (one existing ignored). Final PR CI and the merged-main Ubuntu release succeeded. Documentation-only corrections do not invalidate the accepted playback test.
 - Native WebKit verified cross-segment bookmarks/seeking, camera visibility 3→2→1→0 and restoration, saved preferences, dashboard controls, advancing Play/Pause with a hidden canonical master, and unchanged video nodes without media reloads. Bulk-selection delete/merge dialogs were cancelled with all scratch files retained.

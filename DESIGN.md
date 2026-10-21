@@ -21,7 +21,7 @@ updater and roadmap statements do not describe this fork automatically.
 | Imports | Upstream staging, SHA-256 verification and guarded source-wipe pipeline |
 | Analysis | Tag scans, places, Symphonia audio analysis, review and issues views |
 | Timelapse | Optional user-provided ffmpeg; per-channel speed curves and coverage |
-| Fork packaging | Ubuntu 24.04 x86_64 AppImage CI/releases; upstream updater disabled |
+| Fork packaging | Ubuntu 24.04 x86_64 AppImage and Debian packages; published-release hints, user-confirmed installs |
 
 Hardware acceleration is provided by the available platform media stack, not a
 universal guarantee. Windows/macOS code is retained, but this fork’s hands-on
@@ -86,7 +86,11 @@ The current persisted curve envelope is **v1**; see
 proposal is not a claim that this checkout writes explicit v2 fileStart/fileEnd.
 
 `RELEASE_VERSION` on protected `main` triggers the Ubuntu release workflow.
-The upstream updater endpoint/key is not used by this fork. NSIS/DMG target code
+The upstream updater endpoint/key is not used by this fork. A bounded frontend
+check reads the fork’s latest published GitHub release and offers a same-repository
+Ubuntu installer download. It does not install packages automatically or offer
+downgrades. The navigation hint and Settings share a cache; network failure does
+not affect the playback state. NSIS/DMG target code
 remains, but the fork does not claim tested Windows/macOS packages. Flatpak is
 not an implemented delivery channel. See [releasing](RELEASING.md).
 

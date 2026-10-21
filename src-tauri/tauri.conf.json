@@ -41,7 +41,8 @@
       "nsis",
       "appimage",
       "dmg",
-      "app"
+      "app",
+      "deb"
     ],
     "createUpdaterArtifacts": false,
     "icon": [
@@ -54,6 +55,23 @@
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
+      },
+      "deb": {
+        "section": "video",
+        "depends": [
+          "gstreamer1.0-libav",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-plugins-ugly"
+        ],
+        "files": {
+          "/usr/share/doc/trip-viewer/LICENSE": "../release-assets/LICENSE",
+          "/usr/share/doc/trip-viewer/THIRD_PARTY_NOTICES.md": "../release-assets/THIRD_PARTY_NOTICES.md",
+          "/usr/share/doc/trip-viewer/NODE_RUNTIME_LICENSES.txt": "../release-assets/NODE_RUNTIME_LICENSES.txt",
+          "/usr/share/doc/trip-viewer/RUST_DEPENDENCY_LICENSES.txt": "../release-assets/RUST_DEPENDENCY_LICENSES.txt",
+          "/usr/share/doc/trip-viewer/NODE_RUNTIME_LICENSE_TEXTS.tar.gz": "../release-assets/NODE_RUNTIME_LICENSE_TEXTS.tar.gz",
+          "/usr/share/doc/trip-viewer/RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz": "../release-assets/RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz"
+        }
       }
     },
     "windows": {
