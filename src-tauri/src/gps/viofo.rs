@@ -42,7 +42,7 @@ struct RawGpsRecord {
     heading_deg: Option<f64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TimedGpsPoint {
     pub utc: NaiveDateTime,
     pub point: GpsPoint,

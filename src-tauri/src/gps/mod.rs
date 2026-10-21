@@ -78,6 +78,7 @@ pub async fn extract_gps(path: String, camera_kind: CameraKind) -> Result<Vec<Gp
 /// selected trip has been decoded so a terminal record can be checked against
 /// the first trustworthy records of the next segment. Other camera paths remain
 /// byte-for-byte on their existing extraction route.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum BatchGps {
     Plain(GpsBatchItem),
     Viofo {
@@ -178,26 +179,48 @@ fn extract_trip_gps_progressive(
     mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
     mut progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
 ) -> Vec<GpsPoint> {
+    match extract_trip_gps_segments::<std::convert::Infallible>(
+        segments,
+        |_, segment| Ok(select_segment_gps(segment, &mut extract)),
+        &mut progress,
+    ) {
+        Ok(points) => points,
+        Err(never) => match never {},
+    }
+}
+
+fn select_segment_gps(
+    segment: &TripGpsSegmentSource,
+    mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
+) -> BatchGps {
+    let mut best: Option<((usize, i64), BatchGps)> = None;
+    for path in &segment.paths {
+        let item = extract(path, segment.camera_kind);
+        let quality = batch_quality(&item, segment.duration_s);
+        if best.as_ref().map(|(q, _)| quality > *q).unwrap_or(true) {
+            best = Some((quality, item));
+        }
+    }
+    best.map(|(_, item)| item).unwrap_or_else(|| {
+        BatchGps::Plain(GpsBatchItem {
+            file_path: String::new(),
+            points: Vec::new(),
+        })
+    })
+}
+
+fn extract_trip_gps_segments<E>(
+    segments: &[TripGpsSegmentSource],
+    mut extract: impl FnMut(usize, &TripGpsSegmentSource) -> Result<BatchGps, E>,
+    mut progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
+) -> Result<Vec<GpsPoint>, E> {
     let mut selected: Vec<BatchGps> = Vec::with_capacity(segments.len());
     let mut offsets = Vec::with_capacity(segments.len());
     let mut cursor = 0.0;
     for (index, segment) in segments.iter().enumerate() {
         offsets.push(cursor);
         cursor += segment.duration_s;
-        let mut best: Option<((usize, i64), BatchGps)> = None;
-        for path in &segment.paths {
-            let item = extract(path, segment.camera_kind);
-            let quality = batch_quality(&item, segment.duration_s);
-            if best.as_ref().map(|(q, _)| quality > *q).unwrap_or(true) {
-                best = Some((quality, item));
-            }
-        }
-        selected.push(best.map(|(_, item)| item).unwrap_or_else(|| {
-            BatchGps::Plain(GpsBatchItem {
-                file_path: String::new(),
-                points: Vec::new(),
-            })
-        }));
+        selected.push(extract(index, segment)?);
         let start = index.saturating_sub(1);
         validate_viofo_batch_boundaries(&mut selected[start..]);
         let updates = (start..=index)
@@ -208,11 +231,11 @@ fn extract_trip_gps_progressive(
             .collect();
         progress(index + 1, updates);
     }
-    selected
+    Ok(selected
         .iter()
         .enumerate()
         .flat_map(|(i, item)| trip_segment_points(item, segments[i].duration_s, offsets[i]))
-        .collect()
+        .collect())
 }
 
 #[tauri::command]
@@ -260,8 +283,11 @@ pub async fn ensure_trip_gps(
             if let Some(channel) = &on_progress {
                 let _ = channel.send(TripGpsProgress::Started { attempt, total });
             }
-            extract_trip_gps_progressive(
-                &work.sources,
+            extract_trip_gps_checkpointed(
+                &db,
+                &trip_id,
+                &segments,
+                work,
                 extract_batch_item,
                 |completed, mut updates| {
                     restore_archived_progress(work, &mut updates);
@@ -286,6 +312,90 @@ struct GpsWork {
     sources: Vec<TripGpsSegmentSource>,
     available: Vec<bool>,
     cached: Option<Vec<GpsPoint>>,
+}
+
+/// Checkpoints contain raw per-segment selections, including embedded UTC.
+/// Boundary validation always runs again with the current neighbours. Reads,
+/// writes and provenance checks hold the DB mutex only briefly; parsing and
+/// JSON serialization/deserialization happen outside it.
+fn extract_trip_gps_checkpointed(
+    db: &crate::db::DbHandle,
+    trip_id: &str,
+    requests: &[TripGpsSegmentRequest],
+    work: &GpsWork,
+    mut extract: impl FnMut(&str, CameraKind) -> BatchGps,
+    progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
+) -> Result<Vec<GpsPoint>, AppError> {
+    use crate::db::gps_segment_checkpoints as checkpoints;
+    let signatures: Vec<serde_json::Value> = serde_json::from_str(&work.signature)
+        .map_err(|e| AppError::Internal(format!("GPS checkpoint signature: {e}")))?;
+    extract_trip_gps_segments(
+        &work.sources,
+        |index, segment| {
+            let signature = serde_json::to_string(&vec![&signatures[index]])
+                .map_err(|e| AppError::Internal(format!("GPS checkpoint signature: {e}")))?;
+            let cached = {
+                let conn = db
+                    .lock()
+                    .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
+                checkpoints::load(
+                    &conn,
+                    trip_id,
+                    &requests[index].segment_id,
+                    &signature,
+                    GPS_PARSER_VERSION,
+                )?
+            };
+            if let Some(payload) = cached {
+                match serde_json::from_str::<BatchGps>(&payload) {
+                    Ok(mut item) => {
+                        let path = batch_path_mut(&mut item);
+                        if !path.is_empty() {
+                            *path = crate::paths::from_archive_relative(path, db.archive_root())
+                                .to_string_lossy()
+                                .into_owned();
+                        }
+                        return Ok(item);
+                    }
+                    Err(e) => eprintln!("GPS checkpoint invalid; re-extracting segment: {e}"),
+                }
+            }
+            let item = select_segment_gps(segment, &mut extract);
+            let mut stored = item.clone();
+            let path = batch_path_mut(&mut stored);
+            *path = crate::media_health::stored_path(Path::new(path), db.archive_root());
+            let payload = serde_json::to_string(&stored)
+                .map_err(|e| AppError::Internal(format!("GPS checkpoint serialize: {e}")))?;
+            {
+                let conn = db
+                    .lock()
+                    .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
+                // A file or health record can change while it is being parsed.
+                // Never save that selection under stale provenance.
+                if trip_gps_sources(&conn, db.archive_root(), &requests[index..=index])?.0
+                    == signature
+                {
+                    checkpoints::upsert(
+                        &conn,
+                        trip_id,
+                        &requests[index].segment_id,
+                        &signature,
+                        GPS_PARSER_VERSION,
+                        &payload,
+                    )?;
+                }
+            }
+            Ok(item)
+        },
+        progress,
+    )
+}
+
+fn batch_path_mut(item: &mut BatchGps) -> &mut String {
+    match item {
+        BatchGps::Plain(item) => &mut item.file_path,
+        BatchGps::Viofo { file_path, .. } => file_path,
+    }
 }
 
 fn restore_archived_progress(work: &GpsWork, updates: &mut [TripGpsSegmentUpdate]) {
@@ -347,7 +457,7 @@ fn ensure_trip_gps_unlocked(
     trip_id: &str,
     segments: &[TripGpsSegmentRequest],
     force: bool,
-    mut extract: impl FnMut(&GpsWork) -> Vec<GpsPoint>,
+    mut extract: impl FnMut(&GpsWork) -> Result<Vec<GpsPoint>, AppError>,
 ) -> Result<Vec<GpsPoint>, AppError> {
     for attempt in 0..3 {
         let preparation = {
@@ -366,7 +476,7 @@ fn ensure_trip_gps_unlocked(
             GpsPreparation::Cached(points) => return Ok(points),
             GpsPreparation::Extract(work) => work,
         };
-        let points = extract(&work);
+        let points = extract(&work)?;
         let conn = db
             .lock()
             .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;
@@ -787,7 +897,7 @@ mod tests {
                     } else {
                         assert_eq!(sources[0].paths.len(), 2);
                     }
-                    vec![timed(1000, calls as f64, 1.0, 0.0).point]
+                    Ok(vec![timed(1000, calls as f64, 1.0, 0.0).point])
                 })
                 .unwrap();
             (calls, result)
@@ -1002,6 +1112,278 @@ mod tests {
                 fix_ok: true,
             },
         }
+    }
+
+    fn checkpoint_fixture(root: &Path) -> (crate::db::DbHandle, Vec<TripGpsSegmentRequest>) {
+        let (fixture, _) = cache_fixture(root);
+        drop(fixture);
+        let db = crate::db::open(root).unwrap();
+        db.lock().unwrap().execute(
+            "INSERT INTO trips (id,start_time_ms,end_time_ms,camera_kind,gps_supported,last_seen_ms)
+             VALUES ('trip',0,30000,'generic',1,0)", []).unwrap();
+        let requests = (0..3)
+            .map(|index| TripGpsSegmentRequest {
+                segment_id: format!("seg-{index}"),
+                duration_s: 10.0,
+                camera_kind: CameraKind::Generic,
+                channels: if index == 1 {
+                    vec![]
+                } else {
+                    vec![TripGpsChannelRequest {
+                        label: "Front".into(),
+                        path: root
+                            .join(if index == 0 { "front.mp4" } else { "rear.mp4" })
+                            .to_string_lossy()
+                            .into(),
+                    }]
+                },
+            })
+            .collect();
+        (db, requests)
+    }
+
+    fn pending_work(db: &crate::db::DbHandle, requests: &[TripGpsSegmentRequest]) -> GpsWork {
+        match prepare_trip_gps(
+            &db.lock().unwrap(),
+            db.archive_root(),
+            "trip",
+            requests,
+            true,
+        )
+        .unwrap()
+        {
+            GpsPreparation::Extract(work) => work,
+            _ => panic!("expected extraction"),
+        }
+    }
+
+    fn fake_batch(path: &str, lon: f64) -> BatchGps {
+        BatchGps::Plain(GpsBatchItem {
+            file_path: path.into(),
+            points: vec![timed(1_000, lon, 1.0, 0.0).point],
+        })
+    }
+
+    #[test]
+    fn checkpoints_resume_after_db_reopen_without_reparsing_completed_or_gpsless_segments() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, requests) = checkpoint_fixture(root.path());
+        let mut work = pending_work(&db, &requests);
+        // Simulate exiting after the first two segments, before publishing the
+        // complete trip. Checkpoints must survive independently of trip_gps.
+        work.sources.truncate(2);
+        extract_trip_gps_checkpointed(
+            &db,
+            "trip",
+            &requests,
+            &work,
+            |path, _| fake_batch(path, 1.0),
+            |_, _| {},
+        )
+        .unwrap();
+        assert!(crate::db::trip_gps::load(&db.lock().unwrap(), "trip")
+            .unwrap()
+            .is_none());
+        let stored: String = db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT payload_json FROM gps_segment_checkpoints WHERE segment_id='seg-0'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            !stored.contains(&root.path().to_string_lossy().to_string()),
+            "stored paths must be archive-relative"
+        );
+        drop(db);
+        let db = crate::db::open(root.path()).unwrap();
+        let completed = std::cell::Cell::new(0);
+        let mut parsed = Vec::new();
+        let result = ensure_trip_gps_unlocked(&db, "trip", &requests, false, |work| {
+            extract_trip_gps_checkpointed(
+                &db,
+                "trip",
+                &requests,
+                work,
+                |path, _| {
+                    assert_eq!(
+                        completed.get(),
+                        2,
+                        "restore previews before reading the unfinished segment"
+                    );
+                    parsed.push(path.to_string());
+                    fake_batch(path, 2.0)
+                },
+                |count, _| completed.set(count),
+            )
+        })
+        .unwrap();
+        assert_eq!(parsed, vec![requests[2].channels[0].path.clone()]);
+        assert_eq!(
+            result.iter().map(|p| p.t_offset_s).collect::<Vec<_>>(),
+            vec![1.0, 21.0]
+        );
+        assert_eq!(completed.get(), 3);
+        assert_eq!(
+            crate::db::trip_gps::load(&db.lock().unwrap(), "trip")
+                .unwrap()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn checkpoints_invalidate_only_changed_sources_parser_or_health() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, requests) = checkpoint_fixture(root.path());
+        let run = |parsed: &mut Vec<String>| {
+            let work = pending_work(&db, &requests);
+            extract_trip_gps_checkpointed(
+                &db,
+                "trip",
+                &requests,
+                &work,
+                |path, _| {
+                    parsed.push(path.to_string());
+                    fake_batch(path, 1.0)
+                },
+                |_, _| {},
+            )
+            .unwrap()
+        };
+        let mut parsed = Vec::new();
+        run(&mut parsed);
+        assert_eq!(parsed.len(), 2);
+        parsed.clear();
+        run(&mut parsed);
+        assert!(parsed.is_empty());
+        std::fs::write(&requests[0].channels[0].path, b"changed size").unwrap();
+        run(&mut parsed);
+        assert_eq!(parsed, vec![requests[0].channels[0].path.clone()]);
+        parsed.clear();
+        db.lock()
+            .unwrap()
+            .execute(
+                "UPDATE gps_segment_checkpoints SET parser_version=-1 WHERE segment_id='seg-2'",
+                [],
+            )
+            .unwrap();
+        run(&mut parsed);
+        assert_eq!(parsed, vec![requests[2].channels[0].path.clone()]);
+        parsed.clear();
+        let path = Path::new(&requests[0].channels[0].path);
+        let (size, modified) = crate::media_health::fingerprint(path).unwrap();
+        db.lock().unwrap().execute(
+            "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
+             VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path, root.path()),size,modified]).unwrap();
+        let result = run(&mut parsed);
+        assert!(
+            parsed.is_empty(),
+            "unaffected segment is reused; failed source is not parsed"
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].t_offset_s, 21.0);
+    }
+
+    #[test]
+    fn checkpoints_reject_health_changes_during_parsing_without_holding_the_db_lock() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, mut requests) = checkpoint_fixture(root.path());
+        requests.truncate(1);
+        let mut parsed = 0;
+        let result = ensure_trip_gps_unlocked(&db, "trip", &requests, false, |work| {
+            extract_trip_gps_checkpointed(&db, "trip", &requests, work, |path, _| {
+                parsed += 1;
+                let conn = db.lock().unwrap();
+                let path_obj = Path::new(path);
+                let (size, modified) = crate::media_health::fingerprint(path_obj).unwrap();
+                conn.execute(
+                    "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
+                     VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path_obj, root.path()),size,modified]).unwrap();
+                fake_batch(path, 1.0)
+            }, |_, _| {})
+        }).unwrap();
+        assert_eq!(parsed, 1);
+        assert!(
+            result.is_empty(),
+            "discard the GPS from the newly failed camera"
+        );
+        let stored: String = db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT payload_json FROM gps_segment_checkpoints",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            matches!(serde_json::from_str::<BatchGps>(&stored).unwrap(), BatchGps::Plain(item) if item.points.is_empty())
+        );
+    }
+
+    #[test]
+    fn checkpoints_revalidate_raw_viofo_boundaries_when_the_neighbour_changes() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, mut requests) = checkpoint_fixture(root.path());
+        requests.remove(1);
+        for request in &mut requests {
+            request.duration_s = 3.0;
+        }
+        let run = |pause: bool, parsed: &mut usize| {
+            let work = pending_work(&db, &requests);
+            extract_trip_gps_checkpointed(
+                &db,
+                "trip",
+                &requests,
+                &work,
+                |path, _| {
+                    *parsed += 1;
+                    let left = path == requests[0].channels[0].path;
+                    let timed = if left {
+                        vec![
+                            timed(0, 0.0, 11.12, 90.0),
+                            timed(1_000, 0.0001, 11.12, 90.0),
+                            timed(2_000, 20.0, 0.0, 0.0),
+                        ]
+                    } else {
+                        let base = if pause { 60_000 } else { 3_000 };
+                        let mut points = vec![
+                            timed(base, 0.0003, 11.12, 90.0),
+                            timed(base + 1_000, 0.0004, 11.12, 90.0),
+                        ];
+                        for p in &mut points {
+                            p.point.t_offset_s -= base as f64 / 1000.0;
+                        }
+                        points
+                    };
+                    BatchGps::Viofo {
+                        file_path: path.into(),
+                        timed,
+                    }
+                },
+                |_, _| {},
+            )
+            .unwrap()
+        };
+        let mut parsed = 0;
+        assert_eq!(
+            run(false, &mut parsed).len(),
+            4,
+            "remove corrupt terminal point at continuous boundary"
+        );
+        assert_eq!(parsed, 2);
+        std::fs::write(&requests[1].channels[0].path, b"changed neighbour").unwrap();
+        parsed = 0;
+        assert_eq!(
+            run(true, &mut parsed).len(),
+            5,
+            "raw left segment must be revalidated against changed neighbour"
+        );
+        assert_eq!(parsed, 1, "only changed neighbour needs reparsing");
     }
 
     #[test]

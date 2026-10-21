@@ -2,20 +2,38 @@ import { ensureTripGps } from "../ipc/gps";
 import type { GpsPoint, Trip } from "../types/model";
 import { useStore } from "./store";
 
-type Request = { baseline: GpsPoint[] | undefined };
+type Request = { baseline: GpsPoint[] | undefined; sources: string; promise: Promise<void> };
 const requests = new Map<string, Request>();
 
 /** Show completed segments immediately, keeping persisted GPS atomic. */
-export async function prepareTripGps(
+export function prepareTripGps(
   trip: Trip,
   excluded: Record<string, string[]> = {},
   force = false,
 ): Promise<void> {
   const previous = requests.get(trip.id);
+  const sources = JSON.stringify(trip.segments);
+  // Navigation rejoins the active job, including any forced health refresh.
+  // It must not clear its preview or queue another extraction behind it.
+  if (previous && previous.sources === sources && !force && Object.keys(excluded).length === 0) {
+    return previous.promise;
+  }
   const request: Request = {
     baseline: previous ? previous.baseline : useStore.getState().tripGpsByTrip[trip.id],
+    sources,
+    promise: Promise.resolve(),
   };
   requests.set(trip.id, request);
+  request.promise = runPreparation(trip, excluded, force, request);
+  return request.promise;
+}
+
+async function runPreparation(
+  trip: Trip,
+  excluded: Record<string, string[]>,
+  force: boolean,
+  request: Request,
+): Promise<void> {
   const resetPreview = () => useStore.setState((s) => {
     const gps = { ...s.tripGpsByTrip };
     if (request.baseline === undefined) delete gps[trip.id];
