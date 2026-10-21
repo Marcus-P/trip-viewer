@@ -78,6 +78,12 @@ source-wipe phase after verification; review its confirmation and source selecti
 before using it. Hashing/verification and cancellation safeguards originate in
 the upstream import pipeline. Opening/scanning a folder is separate from importing it.
 
+In the trip sidebar, Ctrl/Cmd-click toggles selection and Shift-click adds the
+visible range from the anchor. The selection toolbar offers Merge, Delete
+originals and Delete trips with explicit scope/confirmation. Cancel leaves files
+unchanged. A merge is blocked if it would discard an archive-only trip's only
+timelapse copy; redundant merge outputs are cleaned only within that merge's scope.
+
 Review and Scan provide tags, filters and segment selection. Places stores named
 positions and radii for matching during analysis. Deleting original footage can
 retain completed timelapses; **Delete trip** has a broader scope, so inspect its

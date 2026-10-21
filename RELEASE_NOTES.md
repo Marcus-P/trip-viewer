@@ -39,6 +39,18 @@ The upstream logos/icons, MIT notice and dependency license notices are retained
 - Archive database schema advances to 17; older builds supporting only schema
   16 cannot open an archive upgraded by this build.
 
+## Upstream integration and CI
+
+- Integrates chrisl8 commits `2534f65` and `a9617fc`, preserving their authorship:
+  Ctrl/Cmd/Shift trip selection, bulk originals/trip deletion with confirmation,
+  hard guards against losing archive-only timelapses during merges, and scoped
+  cleanup of newly redundant timelapse files.
+- Retains the fork's tested synchronization, seek timeouts, audio handling and
+  bookmark rebasing while incorporating the upstream behaviour.
+- One CI run per PR update, cancellation of superseded runs and seven-day test
+  artifacts replace duplicate push/PR builds. The merged-main release workflow
+  still verifies and publishes the stable package.
+
 ## GPS analysis
 
 - Independent candidate files share a read pool capped at two workers across
@@ -64,8 +76,8 @@ restart, and camera checkboxes have been accepted. Other implemented cameras
 remain available; [automated/synthetic compatibility checks](docs/COMPATIBILITY.md)
 do not certify their real recordings or imply they stopped working.
 
-The latest functional head passed Ubuntu CI; local verification has 80 frontend
-and 335 Rust tests passing (one existing ignored). Documentation changes receive
+The latest functional head passed Ubuntu CI; local verification has 85 frontend
+and 339 Rust tests passing (one existing ignored). Documentation changes receive
 fresh CI. Main protection is active; the repository owner merges only after the
 required checks. This candidate becomes a stable download only after merge and a
 successful release workflow. See [project state](docs/PROJECT_STATE.md).

@@ -30,7 +30,7 @@ preference is intended for VIOFO footage, not a universal camera override.
 
 ## Verification performed on 2026-10-21
 
-- Full repository tests: **80 frontend tests; 335 Rust tests passed; one existing
+- Full repository tests: **85 frontend tests; 339 Rust tests passed; one existing
   ignored test**. These exercise shared logic and camera-format cases, not every
   real device, firmware, codec or driver combination.
 - Source comparison: `scan/naming.rs`, `scan/grouping.rs`, `gps/shenshu.rs` and

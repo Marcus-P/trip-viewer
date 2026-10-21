@@ -34,6 +34,11 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 NO_STRIP=true npm run tauri -- build --bundles appimage
 ```
 
+CI runs once for each PR update, cancels superseded work, and retains test packages
+for seven days. Manual dispatch is available for a deliberate standalone test.
+Main does not get a redundant CI build: the release workflow verifies its merged
+tree before publication.
+
 CI additionally compares the version to the PR’s base. Validate the Ubuntu desktop
 integration helper against the built AppImage using an isolated test home, as in
 `.github/workflows/ci.yml`. Record relevant real-footage checks and their actual

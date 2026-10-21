@@ -11,6 +11,7 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Linux setup](../LINUX_DEV_SETUP.md) | Ubuntu build/runtime requirements and other-distro references |
 | [Architecture](../DESIGN.md) | Current components, clocks, storage and inherited decisions |
 | [Timelapse alignment](../TIMELAPSE_ALIGNMENT_REDESIGN.md) | Actual curve format versus the historical proposal |
+| [Final 0.6.0 test](FINAL_060_CHECK.md) | One integration test, exact owner merge location and post-merge cleanup |
 | [Releasing](../RELEASING.md) | Builds, assets, license inventories and owner-only merges |
 | [Versioning](VERSIONING.md) | Version increments and synchronized version files |
 | [Branch protection](BRANCH_PROTECTION.md) | Active main rules, owner bypass scope and verification |
