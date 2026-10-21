@@ -161,8 +161,15 @@ release workflow. A completed merge and a published release are separate states.
 
 ## GPS performance investigation
 
-The user reports slow analysis per segment; the supplied log has no per-file
-elapsed timings, so no measured speedup or single proven bottleneck is claimed.
+Follow-up research branch: `perf/gps-extraction`, based on merged 0.5.0. No
+parallel decoder change is implemented or authorized for merge yet; target a
+behaviour-preserving 0.5.1 once measured and validated.
+
+The user reports about **20 seconds per 3-minute segment**, with the originals
+on an **external SSD connected over USB**. This is an approximate end-to-end
+segment measurement, not a per-file/stage timing. The supplied log has no
+per-file elapsed timings, so no measured speedup or single proven bottleneck is
+claimed. Do not assume mechanical HDD seek cost explains this SSD report.
 The current implementation parses each candidate camera sequentially per segment.
 The VIOFO reader uses unbuffered `File` reads and seeks to the GPS descriptors
 and record positions. MP4 metadata probing passes a `File` to `mp4::read_mp4`,
@@ -172,7 +179,10 @@ and an external rotating disk can make more I/O workers counterproductive.
 Next steps, separately from the validated PR #3 merge: measure metadata probing,
 GPS reads and validation independently; benchmark VIOFO read/seek coalescing
 and data-block access, then bounded file-level parallelism (initially two workers, shared
-across jobs). Keep decoded records in physical source order and assemble results
+across jobs). Compare one versus two workers on USB SSD during real playback;
+record per-file probe/read/decode/validation time, whole-segment latency, peak
+memory, and transport responsiveness before selecting a default. Keep cached
+segments on the fast path without submitting unnecessary worker jobs. Keep decoded records in physical source order and assemble results
 in segment/candidate order; never sort malformed camera timestamps to hide a
 contradiction. Keep best-camera selection/tie-breaking, adjacent VIOFO validation,
 checkpoint provenance, short DB locks and the responsive transport unchanged.
