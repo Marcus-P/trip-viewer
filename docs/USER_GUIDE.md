@@ -1,13 +1,13 @@
 # User guide
 
-This guide covers playback controls, Ubuntu installation and updates.
+This guide covers playback controls, installation and updates.
 Download the latest published stable build from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
 The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
 
 ## Install and update
 
-The [installation guide](INSTALLATION.md) explains the Ubuntu `.deb` installer,
+The [installation guide](INSTALLATION.md) explains Windows installers, experimental Mac disk images, the Ubuntu `.deb` installer,
 AppImage migration and upgrades without a terminal. The navigation bar shows
 new published releases; **Settings → Application updates** can check again and
 open the download. Offline checks do not interrupt playback. A test build newer

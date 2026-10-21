@@ -22,6 +22,21 @@ Download the latest published stable version from
 
 ### Install and update without a terminal
 
+Choose the asset for your computer (available after the matching release is
+published):
+
+| Platform | Installer | Installation |
+| --- | --- | --- |
+| Windows 10/11 x64 | `Trip.Viewer_<version>_Windows_x64_setup.exe` | Run the installer, then launch Trip Viewer from Start |
+| macOS 11+ Intel / Apple Silicon | `Trip.Viewer_<version>_macOS_universal_experimental.dmg` | Open the disk image and drag Trip Viewer into Applications |
+| Ubuntu 24.04 LTS x86_64 | `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb` | Double-click and choose Install/Update |
+
+Windows installers are not publisher-signed. Mac packages are ad-hoc signed,
+not Apple-notarized, and **experimental until real-device testing**. Native
+build/package/start checks do not certify camera playback or GPS. See the
+[installation guide](docs/INSTALLATION.md) for first-launch prompts, Windows
+WebView2/HEVC requirements, updates and the exact validation limits.
+
 Published Ubuntu 24.04 LTS x86_64 releases include a `.deb`
 installer. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest),
 expand **Assets**, download `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb`, close
@@ -32,7 +47,7 @@ No GitHub account or command line is needed for a public release download.
 The app checks published stable releases and shows an update hint in the navigation
 bar. **Settings → Application updates** also has **Check for updates** and a download
 button. Download the new package, close the app and double-click it to upgrade.
-This is a user-confirmed package update, not an unattended background installation.
+The download matches the compiled platform; installation/update is confirmed by the user.
 Only releases built from merged `main` are offered, not every source commit or PR.
 
 If your release has no `.deb` asset, use the AppImage option below.

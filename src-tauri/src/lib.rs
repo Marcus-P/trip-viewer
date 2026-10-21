@@ -38,6 +38,22 @@ fn get_video_port(port: tauri::State<VideoPort>) -> u16 {
     port.0
 }
 
+/// Select installers for the compiled application, independent of WebView UA.
+/// Unknown architectures retain the release-page fallback instead of being
+/// offered an incompatible executable.
+#[tauri::command]
+fn get_install_target() -> &'static str {
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows-x64"
+    } else if cfg!(all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))) {
+        "macos-universal"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux-x64"
+    } else {
+        "unsupported"
+    }
+}
+
 /// Append-only panic log so users on bundled builds (where stderr is
 /// invisible on Windows GUI subsystem and macOS .app launches) can
 /// attach an actionable trace to a bug report.
@@ -311,6 +327,7 @@ pub fn run() {
             storage::get_library_storage_summary,
             startup::get_startup_status,
             get_video_port,
+            get_install_target,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

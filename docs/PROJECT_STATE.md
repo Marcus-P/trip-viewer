@@ -52,6 +52,40 @@ version-only metadata use lightweight checks and no test package. Their merged
 release builds packages once to embed the new version. Do not repeat accepted
 playback tests for a docs edit. Preserve this preference in subsequent work.
 
+## Windows/Mac distribution candidate
+
+Published 0.7.2 followed the owner's merge of
+[PR #7](https://github.com/Marcus-P/trip-viewer/pull/7). Current work branches from
+that main tree and prepares **0.8.0** for Windows 10/11 x64 and experimental macOS
+11+ Intel/Apple Silicon, retaining the Ubuntu packages. This is an authorized
+platform-distribution change, not a new claim of camera compatibility.
+
+- The owner can test Windows 10 and 11 x64. Request a focused installation,
+  recording Play/Pause, segment/seek, GPS and persistent bookmark check before
+  owner merge. No Windows recording acceptance has been reported yet.
+- No Mac tester is available. The universal DMG is explicitly experimental and
+  ad-hoc signed without Apple notarization. Native compilation, architecture,
+  package notices/signature/contents and basic launch checks are automated;
+  inspect actual PR job results before claiming success. No new Mac video/GPS
+  functional validation is established. SD-card auto-detection remains absent on
+  Mac; use manual folder selection. Original-recording/media behaviour is kept.
+- Windows NSIS installs for the current account, bootstraps missing WebView2 and
+  blocks installer downgrades. HEVC support remains a host codec/driver requirement,
+  separate from WebView2. No publisher-signing key is configured.
+- The native get_install_target command selects exact release assets for the
+  compiled target. Unsupported architectures retain a release-page fallback.
+  Raw API response caching is shared without mixing platform-specific selections.
+- The reused Windows/Mac packaging workflow runs native Rust tests only when
+  backend checks are selected. PR artifacts contain one installer per platform
+  for seven days. Publishing rebuilds the merged native packages once, transfers
+  only the small installers for at most one day and deletes transfers on success;
+  large Ubuntu assets stay in the publishing job. No Actions cache is added.
+- The existing required ubuntu status becomes the final aggregate gate over all
+  relevant platforms. Docs/version metadata still skip native jobs and artifacts.
+  Do not weaken or bypass the active owner/history rulesets.
+- These distribution/update changes are fork-specific; do not copy them into the
+  separate upstream contribution that retains Chris' own updater/release setup.
+
 ## Integrated upstream work and cleanup
 
 Upstream commits 2534f65 and a9617fc are ancestors of the 0.6.0 merge, preserving

@@ -1,0 +1,87 @@
+name: Native desktop packages
+
+on:
+  workflow_call:
+    inputs:
+      acceptance:
+        type: boolean
+        default: false
+      run-tests:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.platform }} package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows-x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+            bundles: nsis
+          - platform: macOS-universal
+            runner: macos-15
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: dmg
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - run: npm ci
+      - name: Prepare application and dependency notices
+        run: python scripts/prepare-release-licenses.py
+      - name: Native Rust tests when relevant
+        if: inputs.run-tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
+          cargo test --manifest-path src-tauri/Cargo.toml --locked --release --target "$HOST_TARGET"
+      - name: Build installer
+        run: npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: Install Windows package silently into a temporary directory
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe')
+          if ($installer.Count -ne 1) { throw 'Expected one Windows installer' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'TripViewerAcceptance'
+          $result = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Installer failed: $($result.ExitCode)" }
+          $exe = Join-Path $installDir 'tripviewer.exe'
+          $version = node -p "require('./package.json').version"
+          if ((Get-Item $exe).VersionInfo.ProductVersion -notlike "$version*") {
+            throw 'Installed executable version differs'
+          }
+          python scripts/validate-desktop-package.py Windows-x64 --installed "$installDir"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Mac disk image, universal app, ad-hoc signature and basic launch
+        if: runner.os == 'macOS'
+        run: python scripts/validate-desktop-package.py macOS-universal
+      - name: Prepare one installer with checksums
+        shell: bash
+        run: |
+          python scripts/prepare-desktop-package.py '${{ matrix.platform }}' \
+            --out '${{ runner.temp }}/desktop-package' ${{ inputs.acceptance && '--test' || '' }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.acceptance && 'test' || 'release' }}-desktop-${{ matrix.platform }}-${{ github.sha }}
+          path: ${{ runner.temp }}/desktop-package/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: ${{ inputs.acceptance && 7 || 1 }}

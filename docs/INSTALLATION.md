@@ -1,4 +1,51 @@
-# Install and update on Ubuntu without a terminal
+# Install and update without a terminal
+
+Download a published installer from
+[Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest) → **Assets**.
+Choose your platform's installer, not Source code ZIP/TAR. Packages appear after
+the owner merges their PR and the release workflow succeeds. An Actions test
+installer is an acceptance build, not a published stable release.
+
+## Windows 10/11 x64
+
+1. Download `Trip.Viewer_<version>_Windows_x64_setup.exe` and close Trip Viewer.
+2. Double-click the installer. It installs for your Windows account and adds a
+   Start Menu shortcut. Missing WebView2 is downloaded by the installer, so an
+   Internet connection is needed for that first-time runtime setup.
+3. Start **Trip Viewer** from Start. The installer is not publisher-signed;
+   SmartScreen may show an unknown-publisher prompt. Check that the file came
+   from this repository's release before choosing Windows' More info / Run anyway
+   option if offered. Do not turn off system-wide protection.
+4. For HEVC/H.265 recordings, Windows needs a working HEVC decoder and suitable
+   graphics drivers. If the app reports missing HEVC support, use Microsoft's
+   HEVC Video Extensions/OEM-provided decoder. This is separate from WebView2;
+   installing the app does not itself grant a Microsoft codec license.
+
+For updates, **Settings → Application updates → Download Windows installer**
+opens the matching published `.exe`. Close Trip Viewer and run it to update in
+place; the installer rejects older versions. Windows ARM-native packages are
+not offered by this release. Original-recording playback/GPS on Windows still
+needs the owner's focused test; Windows 10/11 x64 are the requested test targets.
+
+## macOS: experimental Intel and Apple Silicon package
+
+1. Download `Trip.Viewer_<version>_macOS_universal_experimental.dmg` for macOS 11+
+   and open it. One universal app includes both Intel and Apple Silicon code.
+2. Close Trip Viewer, drag **Trip Viewer** into **Applications**, then eject the
+   disk image and open the app from Applications.
+3. These builds are ad-hoc signed, without an Apple Developer ID/notarization.
+   If macOS blocks a trusted download, use its Security & Privacy / Privacy &
+   Security **Open Anyway** option after checking the release source. No command
+   line or system-wide Gatekeeper disabling is part of this installation guide.
+
+Use the matching download button in Settings for updates, close the app and
+replace it in Applications. CI checks the universal executable, app identity,
+notices, signature, disk-image payload and a basic process launch. **No Mac
+real-recording playback, GPS, firmware or hardware functional test is claimed.**
+Treat this package as experimental. SD-card auto-detection is not implemented on
+macOS; choose recording/archive folders with the existing folder picker.
+
+## Ubuntu
 
 Download the `.deb` installer for **Ubuntu 24.04 LTS x86_64** from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
@@ -6,7 +53,7 @@ If your release has no `.deb` asset, use its AppImage option instead.
 Other distributions, cameras and operating systems are not newly certified by
 this installation guide.
 
-## First installation
+## Ubuntu installation
 
 1. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
    in your browser and expand **Assets**.
@@ -23,7 +70,7 @@ No GitHub account or command line is needed to download a public release.
 The package identity is `trip-viewer`; its application/desktop identity stays
 `com.tripviewer.app`, matching the existing app data and preferences.
 
-## Updates
+## Published-release checks and Ubuntu updates
 
 The navigation bar checks GitHub's latest **published stable release** and shows
 an update when it is newer than the installed version. In **Settings → Application
@@ -34,6 +81,10 @@ Close Trip Viewer, double-click the new `.deb`, and choose **Update/Install**.
 The same package is upgraded in place. Your archive database, bookmarks, media
 and user preferences are separate from the installed executable and are not
 removed by this installer. Schema/parser versions are independent of app versions.
+
+Windows and Mac use the same bounded checks with their own installer. Unknown
+architectures or releases without a matching package fall back to the release
+page; they are not sent to an Ubuntu installer.
 
 The app checks release information only; it does not upload recordings or GPS.
 Checks have a timeout, share a short cache and do not block playback when offline

@@ -2,11 +2,27 @@ export const RELEASES_PAGE = "https://github.com/Marcus-P/trip-viewer/releases";
 export const LATEST_RELEASE = RELEASES_PAGE + "/latest";
 const RELEASE_API = "https://api.github.com/repos/Marcus-P/trip-viewer/releases/latest";
 
+export type InstallTarget = "linux-x64" | "windows-x64" | "macos-universal" | "unsupported";
+const INSTALLERS = {
+  "linux-x64": { suffix: "Ubuntu-24.04_amd64.deb", label: "Download Ubuntu installer",
+    instructions: "Download the .deb package, close Trip Viewer and double-click the package to install or update." },
+  "windows-x64": { suffix: "Windows_x64_setup.exe", label: "Download Windows installer",
+    instructions: "Download the .exe installer, close Trip Viewer and run the installer to install or update. The installer is not publisher-signed." },
+  "macos-universal": { suffix: "macOS_universal_experimental.dmg", label: "Download Mac installer",
+    instructions: "Experimental macOS build, not notarized by Apple. Open the .dmg, close Trip Viewer and drag the app into Applications to install or update." },
+};
+
+export function installerInstructions(target: InstallTarget): string {
+  return target === "unsupported" ? "Open Releases to choose a package compatible with your computer." :
+    INSTALLERS[target].instructions;
+}
+
 export interface PublishedRelease {
   version: string;
   relation: "newer" | "same" | "installedAhead";
   pageUrl: string;
-  debUrl: string | null;
+  installerUrl: string | null;
+  installerLabel: string | null;
 }
 
 function versionParts(value: string): bigint[] {
@@ -20,7 +36,8 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export function parsePublishedRelease(value: unknown, installed: string): PublishedRelease {
+export function parsePublishedRelease(value: unknown, installed: string,
+  target: InstallTarget = "unsupported"): PublishedRelease {
   const release = object(value);
   if (release.draft !== false || release.prerelease !== false ||
       typeof release.published_at !== "string" || !Number.isFinite(Date.parse(release.published_at)) ||
@@ -33,17 +50,19 @@ export function parsePublishedRelease(value: unknown, installed: string): Publis
   const different = available.findIndex((part, index) => part !== current[index]);
   const relation = different < 0 ? "same" :
     available[different] > current[different] ? "newer" : "installedAhead";
-  const name = "Trip.Viewer_" + version + "_Ubuntu-24.04_amd64.deb";
+  const installer = target === "unsupported" ? null : INSTALLERS[target];
+  const name = installer ? "Trip.Viewer_" + version + "_" + installer.suffix : "";
   const expectedUrl = RELEASES_PAGE + "/download/v" + version + "/" + name;
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  const hasDeb = assets.some((asset) => {
+  const hasInstaller = !!installer && assets.some((asset) => {
     if (!asset || typeof asset !== "object") return false;
     const item = asset as Record<string, unknown>;
     return item.name === name && item.state === "uploaded" &&
       typeof item.size === "number" && item.size > 0 && item.browser_download_url === expectedUrl;
   });
   return { version, relation, pageUrl: RELEASES_PAGE + "/tag/v" + version,
-    debUrl: hasDeb ? expectedUrl : null };
+    installerUrl: hasInstaller ? expectedUrl : null,
+    installerLabel: hasInstaller ? installer!.label : null };
 }
 
 // Share one bounded request between the navigation hint and Settings. No polling,
@@ -51,9 +70,9 @@ export function parsePublishedRelease(value: unknown, installed: string): Publis
 export function createReleaseClient(request?: typeof fetch) {
   let cached: { value: unknown; expires: number } | null = null;
   let pending: Promise<unknown> | null = null;
-  return async (installed: string, force = false): Promise<PublishedRelease> => {
+  return async (installed: string, force = false, target: InstallTarget = "unsupported"): Promise<PublishedRelease> => {
     if (!force && cached && cached.expires > Date.now()) {
-      return parsePublishedRelease(cached.value, installed);
+      return parsePublishedRelease(cached.value, installed, target);
     }
     if (!pending) {
       pending = (async () => {
@@ -67,7 +86,7 @@ export function createReleaseClient(request?: typeof fetch) {
           });
           if (!response.ok) throw Error("Release check unavailable");
           const value: unknown = await response.json();
-          parsePublishedRelease(value, installed);
+          parsePublishedRelease(value, installed, target);
           cached = { value, expires: Date.now() + 15 * 60 * 1000 };
           return value;
         } finally {
@@ -76,7 +95,7 @@ export function createReleaseClient(request?: typeof fetch) {
       })();
     }
     const active = pending;
-    try { return parsePublishedRelease(await active, installed); }
+    try { return parsePublishedRelease(await active, installed, target); }
     finally { if (pending === active) pending = null; }
   };
 }

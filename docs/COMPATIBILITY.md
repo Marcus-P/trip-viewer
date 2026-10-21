@@ -65,8 +65,14 @@ This verifies the shared software path, not the original cameras’ encodings.
 
 ## Platforms, codecs and remaining confirmation
 
-CI builds the Ubuntu 24.04 x86_64 AppImage. Windows/macOS code and inherited
-other-Linux guidance remain, but no new hands-on platform validation is claimed.
+Native CI builds Ubuntu AppImage/Debian packages, a Windows x64 NSIS installer
+and an experimental universal macOS disk image. Native tests, installed package
+contents and basic app-process launches are checked; universal Mac binaries must
+contain both Intel and Apple Silicon code. Actual run results are recorded on
+the relevant PR, not inferred from workflow configuration. The owner can test
+Windows 10/11 x64 next; no new Windows or Mac real-footage acceptance is claimed
+before that feedback. Mac SD-card auto-discovery remains unimplemented; manual
+folder selection is available. Other-Linux guidance remains inherited.
 Hardware decoding/HEVC support depends on the host media stack and drivers.
 A synthetic H.264 smoke does not verify real HEVC dashcam footage on other systems.
 
