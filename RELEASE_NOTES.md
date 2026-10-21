@@ -16,6 +16,15 @@ Playback tools and bounded GPS analysis, building on the user-validated 0.5.0.
 - Archived timelapses can seek via trip time even when no original segment
   list remains, using the existing speed-curve mapping.
 
+## Camera visibility
+
+- Checkboxes select which available camera channels are displayed, with saved
+  preferences. Hidden tiles occupy no layout space; two cameras fill the full
+  height and one camera fills the video area.
+- Hiding every camera gives the map the full viewing area. Controls remain
+  available to show cameras again. Visibility changes retain the video elements
+  and current playback position.
+
 ## Timeline bookmarks
 
 - Right-click the graph/timeline to save a numbered bookmark. Click its marker

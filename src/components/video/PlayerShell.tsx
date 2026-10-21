@@ -80,6 +80,8 @@ export function PlayerShell() {
   const activeSpeedCurve = useStore((s) => s.activeSpeedCurve);
   const timelapseJobs = useStore((s) => s.timelapseJobs);
   const tripGpsByTrip = useStore((s) => s.tripGpsByTrip);
+  const [hiddenChannels, setHiddenChannels] = useState(() => getLayoutPreferences().hiddenChannels);
+  useEffect(() => { saveLayoutPreferences({ hiddenChannels }); }, [hiddenChannels]);
   const [fullscreenKind, setFullscreenKind] = useState<"dashboard" | "video" | null>(null);
   const [timelineCollapsed, setTimelineCollapsed] = useState(() => getLayoutPreferences().dashboardTimelineCollapsed);
   useEffect(() => { saveLayoutPreferences({ dashboardTimelineCollapsed: timelineCollapsed }); }, [timelineCollapsed]);
@@ -734,8 +736,20 @@ export function PlayerShell() {
 
   return (
     <div data-tripviewer-player className="flex h-full w-full flex-col bg-neutral-950">
+      <fieldset hidden={fullscreenKind === "video"} className="shrink-0 border-b border-neutral-800 px-3 py-1 text-xs text-neutral-300">
+        <legend className="sr-only">Visible cameras</legend>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-neutral-500">Cameras</span>
+          {activeSegmentForVideo?.channels.map(channel => <label key={channel.label} className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" aria-label={`Show ${channel.label}`} checked={!hiddenChannels.includes(channel.label)}
+              onChange={event => { const checked = event.currentTarget.checked; setHiddenChannels(old => checked ? old.filter(label => label !== channel.label) : [...old, channel.label]); }} />
+            {channel.label}
+          </label>)}
+        </div>
+      </fieldset>
       <div className={`relative grid min-h-0 flex-1 ${gridCols} gap-2 p-2`}>
         <VideoGrid
+          hiddenChannels={hiddenChannels}
           onFullscreenKindChange={setFullscreenKind}
           channelRefs={channelRefs}
           activeSegment={activeSegmentForVideo}
