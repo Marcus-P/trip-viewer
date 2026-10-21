@@ -30,3 +30,8 @@ This branch retains upstream package/application versions, updater, release
 workflows, signing configuration and existing documentation rather than applying
 the fork's Ubuntu-only release policy. The upstream maintainer controls the
 release/version decision. No original user media is rewritten by these features.
+
+Follow-up consistency fixes from the fork's 0.7.0 work make the empty-library
+message camera-neutral and register the existing Miltona diagnostic-export
+command used by the UI. They do not change the GPS parser, schema, upstream
+release/updater configuration or the real-camera validation scope above.
