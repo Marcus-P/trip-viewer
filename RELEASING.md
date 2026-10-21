@@ -65,6 +65,16 @@ one downloadable `.deb` test installer with checksums/build information, retaine
 for seven days. Do not upload a second AppImage copy for the same GUI installer
 test. The stable AppImage remains supported and its helper is verified separately.
 
+Treat Actions storage as a limited resource. Upload only a package required for
+an active acceptance test, with retention of seven days or less; do not upload
+build/dependency directories or duplicate packages. Do not add caches without a
+measured need and a size/expiry plan. After acceptance or verified publication,
+remove obsolete test artifacts and caches when authorized. Keep published release
+downloads/license material and useful CI run history; release assets are separate
+from temporary Actions storage. Prefer existing retention and cleanup at release
+handoff over an extra scheduled workflow. Limit cleanup to this repository unless
+the owner explicitly extends its scope.
+
 ## Protected merge and release workflow
 
 `main` requires a PR, resolved review threads, a current successful `ubuntu` check,

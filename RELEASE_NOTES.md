@@ -1,3 +1,24 @@
+# Trip Viewer 0.7.1
+
+## Documentation and repository maintenance
+
+- Records the completed 0.7.0 merge and its verified release status separately
+  from source versions and temporary test builds.
+- Makes conservative GitHub Actions storage use a standing project rule: only
+  necessary small acceptance artifacts, at most seven days of retention, no
+  duplicate packages or unnecessary caches, and authorized cleanup after use.
+- Preserves published downloads, license material and useful check history.
+  Updates the upstream contribution record with the suitable consistency fixes;
+  fork-specific installer/update policy remains separate.
+
+Application behaviour, dependencies, archive schema 17 and GPS parser 8 are
+unchanged. This documentation-only PATCH follows the owner's version/notes
+policy and requires only documentation/version checks, without a PR test build.
+The post-merge release packages the new version once. Hands-on camera validation
+remains exclusively VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.
+
+---
+
 # Trip Viewer 0.7.0
 
 ## Ubuntu installation and updates
