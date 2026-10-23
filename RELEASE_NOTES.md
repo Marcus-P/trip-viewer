@@ -1,3 +1,58 @@
+# Trip Viewer 0.8.0
+
+## Windows and experimental macOS packages
+
+- Adds a current-user Windows 10/11 x64 NSIS installer with WebView2 setup,
+  Start Menu integration and bundled application/dependency license material.
+  Existing user settings/archives and the original application identity remain.
+- Adds one macOS 11+ universal disk image containing Intel and Apple Silicon
+  code. It is ad-hoc signed, not Apple-notarized, and explicitly experimental
+  until real-device playback/GPS validation is available. Manual folder import
+  remains available; Mac automatic SD-card detection is not implemented.
+- Update checks select the matching installer using the compiled application
+  target, rather than sending every platform to an Ubuntu package. Unknown
+  architectures and missing packages fall back to the release page. Downloads
+  still require user-confirmed installation and never suggest downgrades.
+- Retains Ubuntu AppImage/Debian installers, existing icons, authorship, MIT and
+  dependency notices. No Windows publisher certificate, Apple Developer ID,
+  upstream signing key or unattended updater is assumed.
+- Groups the existing camera visibility checkboxes with Show map under
+  **Settings → Display layout**, removing the camera-checkbox row above the
+  player. Save applies the selection; Cancel discards edits. Existing saved
+  camera choices remain in place, and hidden views still free up display space.
+
+## Native validation and storage
+
+- Fixes cross-platform checkpoint test setup to use the canonical archive root,
+  matching production scan paths on Mac/Windows. The relative-path assertion now
+  checks decoded JSON instead of matching raw strings with escaped separators.
+  Cache/parser implementation and the tested health/restart assertions remain.
+- Native Windows/Mac jobs build and validate their own packages, license payloads,
+  architecture and a basic process launch. Mac checks both universal slices,
+  ad-hoc signature and mounted disk-image contents. Windows silently installs
+  into a temporary directory and checks the installed executable/shortcut.
+- Run native Rust tests when backend checks are relevant; share package workflow
+  code between PR validation and release publishing. The required ubuntu status
+  now waits for every relevant platform, retaining a lightweight docs-only path.
+- Retain only one small acceptance installer per platform for seven days. Native
+  release transfers expire after one day and are removed after publication; large
+  Ubuntu AppImages/bundles stay in the publishing job. No build caches or duplicate
+  Windows MSI / separate Mac architecture installers are uploaded.
+
+The app version increases MINOR for the new distribution targets. Dependencies,
+archive schema 17 and GPS parser 8 are unchanged. Hands-on camera testing covers
+VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS and, following owner feedback, Windows 11
+x64. Windows 11 worked without an additional codec/plugin installation on the
+tested computer and is the recommended Windows platform. On Windows 10, missing
+HEVC support may require purchasing Microsoft’s HEVC Video Extensions at the
+Store’s displayed price (€0.99 was reported); playback after purchase is untested.
+The linked device-manufacturer extension was unavailable on the tested Windows
+10 computer. A successful native build or empty-app launch is not a
+real-camera/codec/GPS certification. Mac remains experimental. See [installation](docs/INSTALLATION.md) and
+[compatibility](docs/COMPATIBILITY.md) for platform requirements and limits.
+
+---
+
 # Trip Viewer 0.7.2
 
 ## Current download guidance

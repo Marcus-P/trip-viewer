@@ -2,10 +2,13 @@
 
 ## What the maintainer has actually tested
 
-**The Marcus-P fork maintainer has limited hands-on functional testing exclusively
-to VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.** This includes the accepted playback,
+**The Marcus-P fork maintainer’s hands-on camera testing covers VIOFO A229 Pro
+3CH on Ubuntu 24.04 LTS and Windows 11 x64.** The Ubuntu acceptance includes playback,
 GPS preparation/resume, map seeking, fullscreen timeline, paused zoom, persistent
-bookmarks and channel-checkbox checks. It is not a declaration that every
+bookmarks and channel-checkbox checks. On 2026-10-23, the owner reported that
+Trip Viewer works on Windows 11 without installing another codec or plugin; no
+additional per-feature or hardware-matrix coverage is inferred from that report.
+It is not a declaration that every
 inherited import/encoding/platform workflow was exhaustively tested.
 
 Existing support for other cameras is retained. Lack of a new real-camera test
@@ -16,7 +19,7 @@ Their continued operation cannot be fully certified from filenames or source alo
 
 | Format | Implemented naming/channels | GPS implementation | Evidence in this fork |
 | --- | --- | --- | --- |
-| VIOFO A229 Pro 3CH | F/I/R normal and parking names; dedicated recognition | Novatek/VIOFO descriptors, timing and validity/boundary checks | Maintainer real-footage checks on Ubuntu 24.04 LTS; parser/validation tests |
+| VIOFO A229 Pro 3CH | F/I/R normal and parking names; dedicated recognition | Novatek/VIOFO descriptors, timing and validity/boundary checks | Maintainer real-footage checks on Ubuntu 24.04 LTS; successful Windows 11 report without additional codecs; parser/validation tests |
 | Wolf Box | Existing F/I/R names and grouping | Existing ShenShu metadata decoder retained | Naming/grouping regression tests; native 3-channel synthetic playback; no new real-camera GPS certification |
 | Thinkware | Existing front/rear names and grouping | **No Thinkware GPS decoder implemented**, as before | Naming/prefix/grouping tests; native 2-channel synthetic playback; no new hardware test |
 | Miltona MNCD60 | Existing single-channel `.MOV` naming | Existing Novatek `gps0` decoder retained | Naming tests and sample-derived record/timestamp/coordinate tests; native 1-channel synthetic playback; no new full-recording hardware test |
@@ -65,8 +68,25 @@ This verifies the shared software path, not the original cameras’ encodings.
 
 ## Platforms, codecs and remaining confirmation
 
-CI builds the Ubuntu 24.04 x86_64 AppImage. Windows/macOS code and inherited
-other-Linux guidance remain, but no new hands-on platform validation is claimed.
+Native CI builds Ubuntu AppImage/Debian packages, a Windows x64 NSIS installer
+and an experimental universal macOS disk image. Native tests, installed package
+contents and basic app-process launches are checked; universal Mac binaries must
+contain both Intel and Apple Silicon code. Actual run results are recorded on
+the relevant PR, not inferred from workflow configuration. **Windows 11 x64 is
+the recommended Windows platform**, following the owner’s successful report
+without an additional codec/plugin installation. HEVC support can still differ
+between computers.
+
+On the tested Windows 10 computer, the device-manufacturer HEVC Store package
+linked by the app was unavailable. Microsoft’s general **HEVC Video Extensions**
+was offered for €0.99. If HEVC support is missing, purchasing that extension at
+the Store’s current displayed price is a possible route, **not a validated fix**:
+Windows 10 playback after purchase has not been tested. Installing VLC alone
+does not supply WebView2 with VLC’s HEVC decoder.
+
+No Mac real-footage acceptance is available. Mac SD-card auto-discovery remains
+unimplemented; manual
+folder selection is available. Other-Linux guidance remains inherited.
 Hardware decoding/HEVC support depends on the host media stack and drivers.
 A synthetic H.264 smoke does not verify real HEVC dashcam footage on other systems.
 

@@ -20,17 +20,17 @@ describe("published release selection", () => {
       expect(() => parsePublishedRelease({ ...release(), ...patch }, "0.6.0")).toThrow();
     }
   });
-  it("accepts only a complete Ubuntu package from the exact fork release", () => {
+  it("accepts only a complete package from the exact fork release", () => {
     const data = release();
-    expect(parsePublishedRelease(data, "0.6.0").debUrl).toContain("/Marcus-P/trip-viewer/");
+    expect(parsePublishedRelease(data, "0.6.0", "linux-x64").installerUrl).toContain("/Marcus-P/trip-viewer/");
     data.assets[0].browser_download_url = "https://example.invalid/download.deb";
-    expect(parsePublishedRelease(data, "0.6.0").debUrl).toBeNull();
+    expect(parsePublishedRelease(data, "0.6.0", "linux-x64").installerUrl).toBeNull();
     data.assets[0].size = 0;
-    expect(parsePublishedRelease(data, "0.6.0").debUrl).toBeNull();
+    expect(parsePublishedRelease(data, "0.6.0", "linux-x64").installerUrl).toBeNull();
   });
   it("keeps the release page available for older releases without a deb", () => {
     expect(parsePublishedRelease({ ...release("0.6.0"), assets: [] }, "0.5.0"))
-      .toMatchObject({ relation: "newer", debUrl: null, pageUrl: RELEASES_PAGE + "/tag/v0.6.0" });
+      .toMatchObject({ relation: "newer", installerUrl: null, pageUrl: RELEASES_PAGE + "/tag/v0.6.0" });
   });
 });
 
@@ -63,5 +63,57 @@ describe("release check isolation", () => {
       await vi.advanceTimersByTimeAsync(8000);
       await checked;
     } finally { vi.useRealTimers(); }
+  });
+});
+
+
+describe("platform installer selection", () => {
+  const targets = [
+    ["linux-x64", "Ubuntu-24.04_amd64.deb", "Download Ubuntu installer"],
+    ["windows-x64", "Windows_x64_setup.exe", "Download Windows installer"],
+    ["macos-universal", "macOS_universal_experimental.dmg", "Download Mac installer"],
+  ] as const;
+  function allInstallers() {
+    const data = release("0.8.0");
+    data.assets = targets.map(([, suffix]) => {
+      const name = "Trip.Viewer_0.8.0_" + suffix;
+      return { name, size: 100, state: "uploaded", browser_download_url:
+        RELEASES_PAGE + "/download/v0.8.0/" + name };
+    });
+    return data;
+  }
+  it.each(targets)("offers only the matching %s installer", (target, suffix, label) => {
+    const selected = parsePublishedRelease(allInstallers(), "0.7.2", target);
+    expect(selected.installerUrl).toBe(RELEASES_PAGE + "/download/v0.8.0/Trip.Viewer_0.8.0_" + suffix);
+    expect(selected.installerLabel).toBe(label);
+  });
+  it("does not send Windows, Mac or unknown architectures to an Ubuntu package", () => {
+    for (const target of ["windows-x64", "macos-universal", "unsupported"] as const) {
+      expect(parsePublishedRelease(release(), "0.6.0", target).installerUrl).toBeNull();
+    }
+  });
+  it("rejects foreign, incomplete or wrong-version installers on every platform", () => {
+    for (const [target] of targets) {
+      for (const patch of [{ browser_download_url: "https://example.invalid/installer" },
+        { size: 0 }, { state: "new" }]) {
+        const data = allInstallers();
+        data.assets = data.assets.map((asset) => ({ ...asset, ...patch }));
+        expect(parsePublishedRelease(data, "0.7.2", target).installerUrl).toBeNull();
+      }
+      const wrongVersion = allInstallers();
+      wrongVersion.tag_name = "v0.8.1";
+      expect(parsePublishedRelease(wrongVersion, "0.7.2", target).installerUrl).toBeNull();
+      expect(parsePublishedRelease(allInstallers(), "0.8.1", target).relation).toBe("installedAhead");
+    }
+  });
+  it("selects each caller's target from the shared response and cache", async () => {
+    const request = vi.fn().mockResolvedValue({ ok: true, json: async () => allInstallers() });
+    const client = createReleaseClient(request);
+    const [win, mac] = await Promise.all([
+      client("0.7.2", false, "windows-x64"), client("0.7.2", false, "macos-universal")]);
+    expect(win.installerUrl).toContain("Windows_x64_setup.exe");
+    expect(mac.installerUrl).toContain("macOS_universal_experimental.dmg");
+    expect((await client("0.7.2", false, "linux-x64")).installerUrl).toContain("amd64.deb");
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

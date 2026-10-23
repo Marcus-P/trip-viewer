@@ -10,11 +10,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Keep this required status for docs too; skip irrelevant steps, not the job.
-  ubuntu:
+  scope:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      docs: ${{ steps.scope.outputs.docs }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      backend: ${{ steps.scope.outputs.backend }}
+      bundle: ${{ steps.scope.outputs.bundle }}
+      audit: ${{ steps.scope.outputs.audit }}
+      tooling: ${{ steps.scope.outputs.tooling }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -37,13 +43,27 @@ jobs:
       - name: CI policy tests
         if: steps.scope.outputs.tooling == 'true'
         run: node --test scripts/*.test.mjs
+  linux:
+    name: Linux checks
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
       - name: Frontend and backend interfaces
-        if: steps.scope.outputs.frontend == 'true' || steps.scope.outputs.backend == 'true'
+        if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true'
         run: node scripts/check-interfaces.mjs
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.scope.outputs.backend == 'true' || steps.scope.outputs.bundle == 'true'
+        if: needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true'
       - name: Install Ubuntu build dependencies
-        if: steps.scope.outputs.backend == 'true' || steps.scope.outputs.bundle == 'true'
+        if: needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true'
         run: |
           sudo apt update
           sudo apt install -y \
@@ -52,27 +72,27 @@ jobs:
             gstreamer1.0-libav gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       - run: npm ci
-        if: steps.scope.outputs.frontend == 'true' || steps.scope.outputs.bundle == 'true' || steps.scope.outputs.audit == 'true'
+        if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true'
       - name: Frontend tests
-        if: steps.scope.outputs.frontend == 'true'
+        if: needs.scope.outputs.frontend == 'true'
         run: npm test
       - name: Frontend typecheck/build
-        if: steps.scope.outputs.frontend == 'true' && steps.scope.outputs.bundle != 'true'
+        if: needs.scope.outputs.frontend == 'true' && needs.scope.outputs.bundle != 'true'
         run: npm run build
       - name: Rust tests
-        if: steps.scope.outputs.backend == 'true'
+        if: needs.scope.outputs.backend == 'true'
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Runtime dependency audit
-        if: steps.scope.outputs.audit == 'true'
+        if: needs.scope.outputs.audit == 'true'
         run: npm audit --omit=dev --audit-level=high
       - name: Prepare application and dependency notices
-        if: steps.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         run: python3 scripts/prepare-release-licenses.py
       - name: Build Ubuntu packages
-        if: steps.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         run: NO_STRIP=true npm run tauri -- build --bundles appimage,deb
       - name: Validate Ubuntu installers
-        if: steps.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -94,7 +114,7 @@ jobs:
           dpkg-query -W trip-viewer
           test -x /usr/bin/tripviewer
       - name: Prepare one downloadable installer for testing
-        if: steps.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -109,7 +129,7 @@ jobs:
           cd "$OUT"
           sha256sum "$DEST" > SHA256SUMS.txt
       - name: Upload Ubuntu test installer
-        if: steps.scope.outputs.bundle == 'true'
+        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
         uses: actions/upload-artifact@v5
         with:
           name: Trip-Viewer-Ubuntu-24.04-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
@@ -117,3 +137,37 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+
+  desktop:
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/desktop-packages.yml
+    with:
+      acceptance: true
+      run-tests: ${{ needs.scope.outputs.backend == 'true' }}
+
+  # Preserve the required status name and require every relevant platform.
+  # Docs/version-only changes still get a successful lightweight gate.
+  ubuntu:
+    if: ${{ !cancelled() }}
+    needs: [scope, linux, desktop]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Require all relevant checks
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          LINUX_RESULT: ${{ needs.linux.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          NEEDS_BUNDLE: ${{ needs.scope.outputs.bundle }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          if [ "$NEEDS_BUNDLE" = true ]; then
+            test "$LINUX_RESULT" = success
+            test "$DESKTOP_RESULT" = success
+          else
+            test "$LINUX_RESULT" = success || test "$LINUX_RESULT" = skipped
+            test "$DESKTOP_RESULT" = skipped
+          fi

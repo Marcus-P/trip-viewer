@@ -7,8 +7,9 @@ Synchronized dashcam video, GPS maps and trip review. This is the
 [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer), built on the
 original authors’ work. The upstream icon, copyright and license notices are retained.
 
-**The fork maintainer’s functional testing is limited to VIOFO A229 Pro 3CH
-on Ubuntu 24.04 LTS.** Existing Wolf Box, Thinkware, Miltona MNCD60 and generic
+**The fork maintainer’s hands-on camera testing covers VIOFO A229 Pro 3CH
+on Ubuntu 24.04 LTS and Windows 11 x64.** Windows 11 worked on the tested
+computer without installing an additional codec or plugin. Existing Wolf Box, Thinkware, Miltona MNCD60 and generic
 camera support remains in the code. Other cameras/platforms are not newly
 certified by this fork; lack of confirmation does not mean they stopped working.
 See the [compatibility evidence](docs/COMPATIBILITY.md).
@@ -22,6 +23,27 @@ Download the latest published stable version from
 
 ### Install and update without a terminal
 
+Choose the asset for your computer (available after the matching release is
+published):
+
+| Platform | Installer | Installation |
+| --- | --- | --- |
+| Windows 11 x64 (recommended); Windows 10 x64 (HEVC caveat below) | `Trip.Viewer_<version>_Windows_x64_setup.exe` | Run the installer, then launch Trip Viewer from Start |
+| macOS 11+ Intel / Apple Silicon | `Trip.Viewer_<version>_macOS_universal_experimental.dmg` | Open the disk image and drag Trip Viewer into Applications |
+| Ubuntu 24.04 LTS x86_64 | `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb` | Double-click and choose Install/Update |
+
+Windows 11 playback was confirmed without an additional codec installation on
+the tested computer; other systems can have different codec/driver requirements.
+On Windows 10, if HEVC support is missing, Microsoft’s **HEVC Video Extensions**
+may need to be purchased from the Store at the displayed price (reported as
+€0.99 during testing). **Windows 10 playback after that purchase is untested.**
+
+Windows installers are not publisher-signed. Mac packages are ad-hoc signed,
+not Apple-notarized, and **experimental until real-device testing**. Native
+build/package/start checks do not certify camera playback or GPS. See the
+[installation guide](docs/INSTALLATION.md) for first-launch prompts, Windows
+WebView2/HEVC requirements, updates and the exact validation limits.
+
 Published Ubuntu 24.04 LTS x86_64 releases include a `.deb`
 installer. Open [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest),
 expand **Assets**, download `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb`, close
@@ -32,7 +54,7 @@ No GitHub account or command line is needed for a public release download.
 The app checks published stable releases and shows an update hint in the navigation
 bar. **Settings → Application updates** also has **Check for updates** and a download
 button. Download the new package, close the app and double-click it to upgrade.
-This is a user-confirmed package update, not an unattended background installation.
+The download matches the compiled platform; installation/update is confirmed by the user.
 Only releases built from merged `main` are offered, not every source commit or PR.
 
 If your release has no `.deb` asset, use the AppImage option below.

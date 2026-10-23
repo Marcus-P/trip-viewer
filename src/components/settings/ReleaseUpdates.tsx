@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { LATEST_RELEASE, readLatestRelease, type PublishedRelease } from "../../updates/releases";
+import { LATEST_RELEASE, readLatestRelease, installerInstructions, type InstallTarget, type PublishedRelease } from "../../updates/releases";
 
 export function ReleaseUpdates({ compact = false }: { compact?: boolean }) {
   const [version, setVersion] = useState("");
+  const [target, setTarget] = useState<InstallTarget>("unsupported");
   const [release, setRelease] = useState<PublishedRelease | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
@@ -13,9 +15,9 @@ export function ReleaseUpdates({ compact = false }: { compact?: boolean }) {
     let cancelled = false;
     void (async () => {
       try {
-        const installed = await getVersion();
-        if (!cancelled) setVersion(installed);
-        const latest = await readLatestRelease(installed);
+        const [installed, compiledTarget] = await Promise.all([getVersion(), invoke<InstallTarget>("get_install_target")]);
+        if (!cancelled) { setVersion(installed); setTarget(compiledTarget); }
+        const latest = await readLatestRelease(installed, false, compiledTarget);
         if (!cancelled) setRelease(latest);
       } catch {
         if (!cancelled) setError("Could not check for updates. Try again or open Releases.");
@@ -30,9 +32,11 @@ export function ReleaseUpdates({ compact = false }: { compact?: boolean }) {
     setChecking(true);
     setError("");
     try {
-      const installed = version || await getVersion();
+      const [installed, compiledTarget] = await Promise.all([
+        version || getVersion(), invoke<InstallTarget>("get_install_target")]);
       setVersion(installed);
-      setRelease(await readLatestRelease(installed, true));
+      setTarget(compiledTarget);
+      setRelease(await readLatestRelease(installed, true, compiledTarget));
     } catch {
       setError("Could not check for updates. Try again or open Releases.");
     } finally { setChecking(false); }
@@ -43,7 +47,7 @@ export function ReleaseUpdates({ compact = false }: { compact?: boolean }) {
   }
 
   const available = release?.relation === "newer";
-  const download = release?.debUrl ?? release?.pageUrl ?? LATEST_RELEASE;
+  const download = release?.installerUrl ?? release?.pageUrl ?? LATEST_RELEASE;
   if (compact) {
     return (
       <button type="button" onClick={() => available ? open(download) : void check()}
@@ -71,11 +75,11 @@ export function ReleaseUpdates({ compact = false }: { compact?: boolean }) {
         </button>
         <button type="button" onClick={() => open(available ? download : LATEST_RELEASE)}
           className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-500">
-          {available && release.debUrl ? "Download Ubuntu installer" : "Open Releases"}
+          {available && release.installerUrl ? release.installerLabel : "Open Releases"}
         </button>
       </div>
       <p className="mt-2 text-[11px] text-neutral-500">
-        On Ubuntu, download the .deb package, close Trip Viewer and double-click the package to install or update.
+        {installerInstructions(target)}
       </p>
     </section>
   );

@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReleaseUpdates } from "./ReleaseUpdates";
+import { getLayoutPreferences, saveLayoutPreferences } from "../../settings/layout";
+import { useStore } from "../../state/store";
+import { LABEL_FRONT, LABEL_INTERIOR, LABEL_REAR } from "../../types/model";
 import {
   savePreferences,
   usePreferences,
@@ -14,9 +17,19 @@ interface Props {
 export function SettingsDialog({ open, onClose }: Props) {
   const preferences = usePreferences();
   const [draft, setDraft] = useState<UserPreferences>(preferences);
+  const [hiddenChannels, setHiddenChannels] = useState(() => getLayoutPreferences().hiddenChannels);
+  const trips = useStore((s) => s.trips);
+  const channelLabels = useMemo(() => [...new Set([
+    LABEL_FRONT, LABEL_INTERIOR, LABEL_REAR,
+    ...trips.flatMap(trip => trip.segments.flatMap(segment => segment.channels.map(channel => channel.label))),
+    ...hiddenChannels,
+  ])], [trips, hiddenChannels]);
 
   useEffect(() => {
-    if (open) setDraft(preferences);
+    if (open) {
+      setDraft(preferences);
+      setHiddenChannels(getLayoutPreferences().hiddenChannels);
+    }
   }, [open, preferences]);
 
   useEffect(() => {
@@ -31,6 +44,7 @@ export function SettingsDialog({ open, onClose }: Props) {
   if (!open) return null;
 
   function save() {
+    saveLayoutPreferences({ hiddenChannels });
     savePreferences(draft);
     onClose();
   }
@@ -108,25 +122,48 @@ export function SettingsDialog({ open, onClose }: Props) {
             </span>
           </label>
 
-          <label className="flex items-center justify-between gap-4 rounded-md border border-neutral-800 bg-neutral-950/60 px-3 py-2.5">
-            <div>
-              <span className="block text-xs font-medium text-neutral-300">Show map</span>
-              <span className="mt-0.5 block text-[11px] text-neutral-500">
-                Hide the GPS map and give the video grid more space.
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={draft.showMap}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  showMap: event.target.checked,
-                }))
-              }
-              className="h-4 w-4 accent-blue-500"
-            />
-          </label>
+          <fieldset className="space-y-2 rounded-md border border-neutral-800 bg-neutral-950/60 px-3 pb-3">
+            <legend className="px-1 text-xs font-medium text-neutral-300">Display layout</legend>
+            <p className="text-[11px] text-neutral-500">
+              Choose the cameras and map to display. Hidden views free up space.
+            </p>
+            {channelLabels.map(label => (
+              <label key={label} className="flex items-center justify-between gap-4 py-1 text-xs text-neutral-300">
+                <span>{label} camera</span>
+                <input
+                  type="checkbox"
+                  aria-label={`Show ${label}`}
+                  checked={!hiddenChannels.includes(label)}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setHiddenChannels(current => checked
+                      ? current.filter(channel => channel !== label)
+                      : [...current, label]);
+                  }}
+                  className="h-4 w-4 accent-blue-500"
+                />
+              </label>
+            ))}
+            <label className="flex items-center justify-between gap-4 border-t border-neutral-800 pt-2">
+              <div>
+                <span className="block text-xs font-medium text-neutral-300">Show map</span>
+                <span className="mt-0.5 block text-[11px] text-neutral-500">
+                  Hide the GPS map and give the video grid more space.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={draft.showMap}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    showMap: event.target.checked,
+                  }))
+                }
+                className="h-4 w-4 accent-blue-500"
+              />
+            </label>
+          </fieldset>
         </div>
 
         <div className="mt-5"><ReleaseUpdates /></div>

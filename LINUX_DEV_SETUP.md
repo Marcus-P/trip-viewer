@@ -96,5 +96,6 @@ the [historical guide](docs/history/inherited-LINUX_DEV_SETUP.md). Treat them as
 starting points to update for current package versions. The fork does not claim
 new hands-on validation on those systems, nor that they are necessarily broken.
 Use native dependency/codec probing and a matching development environment when
-diagnosing ABI/plugin errors. Windows/macOS target code likewise remains without
-a new platform certification from this fork.
+diagnosing ABI/plugin errors. Windows 11 has a successful owner test report;
+Windows 10 with a paid HEVC extension and Mac real-footage playback remain
+unconfirmed. See the [compatibility record](docs/COMPATIBILITY.md).

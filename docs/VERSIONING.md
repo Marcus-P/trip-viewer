@@ -54,3 +54,7 @@ version. It is retained by the owner's explicit preference. It does not require
 irrelevant runtime tests: docs plus version-only metadata get light PR checks.
 The subsequent release still builds packages once to embed the new version.
 A source version is not a publication claim; use Latest Release for downloads.
+
+Adding Windows installers, experimental universal Mac packages and compiled-target
+update downloads is a MINOR change (0.7.2 → 0.8.0). Platform build success and
+real-recording acceptance remain separate evidence.

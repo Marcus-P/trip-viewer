@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../release-assets/LICENSE": "licenses/LICENSE",
+      "../release-assets/THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md",
+      "../release-assets/NODE_RUNTIME_LICENSES.txt": "licenses/NODE_RUNTIME_LICENSES.txt",
+      "../release-assets/RUST_DEPENDENCY_LICENSES.txt": "licenses/RUST_DEPENDENCY_LICENSES.txt",
+      "../release-assets/NODE_RUNTIME_LICENSE_TEXTS.tar.gz": "licenses/NODE_RUNTIME_LICENSE_TEXTS.tar.gz",
+      "../release-assets/RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz": "licenses/RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  }
+}

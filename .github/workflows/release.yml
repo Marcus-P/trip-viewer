@@ -1,4 +1,4 @@
-name: Ubuntu Release
+name: Desktop Release
 
 on:
   push:
@@ -10,11 +10,19 @@ permissions:
   contents: write
 
 concurrency:
-  group: ubuntu-release-${{ github.sha }}
+  group: desktop-release-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
+  desktop:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/desktop-packages.yml
   release:
+    needs: desktop
+    permissions:
+      contents: write
+      actions: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -74,6 +82,18 @@ jobs:
           test -x "$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage"
           test -s "$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
           test -s "$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
+      - name: Download small native installers for the same merged tree
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-desktop-*-${{ github.sha }}
+          merge-multiple: true
+          path: release-assets/
+      - name: Validate transferred installer checksums
+        run: |
+          cd release-assets
+          sha256sum -c SHA256SUMS-Windows-x64.txt
+          sha256sum -c SHA256SUMS-macOS-universal.txt
+          rm SHA256SUMS-Windows-x64.txt SHA256SUMS-macOS-universal.txt
       - name: Create checksums and AppImage bundle
         shell: bash
         run: |
@@ -85,6 +105,8 @@ jobs:
             NODE_RUNTIME_LICENSES.txt RUST_DEPENDENCY_LICENSES.txt \
             NODE_RUNTIME_LICENSE_TEXTS.tar.gz RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz
           sha256sum \
+            "Trip.Viewer_${VERSION}_Windows_x64_setup.exe" \
+            "Trip.Viewer_${VERSION}_macOS_universal_experimental.dmg" \
             "Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.AppImage" \
             "Trip.Viewer_${VERSION}_Ubuntu-24.04_amd64.deb" \
             "Trip.Viewer_${VERSION}_Ubuntu-24.04_bundle.tar.gz" > SHA256SUMS.txt
@@ -103,5 +125,17 @@ jobs:
           print(text)
           PY
           gh release create "v${VERSION}" --target "$GITHUB_SHA" \
-            --title "Trip Viewer v${VERSION} — Ubuntu 24.04 / VIOFO A229 Pro" \
+            --title "Trip Viewer v${VERSION} — Windows, Ubuntu and experimental macOS" \
             --notes-file "${RUNNER_TEMP}/release-notes.md" release-assets/*
+      - name: Remove temporary native transfer artifacts after publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name | startswith("release-desktop-")) | .id' \
+            > "${RUNNER_TEMP}/transfer-artifact-ids"
+          while read -r ARTIFACT_ID; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}" \
+              || echo "::warning::Temporary artifact cleanup failed; one-day retention still applies."
+          done < "${RUNNER_TEMP}/transfer-artifact-ids"

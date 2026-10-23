@@ -1,13 +1,15 @@
 # User guide
 
-This guide covers playback controls, Ubuntu installation and updates.
+This guide covers playback controls, installation and updates.
 Download the latest published stable build from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
-The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
+The fork’s hands-on camera test scope is [VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS
+and Windows 11 x64](COMPATIBILITY.md). Windows 10 HEVC playback after buying the
+Microsoft extension remains untested.
 
 ## Install and update
 
-The [installation guide](INSTALLATION.md) explains the Ubuntu `.deb` installer,
+The [installation guide](INSTALLATION.md) explains Windows installers, experimental Mac disk images, the Ubuntu `.deb` installer,
 AppImage migration and upgrades without a terminal. The navigation bar shows
 new published releases; **Settings → Application updates** can check again and
 open the download. Offline checks do not interrupt playback. A test build newer
@@ -28,7 +30,10 @@ footage folder. “New segments only” can complete immediately when nothing is
 
 ## Video views
 
-- **Cameras** checkboxes show/hide the channels available in the current source.
+- **Settings → Display layout** groups the Front, Interior, Rear and map
+  checkboxes. Additional camera labels found in the archive are listed too.
+  Select the views you want, then choose **Save**; **Cancel** discards changes.
+  These settings persist across restarts, including the existing camera choices.
   They save a display preference, not a recording or deletion setting. Visible
   cameras reclaim hidden tiles; a single camera fills the video grid. If every
   camera is hidden, the map fills the viewing area when available. Re-enable a

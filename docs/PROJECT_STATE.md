@@ -52,6 +52,73 @@ version-only metadata use lightweight checks and no test package. Their merged
 release builds packages once to embed the new version. Do not repeat accepted
 playback tests for a docs edit. Preserve this preference in subsequent work.
 
+## Windows/Mac distribution candidate
+
+Published 0.7.2 followed the owner's merge of
+[PR #7](https://github.com/Marcus-P/trip-viewer/pull/7). Current work branches from
+that main tree and prepares **0.8.0** for Windows 10/11 x64 and experimental macOS
+11+ Intel/Apple Silicon, retaining the Ubuntu packages. This is an authorized
+platform-distribution change, not a new claim of camera compatibility.
+
+- On 2026-10-23 the owner confirmed Trip Viewer works on Windows 11 x64 without
+  installing another codec/plugin. Treat that result as accepted; do not request
+  a repeat for documentation changes or infer an exhaustive per-feature matrix.
+  Windows 11 is the recommended Windows platform. On Windows 10 the linked OEM
+  HEVC Store extension was unavailable; the general paid extension was offered
+  for €0.99. Playback after purchase is untested and must remain labeled as such.
+  Use the Store’s displayed price rather than promising a fixed amount. The
+  owner chose documentation of this limit instead of a VLC/player rewrite.
+- No Mac tester is available. The universal DMG is explicitly experimental and
+  ad-hoc signed without Apple notarization. Native compilation, architecture,
+  package notices/signature/contents and basic launch checks are automated;
+  inspect actual PR job results before claiming success. No new Mac video/GPS
+  functional validation is established. SD-card auto-detection remains absent on
+  Mac; use manual folder selection. Original-recording/media behaviour is kept.
+- Windows NSIS installs for the current account, bootstraps missing WebView2 and
+  blocks installer downgrades. HEVC support remains a host codec/driver requirement,
+  separate from WebView2. No publisher-signing key is configured.
+- The native get_install_target command selects exact release assets for the
+  compiled target. Unsupported architectures retain a release-page fallback.
+  Raw API response caching is shared without mixing platform-specific selections.
+- The owner requested moving the existing camera checkboxes from the player
+  header into Settings alongside the map. Settings → Display layout now groups
+  Front/Interior/Rear, additional archive channel labels and Show map behind the
+  existing Save/Cancel controls. The existing layout storage key and saved camera
+  choices are retained; a layout notification updates the mounted player after
+  Save. Playback/GPS/sync algorithms and native code are unchanged. This remains
+  part of the same 0.8.0 PR, with no additional version increment.
+- The reused Windows/Mac packaging workflow runs native Rust tests only when
+  backend checks are selected. PR artifacts contain one installer per platform
+  for seven days. Publishing rebuilds the merged native packages once, transfers
+  only the small installers for at most one day and deletes transfers on success;
+  large Ubuntu assets stay in the publishing job. No Actions cache is added.
+- The existing required ubuntu status becomes the final aggregate gate over all
+  relevant platforms. Docs/version metadata still skip native jobs and artifacts.
+  Do not weaken or bypass the active owner/history rulesets.
+- These distribution/update changes are fork-specific; do not copy them into the
+  separate upstream contribution that retains Chris' own updater/release setup.
+
+Local candidate checks pass: thirteen release/client tests, TypeScript typecheck,
+thirteen policy tests, 58 frontend IPC calls/all 17 migrations, configuration
+schemas and actionlint. Native Linux 0.8.0 confirms get_install_target returns
+linux-x64, the update UI renders/selects its installer, offline errors do not
+replace existing video nodes and no downgrade is offered. The headless check
+does not activate an OS browser. The final native CI run
+[39693022945](https://github.com/Marcus-P/trip-viewer/actions/runs/39693022945)
+passed Linux, Windows and universal Mac package checks plus the required ubuntu
+aggregate. The owner subsequently confirmed Windows 11 operation; Mac footage
+and Windows 10 with the paid HEVC extension remain untested.
+
+Initial native tests exposed noncanonical temporary roots in checkpoint fixtures
+(Mac aliases / Windows short-name paths), not a parser change. The same three
+failures were reproduced locally using a symlinked TMPDIR. Fixtures now derive
+requests and media-health keys from db.archive_root(), matching production's
+canonical archive scan contract. Decoded checkpoint JSON must contain front.mp4
+rather than an absolute path. All four checkpoint tests pass under that alias;
+none were skipped and production GPS/cache code is unchanged. Native failures
+are emitted as compact check annotations as well as console logs so full error
+context remains reviewable. Package build/validation errors use the same reporting.
+
 ## Integrated upstream work and cleanup
 
 Upstream commits 2534f65 and a9617fc are ancestors of the 0.6.0 merge, preserving
@@ -68,7 +135,7 @@ ancestors of main and deleted. All temporary CI artifacts were removed after
 PR branches until they are merged or closed, including the upstream contribution.
 CI runs once per PR update and cancels superseded work. It selects frontend,
 backend, packaging, dependency and documentation checks from the diff. Packaging
-changes upload one Debian test installer for seven days; docs/metadata-only work
+changes upload one small installer per relevant platform for seven days; docs/metadata-only work
 creates none. Main builds the actual release packages once without repeating the
 protected PR’s unit suites.
 
@@ -83,9 +150,11 @@ the repository API then reported zero Actions artifacts and zero caches.
 
 ## Scope and accepted functional tests
 
-**The fork maintainer has limited hands-on functional testing exclusively to
-VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.** Other camera support remains implemented;
-this limited test scope is not a report of other-camera breakage.
+**The fork maintainer’s hands-on camera testing covers VIOFO A229 Pro 3CH on
+Ubuntu 24.04 LTS and Windows 11 x64.** Windows 11 worked on the tested computer
+without an additional codec/plugin installation. Windows 10 with a paid HEVC
+extension and Mac real-footage playback remain unconfirmed. Other camera support
+remains implemented; this limited test scope is not a report of other-camera breakage.
 
 The user confirmed successful Linux playback after contributor `gubiq`’s PR #2
 libva/DMABuf changes; keep those workarounds. PR #3 added channel-local error
@@ -104,10 +173,10 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 
 - Stable video elements; canonical sync clock is separate from visual primary/visibility. Failed cameras leave healthy ones running; recovered cameras rejoin as slaves during a source. Preserve validated media-health fingerprinting, probe/backoff and promoted-clock behaviour.
 - GPS parser **v8**, archive schema **17**. Shared candidate/batch pool caps reads at two; ordered selection/boundary checks and raw per-segment checkpoints preserve deterministic results. Source/health fingerprints invalidate stale caches. Parsing stays outside long DB locks; trip selections rejoin in-flight work.
-- Camera checkboxes save hidden labels in layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
+- Settings → Display layout groups camera visibility with the map switch and saves hidden labels in the existing layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
 - Fullscreen uses one player root and logical dashboard/video navigation. Dashboard has the lower transport/timeline toggle; single-camera keeps upper Play/Pause. Paused zoom/pan resets on resume/source change.
 - Timeline/map/bookmarks reuse trip-time seeking. Bookmarks are integer milliseconds in the archive DB, independently of GPS. Right-click graph adds; marker left-click seeks/right-click removes; arrow-bar buttons navigate without wrapping. Writes serialize; archive checks/stale-response guards protect switching. ID changes cascade and merges rebase positions transactionally.
-- Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute cache and offers a validated same-repository Ubuntu package download. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.
+- Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute raw-response cache and offers a validated same-repository package for the compiled target. Unknown targets or absent matching installers use the release page. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.
 - Ubuntu Debian packages include playback dependencies, original icons and complete license material. The normalized desktop ID remains com.tripviewer.app. Package upgrades do not alter archive/user data; old AppImage launchers may need user-level migration as documented in the installation guide.
 - Report a bug targets the fork; empty-folder guidance is camera-neutral. The existing Miltona GPS export is registered in Tauri, matching the UI invocation. This is not additional real-Miltona validation.
 - Timelapse persisted speed-curve envelope remains **v1**. The inherited v2 proposal and old reported spike are historical, not an assertion that this checkout writes all proposed fields. See the corrected [alignment note](../TIMELAPSE_ALIGNMENT_REDESIGN.md).
