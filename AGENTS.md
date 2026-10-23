@@ -21,7 +21,7 @@ Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off f
 - Do not casually change the Tauri identifier `com.tripviewer.app`; it currently matches upstream. Treat any identifier change as a separate compatibility/release decision.
 - Do not run `npm audit fix` blindly. Inspect findings first and prefer targeted dependency changes.
 - Do not conflate Vite bundle-size warnings with WebKitGTK/GStreamer playback faults unless evidence supports a link.
-- Document functional validation as VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS only unless new real-camera/platform evidence is recorded. Retain existing camera support; distinguish automated/synthetic checks from hands-on hardware tests.
+- Document hands-on camera validation as VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS and the owner-confirmed Windows 11 x64 system (no additional codec/plugin installed). Do not generalize codec availability to all Windows 11 devices. Windows 10 playback after buying the Microsoft HEVC extension remains untested; show the Store-displayed price, not a guaranteed fixed price. Retain existing camera support; distinguish automated/synthetic checks from hands-on hardware tests.
 - Preserve upstream provenance, existing logos/icons, source copyright and dependency license notices when refreshing documentation.
 - Keep current download/install instructions version-neutral and point to Latest Release. Put release/merge history in release notes and project records; do not insert old release or PR narratives into current installation guidance.
 - If a Linux/WebKit media workaround is already validated by the user, do not remove it merely to simplify the code. Regression evidence is required.

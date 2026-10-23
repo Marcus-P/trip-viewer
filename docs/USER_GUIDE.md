@@ -3,7 +3,9 @@
 This guide covers playback controls, installation and updates.
 Download the latest published stable build from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest).
-The fork’s hands-on test scope is [VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS](COMPATIBILITY.md).
+The fork’s hands-on camera test scope is [VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS
+and Windows 11 x64](COMPATIBILITY.md). Windows 10 HEVC playback after buying the
+Microsoft extension remains untested.
 
 ## Install and update
 

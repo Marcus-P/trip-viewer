@@ -36,11 +36,15 @@
   Windows MSI / separate Mac architecture installers are uploaded.
 
 The app version increases MINOR for the new distribution targets. Dependencies,
-archive schema 17 and GPS parser 8 are unchanged. Hands-on functional acceptance
-remains VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS until Windows test feedback arrives;
-Windows 10/11 x64 are the owner's next test targets. A successful native build
-or empty-app launch is not a real-camera/codec/GPS certification. Mac remains
-experimental. See [installation](docs/INSTALLATION.md) and
+archive schema 17 and GPS parser 8 are unchanged. Hands-on camera testing covers
+VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS and, following owner feedback, Windows 11
+x64. Windows 11 worked without an additional codec/plugin installation on the
+tested computer and is the recommended Windows platform. On Windows 10, missing
+HEVC support may require purchasing Microsoft’s HEVC Video Extensions at the
+Store’s displayed price (€0.99 was reported); playback after purchase is untested.
+The linked device-manufacturer extension was unavailable on the tested Windows
+10 computer. A successful native build or empty-app launch is not a
+real-camera/codec/GPS certification. Mac remains experimental. See [installation](docs/INSTALLATION.md) and
 [compatibility](docs/COMPATIBILITY.md) for platform requirements and limits.
 
 ---

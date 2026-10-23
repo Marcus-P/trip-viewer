@@ -144,6 +144,8 @@ macOS 11, without Developer ID/notarization. No upstream key or new signing
 secret is assumed. Signer enrollment/paid certificates are separate optional
 work. Keep unknown-publisher/first-launch instructions in the installation guide;
 do not imply a successful build is notarization or real-video certification.
-Only extend the exclusive VIOFO/Ubuntu hands-on statement after actual test
-feedback. A Windows acceptance test is requested for this platform release;
-Mac remains visibly experimental until a Mac tester confirms functionality.
+Hands-on statements follow actual owner feedback: VIOFO A229 Pro 3CH on Ubuntu
+24.04 LTS and a successful Windows 11 x64 report without an additional codec
+installation. Keep Windows 10 playback after buying the HEVC extension explicitly
+untested. Mac remains visibly experimental until a Mac tester confirms functionality.
+Do not repeat accepted Windows playback tests for documentation-only changes.

@@ -6,7 +6,7 @@ Choose your platform's installer, not Source code ZIP/TAR. Packages appear after
 the owner merges their PR and the release workflow succeeds. An Actions test
 installer is an acceptance build, not a published stable release.
 
-## Windows 10/11 x64
+## Windows x64: Windows 11 recommended
 
 1. Download `Trip.Viewer_<version>_Windows_x64_setup.exe` and close Trip Viewer.
 2. Double-click the installer. It installs for your Windows account and adds a
@@ -16,16 +16,27 @@ installer is an acceptance build, not a published stable release.
    SmartScreen may show an unknown-publisher prompt. Check that the file came
    from this repository's release before choosing Windows' More info / Run anyway
    option if offered. Do not turn off system-wide protection.
-4. For HEVC/H.265 recordings, Windows needs a working HEVC decoder and suitable
-   graphics drivers. If the app reports missing HEVC support, use Microsoft's
-   HEVC Video Extensions/OEM-provided decoder. This is separate from WebView2;
-   installing the app does not itself grant a Microsoft codec license.
+4. **Windows 11 x64 is the recommended, owner-tested Windows platform.** The
+   owner confirmed that Trip Viewer works on their Windows 11 computer without
+   installing any additional codec or plugin. This does not guarantee HEVC
+   availability on every Windows 11 computer; decoding also depends on the
+   existing system codecs and graphics drivers.
+5. **Windows 10 x64: HEVC playback after purchasing a decoder is untested.** If
+   HEVC/H.265 support is missing, search Microsoft Store for **HEVC Video
+   Extensions** from Microsoft and, if desired, purchase it at the price shown
+   there (€0.99 was reported during testing; price and availability can vary).
+   Restart Trip Viewer afterwards. Playback is expected to be possible with a
+   compatible decoder/driver combination, but has not been verified in this fork.
+   The app’s existing Store button targets the device-manufacturer edition, which
+   was unavailable on the tested Windows 10 computer; it is not a reliable free
+   option for all devices. WebView2 and the HEVC decoder are separate requirements;
+   installing Trip Viewer or VLC does not add VLC’s decoder to WebView2.
 
 For updates, **Settings → Application updates → Download Windows installer**
 opens the matching published `.exe`. Close Trip Viewer and run it to update in
 place; the installer rejects older versions. Windows ARM-native packages are
-not offered by this release. Original-recording playback/GPS on Windows still
-needs the owner's focused test; Windows 10/11 x64 are the requested test targets.
+not offered by this release. See the [compatibility record](COMPATIBILITY.md) for
+the confirmed Windows 11 result and the untested Windows 10 paid-codec path.
 
 ## macOS: experimental Intel and Apple Silicon package
 

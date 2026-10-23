@@ -7,8 +7,9 @@ Synchronized dashcam video, GPS maps and trip review. This is the
 [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer), built on the
 original authors’ work. The upstream icon, copyright and license notices are retained.
 
-**The fork maintainer’s functional testing is limited to VIOFO A229 Pro 3CH
-on Ubuntu 24.04 LTS.** Existing Wolf Box, Thinkware, Miltona MNCD60 and generic
+**The fork maintainer’s hands-on camera testing covers VIOFO A229 Pro 3CH
+on Ubuntu 24.04 LTS and Windows 11 x64.** Windows 11 worked on the tested
+computer without installing an additional codec or plugin. Existing Wolf Box, Thinkware, Miltona MNCD60 and generic
 camera support remains in the code. Other cameras/platforms are not newly
 certified by this fork; lack of confirmation does not mean they stopped working.
 See the [compatibility evidence](docs/COMPATIBILITY.md).
@@ -27,9 +28,15 @@ published):
 
 | Platform | Installer | Installation |
 | --- | --- | --- |
-| Windows 10/11 x64 | `Trip.Viewer_<version>_Windows_x64_setup.exe` | Run the installer, then launch Trip Viewer from Start |
+| Windows 11 x64 (recommended); Windows 10 x64 (HEVC caveat below) | `Trip.Viewer_<version>_Windows_x64_setup.exe` | Run the installer, then launch Trip Viewer from Start |
 | macOS 11+ Intel / Apple Silicon | `Trip.Viewer_<version>_macOS_universal_experimental.dmg` | Open the disk image and drag Trip Viewer into Applications |
 | Ubuntu 24.04 LTS x86_64 | `Trip.Viewer_<version>_Ubuntu-24.04_amd64.deb` | Double-click and choose Install/Update |
+
+Windows 11 playback was confirmed without an additional codec installation on
+the tested computer; other systems can have different codec/driver requirements.
+On Windows 10, if HEVC support is missing, Microsoft’s **HEVC Video Extensions**
+may need to be purchased from the Store at the displayed price (reported as
+€0.99 during testing). **Windows 10 playback after that purchase is untested.**
 
 Windows installers are not publisher-signed. Mac packages are ad-hoc signed,
 not Apple-notarized, and **experimental until real-device testing**. Native

@@ -60,9 +60,14 @@ that main tree and prepares **0.8.0** for Windows 10/11 x64 and experimental mac
 11+ Intel/Apple Silicon, retaining the Ubuntu packages. This is an authorized
 platform-distribution change, not a new claim of camera compatibility.
 
-- The owner can test Windows 10 and 11 x64. Request a focused installation,
-  recording Play/Pause, segment/seek, GPS and persistent bookmark check before
-  owner merge. No Windows recording acceptance has been reported yet.
+- On 2026-10-23 the owner confirmed Trip Viewer works on Windows 11 x64 without
+  installing another codec/plugin. Treat that result as accepted; do not request
+  a repeat for documentation changes or infer an exhaustive per-feature matrix.
+  Windows 11 is the recommended Windows platform. On Windows 10 the linked OEM
+  HEVC Store extension was unavailable; the general paid extension was offered
+  for €0.99. Playback after purchase is untested and must remain labeled as such.
+  Use the Store’s displayed price rather than promising a fixed amount. The
+  owner chose documentation of this limit instead of a VLC/player rewrite.
 - No Mac tester is available. The universal DMG is explicitly experimental and
   ad-hoc signed without Apple notarization. Native compilation, architecture,
   package notices/signature/contents and basic launch checks are automated;
@@ -91,8 +96,11 @@ thirteen policy tests, 58 frontend IPC calls/all 17 migrations, configuration
 schemas and actionlint. Native Linux 0.8.0 confirms get_install_target returns
 linux-x64, the update UI renders/selects its installer, offline errors do not
 replace existing video nodes and no downgrade is offered. The headless check
-does not activate an OS browser. Native Windows/Mac CI and owner Windows
-real-recording acceptance remain separate pending gates.
+does not activate an OS browser. The final native CI run
+[39693022945](https://github.com/Marcus-P/trip-viewer/actions/runs/39693022945)
+passed Linux, Windows and universal Mac package checks plus the required ubuntu
+aggregate. The owner subsequently confirmed Windows 11 operation; Mac footage
+and Windows 10 with the paid HEVC extension remain untested.
 
 Initial native tests exposed noncanonical temporary roots in checkpoint fixtures
 (Mac aliases / Windows short-name paths), not a parser change. The same three
@@ -135,9 +143,11 @@ the repository API then reported zero Actions artifacts and zero caches.
 
 ## Scope and accepted functional tests
 
-**The fork maintainer has limited hands-on functional testing exclusively to
-VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.** Other camera support remains implemented;
-this limited test scope is not a report of other-camera breakage.
+**The fork maintainer’s hands-on camera testing covers VIOFO A229 Pro 3CH on
+Ubuntu 24.04 LTS and Windows 11 x64.** Windows 11 worked on the tested computer
+without an additional codec/plugin installation. Windows 10 with a paid HEVC
+extension and Mac real-footage playback remain unconfirmed. Other camera support
+remains implemented; this limited test scope is not a report of other-camera breakage.
 
 The user confirmed successful Linux playback after contributor `gubiq`’s PR #2
 libva/DMABuf changes; keep those workarounds. PR #3 added channel-local error

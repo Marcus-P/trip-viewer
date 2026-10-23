@@ -24,8 +24,11 @@ updater and roadmap statements do not describe this fork automatically.
 | Fork packaging | Ubuntu 24.04 x86_64 AppImage and Debian packages; published-release hints, user-confirmed installs |
 
 Hardware acceleration is provided by the available platform media stack, not a
-universal guarantee. Windows/macOS code is retained, but this fork’s hands-on
-validation is limited to VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS.
+universal guarantee. This fork’s hands-on camera validation covers VIOFO A229
+Pro 3CH on Ubuntu 24.04 LTS and Windows 11 x64. Windows 11 worked on the tested
+computer without installing another codec/plugin. Windows 10 playback with the
+paid HEVC extension and Mac real-footage playback remain untested; see the
+[compatibility record](docs/COMPATIBILITY.md).
 
 ## Player and clocks
 
