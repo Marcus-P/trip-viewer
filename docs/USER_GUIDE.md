@@ -30,7 +30,10 @@ footage folder. “New segments only” can complete immediately when nothing is
 
 ## Video views
 
-- **Cameras** checkboxes show/hide the channels available in the current source.
+- **Settings → Display layout** groups the Front, Interior, Rear and map
+  checkboxes. Additional camera labels found in the archive are listed too.
+  Select the views you want, then choose **Save**; **Cancel** discards changes.
+  These settings persist across restarts, including the existing camera choices.
   They save a display preference, not a recording or deletion setting. Visible
   cameras reclaim hidden tiles; a single camera fills the video grid. If every
   camera is hidden, the map fills the viewing area when available. Re-enable a

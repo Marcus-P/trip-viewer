@@ -80,6 +80,13 @@ platform-distribution change, not a new claim of camera compatibility.
 - The native get_install_target command selects exact release assets for the
   compiled target. Unsupported architectures retain a release-page fallback.
   Raw API response caching is shared without mixing platform-specific selections.
+- The owner requested moving the existing camera checkboxes from the player
+  header into Settings alongside the map. Settings → Display layout now groups
+  Front/Interior/Rear, additional archive channel labels and Show map behind the
+  existing Save/Cancel controls. The existing layout storage key and saved camera
+  choices are retained; a layout notification updates the mounted player after
+  Save. Playback/GPS/sync algorithms and native code are unchanged. This remains
+  part of the same 0.8.0 PR, with no additional version increment.
 - The reused Windows/Mac packaging workflow runs native Rust tests only when
   backend checks are selected. PR artifacts contain one installer per platform
   for seven days. Publishing rebuilds the merged native packages once, transfers
@@ -166,7 +173,7 @@ controlled speedup factor or exhaustively tested encoding/import/platform matrix
 
 - Stable video elements; canonical sync clock is separate from visual primary/visibility. Failed cameras leave healthy ones running; recovered cameras rejoin as slaves during a source. Preserve validated media-health fingerprinting, probe/backoff and promoted-clock behaviour.
 - GPS parser **v8**, archive schema **17**. Shared candidate/batch pool caps reads at two; ordered selection/boundary checks and raw per-segment checkpoints preserve deterministic results. Source/health fingerprints invalidate stale caches. Parsing stays outside long DB locks; trip selections rejoin in-flight work.
-- Camera checkboxes save hidden labels in layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
+- Settings → Display layout groups camera visibility with the map switch and saves hidden labels in the existing layout preferences. Visible cameras determine CSS placement, including full-height two-camera and full-grid single-camera views; all-hidden mode expands the available map. Videos and sync/audio master stay mounted/selected.
 - Fullscreen uses one player root and logical dashboard/video navigation. Dashboard has the lower transport/timeline toggle; single-camera keeps upper Play/Pause. Paused zoom/pan resets on resume/source change.
 - Timeline/map/bookmarks reuse trip-time seeking. Bookmarks are integer milliseconds in the archive DB, independently of GPS. Right-click graph adds; marker left-click seeks/right-click removes; arrow-bar buttons navigate without wrapping. Writes serialize; archive checks/stale-response guards protect switching. ID changes cascade and merges rebase positions transactionally.
 - Update awareness reads only published stable fork releases through an eight-second bounded request, shares a fifteen-minute raw-response cache and offers a validated same-repository package for the compiled target. Unknown targets or absent matching installers use the release page. It does not install silently, upload media or suggest downgrades. No upstream private signing key/plugin is used.

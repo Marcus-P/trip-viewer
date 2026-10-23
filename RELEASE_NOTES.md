@@ -16,6 +16,10 @@
 - Retains Ubuntu AppImage/Debian installers, existing icons, authorship, MIT and
   dependency notices. No Windows publisher certificate, Apple Developer ID,
   upstream signing key or unattended updater is assumed.
+- Groups the existing camera visibility checkboxes with Show map under
+  **Settings → Display layout**, removing the camera-checkbox row above the
+  player. Save applies the selection; Cancel discards edits. Existing saved
+  camera choices remain in place, and hidden views still free up display space.
 
 ## Native validation and storage
 
