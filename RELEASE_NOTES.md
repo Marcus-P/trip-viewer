@@ -1,3 +1,29 @@
+# Trip Viewer 0.8.1
+
+## Durable downloads for every main push
+
+- Runs the desktop release workflow on every push to `main`, including commits
+  that do not change `RELEASE_VERSION`. Each run builds the pushed head for
+  Windows x64, universal experimental macOS and Ubuntu 24.04 x86_64. Ubuntu
+  continues to include both the Debian installer and AppImage/bundle.
+- Publishes a stable `vX.Y.Z` release for a version-changing merge. An extra main
+  commit with the same app version gets an immutable `main-<full commit SHA>`
+  prerelease containing all three platforms. Such builds never replace a stable
+  version or appear as stable automatic-update suggestions.
+- Plans and validates release identity before installing native build dependencies
+  or building packages. Existing tags are rejected before those expensive jobs;
+  published installers and their checksums are never silently replaced.
+- Keeps permanent downloads in GitHub Releases rather than expiring Actions
+  artifacts. Only small Windows/Mac handoff artifacts use temporary storage,
+  removed after publication or expired after one day. PR test artifacts remain
+  short-lived and obsolete ones are removed after the release is verified.
+
+Playback, GPS, archive schema 17, parser 8 and dependencies are unchanged.
+Windows 11 owner acceptance remains valid; Windows 10 with a purchased HEVC
+extension is untested and Mac real-footage playback remains experimental.
+
+---
+
 # Trip Viewer 0.8.0
 
 ## Windows and experimental macOS packages
