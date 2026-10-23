@@ -13,7 +13,7 @@ Keep the original icons, [MIT notice](LICENSE) and
 
 Use [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest)
 as the authority for the published stable version. Owner-confirmed manual
-checks cover VIOFO A229 Pro 3CH / Ubuntu 24.04 LTS. Use
+checks cover VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS and Windows 11 x64. Use
 [compatibility evidence](docs/COMPATIBILITY.md) to describe other cameras; do not
 promote parser tests or synthetic media into hardware certification.
 
@@ -92,16 +92,26 @@ without a bypass actor. **Only the repository owner merges.** Do not substitute
 direct pushes, force pushes or `--admin` bypasses. Details and verification are in
 [branch protection](docs/BRANCH_PROTECTION.md).
 
-When a merged commit changes `RELEASE_VERSION`, `.github/workflows/release.yml`
-validates the version/notes and builds each merged platform's installers once. Windows/Mac packages are
-built natively and validated before the Ubuntu publishing job. Only their small
+Every push to `main` starts `.github/workflows/release.yml` without a path
+filter. It validates the version/notes and selects an immutable tag before
+building the pushed head once for **all three platforms**. A push containing
+several commits builds its final head, not separate installers for intermediate
+commits. Normal owner merges still increment the app version once per PR.
+Windows/Mac packages are built natively and validated before the Ubuntu publishing job. Only their small
 installers use one-day transfer artifacts; large Ubuntu AppImage/bundle files
 stay in the publishing job. Transfer checksums are verified, and successful
 publication removes those temporary artifacts.
 Relevant tests/audits already ran before the protected PR merge; they are not
 repeated here. It checks package contents and launcher integration, includes
-license inventories/texts, creates checksums and publishes `vX.Y.Z`. Relative
-release-note links are resolved against the published commit. Existing tags are rejected rather than overwritten.
+license inventories/texts and creates checksums. Version-changing merges publish
+stable `vX.Y.Z` downloads. An additional main commit with an unchanged version
+publishes `main-<full commit SHA>` as a prerelease, with the same app version in
+its installer but an exact source commit in its release notes/build information.
+These snapshots never become Latest Release or stable in-app update suggestions.
+Their downloads persist in Releases; installation is an explicit choice.
+Relative release-note links are resolved against the published commit. Existing
+tags are rejected in the lightweight planning job rather than overwritten;
+rerunning an already published commit does not rebuild or replace its downloads.
 
 Stable filenames are `Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.AppImage`,
 `Trip.Viewer_X.Y.Z_Ubuntu-24.04_amd64.deb`,

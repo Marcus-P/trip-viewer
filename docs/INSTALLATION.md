@@ -4,7 +4,11 @@ Download a published installer from
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest) → **Assets**.
 Choose your platform's installer, not Source code ZIP/TAR. Packages appear after
 the owner merges their PR and the release workflow succeeds. An Actions test
-installer is an acceptance build, not a published stable release.
+installer is an acceptance build, not a published stable release. Main pushes
+also build all three platforms. If the app version is unchanged, their durable
+downloads appear under [Releases](https://github.com/Marcus-P/trip-viewer/releases)
+as `main-<commit SHA>` prereleases. Those are optional builds and are not offered
+by the stable in-app update hint.
 
 ## Windows x64: Windows 11 recommended
 

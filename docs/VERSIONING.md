@@ -36,8 +36,12 @@ merging a failed version check through the UI. Only the repository owner may mer
 [branch rules](BRANCH_PROTECTION.md). Direct pushes, force pushes and admin
 bypasses are not the merge procedure.
 
-Changing `RELEASE_VERSION` on `main` triggers the existing Ubuntu release
-workflow, which builds, tests, packages, tags and publishes the matching version.
+Every push to `main` triggers the desktop release workflow for Windows, macOS
+and Ubuntu. A normal merged PR changes `RELEASE_VERSION` and publishes a stable
+version. A further main commit that leaves the app version unchanged receives a
+separate immutable `main-<full commit SHA>` prerelease instead of overwriting
+stable downloads. A multi-commit push builds its final head. Main publication
+builds/validates packages without repeating protected PR unit suites.
 A merge is recorded separately from release-build completion: only link users
 to a release after its workflow succeeds. Feature-branch CI artifacts include
 commit IDs and do not represent a stable release by themselves.

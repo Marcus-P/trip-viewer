@@ -3,8 +3,6 @@ name: Desktop Release
 on:
   push:
     branches: [main]
-    paths:
-      - RELEASE_VERSION
 
 permissions:
   contents: write
@@ -14,16 +12,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: Plan immutable release for this main commit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Validate version and mandatory release notes
+        run: node scripts/check-version.mjs
+      - name: Select stable version or commit-specific main build
+        id: plan
+        run: node scripts/plan-release.mjs
   desktop:
+    needs: prepare
     permissions:
       contents: read
     uses: ./.github/workflows/desktop-packages.yml
   release:
-    needs: desktop
+    name: Ubuntu packages and durable publication for all three platforms
+    needs: [prepare, desktop]
     permissions:
       contents: write
       actions: write
     runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,17 +66,6 @@ jobs:
             gstreamer1.0-libav gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       - run: npm ci
-      - name: Validate release version and notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/check-version.mjs
-          VERSION="$(tr -d '[:space:]' < RELEASE_VERSION)"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists." >&2
-            exit 1
-          fi
       # Protected PR CI already ran relevant unit tests/audit. Build the actual
       # merged release once; version-only docs releases need packaging, not a
       # second debug build and repetition of the same unit tests.
@@ -119,13 +133,22 @@ jobs:
           python3 - <<'PY' > "${RUNNER_TEMP}/release-notes.md"
           import os, pathlib, re, urllib.parse
           text = pathlib.Path("RELEASE_NOTES.md").read_text()
+          if os.environ["RELEASE_PRERELEASE"] == "true":
+              print("Main branch build. The application version is unchanged; automatic update hints continue to use stable releases only.\n")
+          print("Source commit: https://github.com/Marcus-P/trip-viewer/commit/" + os.environ["GITHUB_SHA"] + "\n")
           base = "https://github.com/Marcus-P/trip-viewer/blob/" + os.environ["GITHUB_SHA"] + "/"
           text = re.sub(r"\]\((?!https?://|mailto:|#)([^)]+)\)",
                         lambda m: "](" + base + urllib.parse.quote(m[1], safe="/#") + ")", text)
           print(text)
           PY
-          gh release create "v${VERSION}" --target "$GITHUB_SHA" \
-            --title "Trip Viewer v${VERSION} — Windows, Ubuntu and experimental macOS" \
+          RELEASE_OPTIONS=()
+          RELEASE_TITLE="Trip Viewer v${VERSION} — Windows, Ubuntu and experimental macOS"
+          if [ "$RELEASE_PRERELEASE" = true ]; then
+            RELEASE_OPTIONS+=(--prerelease --latest=false)
+            RELEASE_TITLE="Trip Viewer main ${GITHUB_SHA:0:12} (app ${VERSION}) — Windows, Ubuntu and experimental macOS"
+          fi
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" "${RELEASE_OPTIONS[@]}" \
+            --title "$RELEASE_TITLE" \
             --notes-file "${RUNNER_TEMP}/release-notes.md" release-assets/*
       - name: Remove temporary native transfer artifacts after publication
         env:

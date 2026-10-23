@@ -52,7 +52,33 @@ version-only metadata use lightweight checks and no test package. Their merged
 release builds packages once to embed the new version. Do not repeat accepted
 playback tests for a docs edit. Preserve this preference in subsequent work.
 
-## Windows/Mac distribution candidate
+## Main publication and storage follow-up
+
+The owner merged [PR #8](https://github.com/Marcus-P/trip-viewer/pull/8) as
+`51695488f810301e7206764765bc85af87ecd814` after its final PR CI passed. The
+[merged release workflow](https://github.com/Marcus-P/trip-viewer/actions/runs/39987838679)
+is publishing 0.8.0; inspect its actual outcome/assets before claiming publication.
+Ubuntu was not omitted: Windows/Mac native packages finish before the Ubuntu
+job builds the Debian installer, AppImage and bundle, then publishes all platforms.
+
+The owner requested durable downloads for every main push, plus obsolete Actions
+storage cleanup. The 0.8.1 follow-up removes the version-file path filter and
+adds lightweight immutable-release planning before native builds. Version-changing
+merges publish stable vX.Y.Z; additional unchanged-version main commits publish
+main-<full SHA> prereleases. A push builds its final head. Snapshots retain the
+app version and exact commit identity, never overwrite published assets and do
+not enter Latest Release or stable update hints. Existing tags stop the pipeline
+before expensive builds. Keep original media, package licenses and accepted
+Windows 11/Ubuntu playback evidence unchanged.
+
+Permanent installers belong in Releases. Temporary Windows/Mac handoffs remain
+one day and are removed after publication; large Ubuntu packages stay within the
+publishing job. Remove obsolete own PR artifacts after verified publication,
+preserving active release transfers and useful CI history; no build cache is added.
+The first cleanup removed three obsolete acceptance artifacts (20,637,195 bytes).
+The final PR #8 downloads are retained until its durable release is verified.
+
+## Windows/Mac distribution implementation record
 
 Published 0.7.2 followed the owner's merge of
 [PR #7](https://github.com/Marcus-P/trip-viewer/pull/7). Current work branches from
