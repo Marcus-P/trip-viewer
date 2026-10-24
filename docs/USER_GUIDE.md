@@ -20,6 +20,12 @@ installer download; Ubuntu asks you to confirm installation after you close the 
 
 Use the archive switcher and choose a footage/archive folder. Filename recognition
 and metadata probing group channels into segments and segments into trips.
+Choosing an archive automatically reloads its files, including when selecting
+that same folder again. Switching clears the previous archive's video selection
+and cached display data. The app reopens the last reachable archive on startup;
+the archive picker starts there. Import-source and archive picker locations are
+remembered separately, and Cancel leaves the previous location unchanged.
+
 Choosing a trip starts GPS preparation in the background. The progress counter
 advances per segment; playback can continue ahead of analysed GPS. Returning to
 a trip or restarting the app reuses completed checkpoints and resumes unfinished

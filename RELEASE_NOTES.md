@@ -1,3 +1,30 @@
+# Trip Viewer 0.8.2
+
+## Reload selected archives and remember folders
+
+- Automatically reloads the newly selected archive, including reselecting the
+  same folder. The loading indicator stays active during the scan; old library,
+  video-selection, GPS and archive-specific caches are cleared on a switch.
+- Serializes archive opens so the latest choice is also the last saved archive.
+  Startup restoration cannot overwrite a newer user selection. Late scan, GPS
+  and archive-metadata responses from the previous archive are ignored.
+- Reopens the last reachable archive on startup and starts the archive picker
+  there. Archive and import-source picker locations are remembered separately;
+  cancelling a picker preserves its previous location.
+- Rescans imported files after an earlier scan finishes, rather than displaying
+  that earlier scan's incomplete file list. Issues rescans use the same guarded
+  reload path and report errors instead of leaving a permanent loading state.
+- Persists the selected archive before replacing the active backend slot. A
+  failed settings write leaves the previous settings intact and reports an error.
+  A queued scan for an unrelated old root cannot persist or garbage-collect rows
+  in the newly active archive's database.
+
+Original recordings, archive schema 17, GPS parser 8, updater behaviour and
+platform delivery are unchanged. This PATCH requires a focused owner check of
+folder A → B, automatic list refresh and restart into B before stable merge.
+
+---
+
 # Trip Viewer 0.8.1
 
 ## Durable downloads for every main push
