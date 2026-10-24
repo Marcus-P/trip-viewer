@@ -10,6 +10,21 @@ beforeEach(() => {
   vi.mocked(ensureTripGps).mockReset();
   useStore.setState({ gpsPreparationByTrip: {}, gpsProgressByTrip: {}, tripGpsByTrip: {}, isPlaying: true });
 });
+it("does not rejoin or publish a previous archive's GPS for an identical trip ID", async () => {
+  useStore.getState().setCurrentArchive({ root: "/archive/A", label: "A" });
+  const old = pendingProgress();
+  useStore.getState().setCurrentArchive({ root: "/archive/B", label: "B" });
+  const next = pendingProgress();
+  expect(old.request).not.toBe(next.request);
+  old.progress({ kind: "started", attempt: 1, total: 2 });
+  old.complete(points);
+  await old.request;
+  expect(useStore.getState().tripGpsByTrip.trip).toBeUndefined();
+  expect(useStore.getState().gpsPreparationByTrip.trip).toBe("loading");
+  next.complete([]);
+  await next.request;
+  expect(useStore.getState().tripGpsByTrip.trip).toEqual([]);
+});
 it("shows background work without pausing transport, then publishes the cached GPS", async () => {
   let complete!: (points: GpsPoint[]) => void;
   vi.mocked(ensureTripGps).mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));

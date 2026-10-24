@@ -22,6 +22,17 @@ pub enum CameraModelPreference {
     ViofoA229Pro,
 }
 
+/// A queued scan must not write/garbage-collect a different archive after a switch.
+fn scan_root_in_archive(path: &Path, archive_root: &Path) -> Result<PathBuf, AppError> {
+    let root = dunce::canonicalize(path)?;
+    if !root.starts_with(archive_root) {
+        return Err(AppError::Internal(
+            "The active archive changed before this scan started; select the folder again.".into(),
+        ));
+    }
+    Ok(root)
+}
+
 /// Best-effort read of file size and last-modified time. Returns `(None, None)`
 /// if the path is gone or unreadable — these fields are decorative, not load-bearing.
 fn file_stats(path: &Path) -> (Option<u64>, Option<i64>) {
@@ -73,8 +84,9 @@ pub async fn scan_folder(
 ) -> Result<ScanResult, AppError> {
     let db = crate::archive::require_db(&slot)?;
     let archive_root = db.archive_root().to_path_buf();
+    let scan_root = scan_root_in_archive(Path::new(&path), &archive_root)?;
     let mut result = scan_folder_sync_with_camera_model(
-        Path::new(&path),
+        &scan_root,
         &archive_root,
         camera_model.unwrap_or_default(),
     )?;
@@ -344,6 +356,27 @@ fn close_trip(segments: Vec<Segment>) -> Trip {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn archive_scan_accepts_its_own_root_and_subfolders() {
+        let folder = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(folder.path()).unwrap();
+        let videos = root.join("Videos");
+        std::fs::create_dir(&videos).unwrap();
+        assert_eq!(super::scan_root_in_archive(&root, &root).unwrap(), root);
+        assert_eq!(super::scan_root_in_archive(&videos, &root).unwrap(), videos);
+    }
+
+    #[test]
+    fn archive_scan_rejects_a_previous_archive_even_with_a_shared_path_prefix() {
+        let folder = tempfile::tempdir().unwrap();
+        let active = folder.path().join("archive");
+        let previous = folder.path().join("archive-old");
+        std::fs::create_dir(&active).unwrap();
+        std::fs::create_dir(&previous).unwrap();
+        let active = dunce::canonicalize(active).unwrap();
+        assert!(super::scan_root_in_archive(&previous, &active).is_err());
+    }
+
     use super::*;
     use std::env::temp_dir;
     use std::fs;
