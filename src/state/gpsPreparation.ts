@@ -2,7 +2,7 @@ import { ensureTripGps } from "../ipc/gps";
 import type { GpsPoint, Trip } from "../types/model";
 import { useStore } from "./store";
 
-type Request = { baseline: GpsPoint[] | undefined; sources: string; promise: Promise<void> };
+type Request = { archive: ReturnType<typeof useStore.getState>["currentArchive"]; baseline: GpsPoint[] | undefined; sources: string; promise: Promise<void> };
 const requests = new Map<string, Request>();
 
 /** Show completed segments immediately, keeping persisted GPS atomic. */
@@ -11,7 +11,9 @@ export function prepareTripGps(
   excluded: Record<string, string[]> = {},
   force = false,
 ): Promise<void> {
-  const previous = requests.get(trip.id);
+  const archive = useStore.getState().currentArchive;
+  const pending = requests.get(trip.id);
+  const previous = pending?.archive === archive ? pending : undefined;
   const sources = JSON.stringify(trip.segments);
   // Navigation rejoins the active job, including any forced health refresh.
   // It must not clear its preview or queue another extraction behind it.
@@ -19,6 +21,7 @@ export function prepareTripGps(
     return previous.promise;
   }
   const request: Request = {
+    archive,
     baseline: previous ? previous.baseline : useStore.getState().tripGpsByTrip[trip.id],
     sources,
     promise: Promise.resolve(),
@@ -34,6 +37,7 @@ async function runPreparation(
   force: boolean,
   request: Request,
 ): Promise<void> {
+  const active = () => requests.get(trip.id) === request && useStore.getState().currentArchive === request.archive;
   const resetPreview = () => useStore.setState((s) => {
     const gps = { ...s.tripGpsByTrip };
     if (request.baseline === undefined) delete gps[trip.id];
@@ -59,7 +63,7 @@ async function runPreparation(
   }
   try {
     const points = await ensureTripGps(trip, excluded, force, (progress) => {
-      if (requests.get(trip.id) !== request) return;
+      if (!active()) return;
       if (progress.kind === "started") {
         if (progress.attempt < attempt) return;
         attempt = progress.attempt;
@@ -82,13 +86,13 @@ async function runPreparation(
         [trip.id]: { completed: progress.kind === "started" ? 0 : progress.completed, total: progress.total },
       } }));
     });
-    if (requests.get(trip.id) !== request) return;
+    if (!active()) return;
     useStore.setState((s) => ({
       tripGpsByTrip: { ...s.tripGpsByTrip, [trip.id]: points },
       gpsPreparationByTrip: { ...s.gpsPreparationByTrip, [trip.id]: "ready" },
     }));
   } catch (error) {
-    if (requests.get(trip.id) === request) {
+    if (active()) {
       resetPreview();
       useStore.setState((s) => ({ gpsPreparationByTrip: { ...s.gpsPreparationByTrip, [trip.id]: "error" } }));
     }

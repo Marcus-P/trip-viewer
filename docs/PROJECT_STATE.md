@@ -57,7 +57,8 @@ playback tests for a docs edit. Preserve this preference in subsequent work.
 The owner merged [PR #8](https://github.com/Marcus-P/trip-viewer/pull/8) as
 `51695488f810301e7206764765bc85af87ecd814` after its final PR CI passed. The
 [merged release workflow](https://github.com/Marcus-P/trip-viewer/actions/runs/39987838679)
-is publishing 0.8.0; inspect its actual outcome/assets before claiming publication.
+successfully published 0.8.0 for all three platforms. Its tag points to that
+merge; the thirteen expected assets and all five package checksums were verified.
 Ubuntu was not omitted: Windows/Mac native packages finish before the Ubuntu
 job builds the Debian installer, AppImage and bundle, then publishes all platforms.
 
@@ -76,7 +77,41 @@ one day and are removed after publication; large Ubuntu packages stay within the
 publishing job. Remove obsolete own PR artifacts after verified publication,
 preserving active release transfers and useful CI history; no build cache is added.
 The first cleanup removed three obsolete acceptance artifacts (20,637,195 bytes).
-The final PR #8 downloads are retained until its durable release is verified.
+After publication was verified, the obsolete PR #8 and completed PR #9 test
+packages and a leftover transfer were removed. The final API inventory at that
+handoff reported zero Actions artifacts and zero caches; active later acceptance
+downloads must still be retained until no longer needed.
+
+## Archive selection and remembered folders (0.8.2 follow-up)
+
+The owner merged PR #9 as `97e1858262b6c255ad637c1116455358f4312d63`.
+Its [release run](https://github.com/Marcus-P/trip-viewer/actions/runs/40010611521)
+succeeded and published 0.8.1. The next PATCH fixes archive switching/reloading
+and remembered folder choices in both the fork and prepared upstream contribution.
+
+The old scan path set status to loading then immediately reset it to idle when
+clearing errors. It retained the previous library/player/cache state, gated
+startup scanning on idle, and accepted delayed replies without archive identity.
+The shared navigation service now serializes native opens, scans every new
+archive session (including reselecting one path), restores startup state without
+overwriting a newer choice, and discards obsolete replies. Scan errors finish
+loading visibly. Import completion requests a fresh scan after any older one.
+The active archive is cleared from playback/cache state before displaying its
+new library. GPS and archive-only/metadata results are scoped to their session.
+
+The existing backend last_archive setting is preserved and tested across reloads.
+The native slot switches only after settings save succeeds; failed saves retain
+the old in-memory settings. A native scan-root check prevents queued old scans
+from persisting/garbage-collecting an unrelated newly selected archive.
+Picker locations are persisted separately for archive and import source; an
+explicit active archive path takes precedence, and Cancel changes neither.
+No original recordings, database schema, GPS parser or upstream updater change.
+
+Before the owner merges the fork fix or publishes the refreshed upstream PR,
+request the small real-world test: open A, then B without Reload, verify B's
+recordings, restart into B and confirm the picker starts there. Keep the upstream
+handoff paused until this acceptance. Preserve PR #16 while its replacement is
+unpublished; upstream metadata edits remain HTTP 403 for the integration.
 
 ## Windows/Mac distribution implementation record
 
