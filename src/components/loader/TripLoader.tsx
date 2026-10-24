@@ -1,7 +1,6 @@
 import { useEffect } from "react";
-import { openArchive } from "../../ipc/archive";
 import { pickFolder } from "../../ipc/dialog";
-import { scanFolder } from "../../ipc/scanner";
+import { reloadArchive, selectArchive } from "../../state/archiveNavigation";
 import { useStore } from "../../state/store";
 
 /**
@@ -9,47 +8,32 @@ import { useStore } from "../../state/store";
  * it to an archive root, opens (or creates) `<root>/.tripviewer/tripviewer.db`,
  * and persists `last_archive` so the next launch reopens automatically.
  *
- * The initial auto-scan of an auto-reopened archive lives in
+ * Automatic scanning of restored and newly selected archives lives in
  * `useArchiveAutoScan`, which App calls unconditionally: this component
  * is unmounted while the sidebar is collapsed, and the startup splash
  * waits for that scan, so it must not depend on the sidebar being open.
  */
-async function scanArchive(folder: string) {
-  const { setStatus, setError, setScanResult } = useStore.getState();
-  setStatus("loading");
-  setError(null);
-  try {
-    const result = await scanFolder(folder);
-    setScanResult(result);
-  } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
-  }
-}
-
-/** Auto-scan on startup when the backend already had an archive open
- *  (typical case: user reopened the app, last_archive was reachable). */
 export function useArchiveAutoScan() {
-  const currentRoot = useStore((s) => s.currentArchive?.root);
+  const archive = useStore((s) => s.currentArchive);
   useEffect(() => {
-    if (currentRoot && useStore.getState().status === "idle") {
-      void scanArchive(currentRoot);
+    if (archive) {
+      void reloadArchive();
+      void useStore.getState().refreshPlaces();
+      void useStore.getState().refreshTimelapseJobs();
     }
-  }, [currentRoot]);
+  }, [archive]);
 }
 
 export function TripLoader() {
   const status = useStore((s) => s.status);
   const setError = useStore((s) => s.setError);
   const currentArchive = useStore((s) => s.currentArchive);
-  const setCurrentArchive = useStore((s) => s.setCurrentArchive);
 
   async function onPick() {
-    const folder = await pickFolder();
+    const folder = await pickFolder("Select your dashcam archive folder", currentArchive?.root);
     if (!folder) return;
     try {
-      const info = await openArchive(folder);
-      setCurrentArchive(info);
-      await scanArchive(info.root);
+      await selectArchive(folder);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

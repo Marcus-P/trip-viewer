@@ -20,6 +20,7 @@ import { ReviewView } from "./components/review/ReviewView";
 import { PlacesView } from "./components/places/PlacesView";
 import { TimelapseView } from "./components/timelapse/TimelapseView";
 import { useStore } from "./state/store";
+import { restoreArchive } from "./state/archiveNavigation";
 import { formatBytes } from "./utils/format";
 import { KIND_META, kindCounts } from "./utils/issueKinds";
 import {
@@ -80,18 +81,7 @@ function App() {
     // there's no archive open we mark the library "first load done"
     // immediately — there's nothing to load and the sidebar would
     // otherwise spin forever.
-    void import("./ipc/archive")
-      .then(({ currentArchive }) => currentArchive())
-      .then((info) => {
-        useStore.getState().setCurrentArchive(info);
-        if (!info) {
-          useStore.setState({ libraryFirstLoadDone: true });
-        }
-      })
-      .catch((e) => {
-        console.error("currentArchive hydration failed", e);
-        useStore.setState({ libraryFirstLoadDone: true });
-      });
+    void restoreArchive();
     void useStore.getState().loadUserApplicableTags();
     void useStore.getState().refreshPlaces();
     // Load ffmpeg path + capabilities eagerly so that by the time the
