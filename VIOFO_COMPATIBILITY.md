@@ -105,7 +105,7 @@ The follow-up changes no Rust runtime code or migration scripts.
 
 The prepared contribution also includes the shared bugfix from
 [fork PR #10](https://github.com/Marcus-P/trip-viewer/pull/10), a follow-up to
-published 0.8.1. It is not a claim that 0.8.2 is already published or accepted.
+published 0.8.1. The fork's stable publication is separate from test acceptance.
 
 - Selecting another archive, or reselecting the same folder, automatically
   reloads the recording list. Old playback/library/cache state is cleared.
@@ -126,8 +126,10 @@ Review entry points: `src/state/archiveNavigation.ts` and its tests,
 This updated contribution passes **100 frontend tests** and the TypeScript/Vite
 production build. Native regression cases cover remembered-folder persistence,
 failed settings writes and scan-root isolation; native/package results are
-recorded in fork PR #10. The focused owner A → B → restart acceptance remains
-pending; the prepared upstream publication is paused until it is confirmed.
+recorded in fork PR #10. On 2026-10-25 the owner confirmed the requested
+A → B → restart test, including automatic recording refresh, restoring B and
+starting the archive picker there. This acceptance preserves the camera/OS
+scope above; no broader platform matrix is inferred.
 The fork version files and release metadata are separate from this bugfix commit
 and are not part of this contribution. Upstream's updater/signing/versioning
 remain intact. No new DB migration, parser version or original-media rewrite.
