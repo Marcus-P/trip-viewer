@@ -62,7 +62,7 @@ and incorporates the shared application changes from fork release
 `97e1858262b6c255ad637c1116455358f4312d63`. The contribution keeps upstream's
 own application/package version; the fork's release number is a source reference.
 
-GPS, player synchronization, archive schema and checkpoint fixes already match
+The GPS parser, player synchronization, archive schema and checkpoint fixes match
 that fork release. The latest follow-up groups camera visibility and Show map in
 **Settings → Display layout**, replacing the row above the player. Front,
 Interior, Rear and additional archive channel labels are available. Save applies
@@ -93,9 +93,41 @@ in-memory SQL smoke upgraded an upstream schema-13 fixture through migrations
 This verifies the SQL upgrade path, not every real archive or the old binary's
 ability to reopen an upgraded archive. Back up archives before testing.
 
-Latest follow-up validation: TypeScript typecheck and Vite production build pass;
+Display-settings follow-up validation: TypeScript typecheck and Vite production build pass;
 ten focused tests cover saved-layout notifications/persistence, camera placement
 and map visibility. Static comparisons confirm that shared GPS/sync/database
 code matches fork 0.8.1 and upstream's versions, dependency locks, updater,
 signing/release scripts, workflows, icons and license files are retained.
 The follow-up changes no Rust runtime code or migration scripts.
+
+
+## Archive-switch bugfix (fork 0.8.2 candidate)
+
+The prepared contribution also includes the shared bugfix from
+[fork PR #10](https://github.com/Marcus-P/trip-viewer/pull/10), a follow-up to
+published 0.8.1. It is not a claim that 0.8.2 is already published or accepted.
+
+- Selecting another archive, or reselecting the same folder, automatically
+  reloads the recording list. Old playback/library/cache state is cleared.
+- Native archive opens are serialized. Delayed startup, scan, GPS and metadata
+  replies cannot overwrite a newer selection. Import completion requests a
+  fresh scan after any older in-flight scan, so copied recordings are included.
+- The last reachable archive is restored on startup. Archive and import-source
+  picker locations are remembered separately; cancelling preserves the choice.
+- The backend saves settings before replacing its active archive slot. Failed
+  saves retain prior in-memory settings. Queued scans of unrelated previous
+  roots are rejected before they can persist or garbage-collect database rows.
+
+Review entry points: `src/state/archiveNavigation.ts` and its tests,
+`src/components/loader/TripLoader.tsx`, `src/ipc/dialog.ts`, `src/state/store.ts`,
+`src/state/gpsPreparation.ts`, `src-tauri/src/archive.rs`,
+`src-tauri/src/app_settings.rs` and `src-tauri/src/scan/mod.rs`.
+
+This updated contribution passes **100 frontend tests** and the TypeScript/Vite
+production build. Native regression cases cover remembered-folder persistence,
+failed settings writes and scan-root isolation; native/package results are
+recorded in fork PR #10. The focused owner A → B → restart acceptance remains
+pending; the prepared upstream publication is paused until it is confirmed.
+The fork version files and release metadata are separate from this bugfix commit
+and are not part of this contribution. Upstream's updater/signing/versioning
+remain intact. No new DB migration, parser version or original-media rewrite.
