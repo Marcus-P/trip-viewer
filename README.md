@@ -173,6 +173,9 @@ VIOFO A229 Pro 3CH normal/parking recognition and embedded GPS, Linux playback
 recovery, progressive GPS preparation, route seeking, persistent bookmarks,
 paused zoom and camera visibility are described in
 [VIOFO_COMPATIBILITY.md](VIOFO_COMPATIBILITY.md). The contributor's hands-on
-functional checks used only VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS; existing
-camera implementations remain without a new hardware certification. Upstream
-release/updater configuration is retained.
+camera checks cover VIOFO A229 Pro 3CH on Ubuntu 24.04 LTS and a successful
+Windows 11 x64 report without an additional codec installation. Existing other
+camera implementations remain without a new hardware certification. Camera and
+map visibility are grouped under **Settings → Display layout**; Save applies
+choices and Cancel discards edits. Existing choices persist across restarts.
+Upstream release/updater configuration is retained.

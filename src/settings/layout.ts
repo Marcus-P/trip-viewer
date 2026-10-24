@@ -9,6 +9,12 @@ export interface LayoutPreferences {
 }
 
 const STORAGE_KEY = "tripviewer.layout.v1";
+const listeners = new Set<() => void>();
+
+export function subscribeLayoutPreferences(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
   hiddenChannels: [],
@@ -79,5 +85,6 @@ export function saveLayoutPreferences(
   } catch (e) {
     console.warn("[layout] failed to persist layout preferences", e);
   }
+  for (const listener of listeners) listener();
   return next;
 }

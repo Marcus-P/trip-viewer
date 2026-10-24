@@ -126,7 +126,7 @@ export function MainNavTabs() {
     <>
       <nav
         role="tablist"
-        className="flex shrink-0 items-end gap-1 border-b border-neutral-800 bg-neutral-950 px-3 pt-1"
+        className="flex min-w-0 shrink-0 items-end gap-1 overflow-x-auto border-b border-neutral-800 bg-neutral-950 px-3 pt-1"
       >
         {MAIN_TABS.map(renderTab)}
         {issueCount > 0 && (
