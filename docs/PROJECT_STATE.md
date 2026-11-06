@@ -30,7 +30,7 @@ fullscreen temporarily removes the crop/mask and restores it on exit. Dashboard
 fullscreen retains the composition. Database schema 17/parser 8 and media files
 are unchanged; no new native dependency or video export is introduced.
 
-All 120 frontend tests, TypeScript/production build, IPC registration checks and
+The initial 120 frontend tests, TypeScript/production build, IPC registration checks and
 documentation/version checks pass locally. Focused geometry/storage tests and
 local Chromium harnesses (including the full PlayerShell) with synthetic
 H.264 footage verify mask clipping, frame/crop independence, stable video nodes
@@ -38,11 +38,22 @@ and SyncEngine with zero source reloads, Save/Cancel, mode restoration, Play/Pau
 seeking, automatic segment advance, Settings Save/Cancel, fullscreen and
 hidden-camera fallback. These checks
 do not establish real VIOFO/HEVC or WebKitGTK/macOS compatibility for the new mask.
-Before merge, request a small owner check on Ubuntu: switch Classic ↔ Overlay
-during playback, move/resize Rear, adjust only its crop, move Interior, save and
-restart, then cross a segment boundary. Check mirror corners reveal Front and
-that all visible channels continue playing. Existing accepted playback/GPS tests
-remain valid; do not request their full repetition.
+The owner's initial overlay test was positive, with a specific follow-up that
+Rear's visible vertical area was not readily adjustable. Explicit horizontal and
+vertical crop-position sliders now select the visible region (Bottom / road
+aligns the lower part of Rear). Changing zoom or a position slider also selects
+crop-drag mode automatically, avoiding the prior Move frame default when zooming.
+The follow-up passes ten focused geometry/storage tests and the frontend build.
+A synthetic Chromium pixel check confirms Top selects blue sky, Bottom selects
+gray road and additional zoom retains that lower region; frame/Front remain
+unchanged, crop dragging works after zoom, saved positions restore and no video
+source reload occurs. No additional native or CI package build was run.
+This focused follow-up still needs the owner's check; preserve the other accepted
+overlay behaviour and do not request the whole acceptance sequence again.
+The remaining owner check is focused: select Rear, choose Bottom / road, adjust
+zoom and confirm the lower video region remains visible with a stationary frame
+and Front background; save and reopen to confirm the position is retained.
+Existing accepted playback/GPS tests remain valid; do not request their full repetition.
 
 Respect the owner's work cadence: at most two hours active work followed, if
 unfinished, by five hours with no builds/CI/background work. Finish earlier when

@@ -73,6 +73,11 @@ Choose **Edit overlay**:
    do not move. Cropping fills the mask without stretching the image or exposing
    empty edges. At 100%, some directions may already have no extra image to pan;
    increase Crop zoom to reveal movement in those directions.
+   **Horizontal crop** and **Vertical crop** also select the visible part directly.
+   Move Vertical crop toward **Bottom / road** to show the lower part of Rear
+   instead of the sky. Adjusting zoom or either position slider automatically
+   enables Adjust video crop; dragging then moves the video inside the fixed
+   frame. The saved crop position also applies when changing zoom.
 3. **Shape** selects a rounded rectangle or rear-view mirror. Outside the mirror's
    curved outline the layer is transparent, revealing the background. The mirror
    shape does not horizontally flip the recording. **Bring to front** changes

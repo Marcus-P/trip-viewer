@@ -9,6 +9,9 @@
 - Adds an overlay editor with independent frame movement/resizing and persistent,
   aspect-preserving video cropping. The mirror's outside corners are transparent,
   revealing Front. Editing Rear does not transform Front or move the mirror frame.
+  Explicit horizontal/vertical crop-position sliders select the visible area;
+  Bottom / road brings the lower part of Rear into view. Zoom/position controls
+  automatically enable video-crop dragging instead of moving the frame.
 - Saves relative positions, crop/zoom, shape and stacking across restarts and
   segment changes. Save commits a draft; Cancel discards it. Reset is previewed
   until saved. Keyboard handles support fine adjustments.

@@ -40,6 +40,9 @@ switch back to Classic before returning to the stable app if desired.
    **Adjust video crop**, select Rear, increase **Crop zoom** and drag the video
    inside the mirror. Only Rear's crop should change; the frame and Front stay
    still. Curved mirror corners should show Front, not a black rectangle.
+   Alternatively, move **Vertical crop** toward **Bottom / road** to bring the
+   road into view. Zooming or using a crop-position slider automatically enables
+   video-crop dragging. Changing zoom should retain the selected lower region.
 3. Move Interior to the desired corner. Save. Test Pause/Play, a segment boundary,
    single-camera and dashboard fullscreen, and switching back to Classic.
 4. Close the test app, rerun the final command above and check that Overlay,
