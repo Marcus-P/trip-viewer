@@ -1,3 +1,29 @@
+# Trip Viewer 0.9.0
+
+## Optional overlay camera layout
+
+- Keeps the existing Classic layout and its saved sizes, adding a switchable
+  Overlay mode with Front as the background. Rear starts in a rear-view mirror
+  mask and Interior in a separately positioned overlay; other channel labels
+  and camera visibility settings remain supported.
+- Adds an overlay editor with independent frame movement/resizing and persistent,
+  aspect-preserving video cropping. The mirror's outside corners are transparent,
+  revealing Front. Editing Rear does not transform Front or move the mirror frame.
+- Saves relative positions, crop/zoom, shape and stacking across restarts and
+  segment changes. Save commits a draft; Cancel discards it. Reset is previewed
+  until saved. Keyboard handles support fine adjustments.
+- Reuses the mounted video elements, sources and SyncEngine when switching views
+  or editing. Dashboard fullscreen retains the composition; single-camera
+  fullscreen shows the full recording and restores the saved crop when exiting.
+
+This is a source-branch candidate pending the focused owner overlay test. It does
+not change original recordings, archive schema 17, GPS parser 8, native playback
+workarounds, updater behaviour or platform release workflows. Existing camera/OS
+validation limits still apply; synthetic browser tests do not certify HEVC or
+WebKitGTK mask compositing. A possible 1.0 release remains a separate decision.
+
+---
+
 # Trip Viewer 0.8.2
 
 ## Reload selected archives and remember folders

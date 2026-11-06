@@ -44,13 +44,51 @@ footage folder. “New segments only” can complete immediately when nothing is
   cameras reclaim hidden tiles; a single camera fills the video grid. If every
   camera is hidden, the map fills the viewing area when available. Re-enable a
   checkbox to restore video. Camera hiding does not select a new audio/sync master.
-- Click a secondary camera to make it visually primary. Double-click the main
+- In **Classic** layout, click a secondary camera to make it visually primary. Double-click the main
   camera for single-camera fullscreen.
 - **F/I/R + GPS fullscreen** opens the dashboard. Its timeline/speed graph can be
   collapsed/expanded. Play/Pause is in the lower bar; single-camera fullscreen
   retains its own upper transport. Back/exit navigation restores the prior view.
 - While paused, use the wheel or `+`/`−` to zoom, then drag to pan. The percentage
   control resets zoom. Playback resume or source change restores the normal view.
+
+### Overlay layout
+
+Choose **Camera layout → Overlay** above the videos, or choose the default under
+**Settings → Display layout**. **Classic** restores the existing tiled view and
+its saved proportions. Both layouts reuse the same videos and playback clock.
+
+In Overlay, Front is the background; Rear starts in a rear-view mirror mask and
+Interior in a separate rounded overlay. If Front is hidden or absent, the first
+visible camera becomes the background. Other visible channel labels receive
+their own overlays. Camera visibility and map settings apply in both modes.
+
+Choose **Edit overlay**:
+
+1. With **Drag to → Move frame**, drag an overlay to position it. Drag its
+   lower-right handle to resize it. Positions/sizes are relative to the video
+   area and remain inside it when resizing the application or entering fullscreen.
+2. Select a **Camera** and choose **Drag to → Adjust video crop**. Set **Crop zoom**
+   and drag that camera's video inside its fixed frame. The background and frame
+   do not move. Cropping fills the mask without stretching the image or exposing
+   empty edges. At 100%, some directions may already have no extra image to pan;
+   increase Crop zoom to reveal movement in those directions.
+3. **Shape** selects a rounded rectangle or rear-view mirror. Outside the mirror's
+   curved outline the layer is transparent, revealing the background. The mirror
+   shape does not horizontally flip the recording. **Bring to front** changes
+   the selected overlay's stacking order.
+4. **Save layout** retains positions, shapes, stacking and crops after restarting.
+   **Cancel** discards this edit session. **Reset overlay** previews the default
+   overlays; Save applies the reset, Cancel restores the saved arrangement.
+
+The move/crop area and resize handle also accept arrow keys; hold Shift for
+larger steps. These keys adjust the editor rather than seeking the video.
+Saving/switching modes does not reload the media. Persistent overlay crops remain
+through Play/Pause and segment changes; the ordinary temporary paused zoom remains
+available in Classic and in single-camera fullscreen. Double-click an overlay or
+the background for an uncropped single-camera fullscreen view; exiting restores
+the overlay arrangement. Dashboard fullscreen retains the overlay composition.
+Layout editing affects display only; it does not alter or export recordings.
 
 ## Seeking and bookmarks
 

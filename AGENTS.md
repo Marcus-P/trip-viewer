@@ -29,6 +29,7 @@ Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off f
 
 ## Communication and testing
 
+- Cost/work cadence: work for at most two hours at a time. If unfinished, checkpoint progress and pause for five hours before the next work block; repeat as needed. Finish immediately if the task completes earlier. Do not start builds, CI or background work during a pause. Prefer targeted checks and reuse existing dependencies/build output rather than redundant builds or artifacts.
 - End each final response with concrete next steps for the user. If progress requires missing information or a decision, end with a focused question that makes the blocker clear. Continue independently whenever the existing authorization and available information suffice.
 - When a new desktop build needs user testing, finish with actionable update/install instructions and a small, specific test; account for the fact that repository or cloud updates do not update the locally installed app.
 - Work in concise, concrete steps. When user-side testing is needed, request the smallest reproducible test rather than a long diagnostic session.
