@@ -1,3 +1,38 @@
+# Trip Viewer 0.9.0
+
+## Optional overlay camera layout
+
+- Keeps the existing Classic layout and its saved sizes, adding a switchable
+  Overlay mode with Front as the background. Rear starts in a rear-view mirror
+  mask and Interior in a separately positioned overlay; other channel labels
+  and camera visibility settings remain supported.
+- Adds an overlay editor with independent frame movement/resizing and persistent,
+  aspect-preserving video cropping. The mirror's outside corners are transparent,
+  revealing Front. Editing Rear does not transform Front or move the mirror frame.
+  Explicit horizontal/vertical crop-position sliders select the visible area;
+  Bottom / road brings the lower part of Rear into view. Zoom/position controls
+  automatically enable video-crop dragging instead of moving the frame.
+  Reset crop restores 100% zoom and centers both horizontal and vertical crop
+  positions, while leaving the frame and other camera layers unchanged.
+  Explicit masks also constrain the composited video itself when a webview does
+  not honor rounded ancestor overflow. The mirror frame is drawn above the video;
+  its outer corners remain transparent and reveal Front.
+- Saves relative positions, crop/zoom, shape and stacking across restarts and
+  segment changes. Save commits a draft; Cancel discards it. Reset is previewed
+  until saved. Keyboard handles support fine adjustments.
+- Reuses the mounted video elements, sources and SyncEngine when switching views
+  or editing. Dashboard fullscreen retains the composition; single-camera
+  fullscreen shows the full recording and restores the saved crop when exiting.
+
+The owner accepted overlay playback, crop-position controls and mirror masking
+with VIOFO A229 Pro 3CH footage on Ubuntu 24.04 LTS. Browser checks also cover
+complete crop reset, frame independence and Save/Cancel. Original recordings,
+archive schema 17, GPS parser 8, native playback workarounds, updater behaviour
+and platform release workflows are unchanged. Existing camera/OS validation
+limits still apply; these results do not certify additional cameras or platforms.
+
+---
+
 # Trip Viewer 0.8.2
 
 ## Reload selected archives and remember folders

@@ -6,6 +6,82 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Overlay layout preparation (0.9.0)
+
+Work is isolated on `feat/overlay-camera-layout`, based on main `e476f64`
+(owner-merged PR #10, published stable 0.8.2). At the start of this work GitHub
+had `main` and the active upstream contribution branch; no `develop` existed.
+Do not create/reset a development branch or change stable on that assumption.
+0.9.0 is the backwards-compatible feature candidate; a possible 1.0 decision is
+deferred until acceptance. The owner authorized preparing the next stable PR
+after the final Reset crop adjustment; the stable merge remains owner-only.
+
+Classic remains the default and retains saved grid proportions. Overlay uses
+Front as the background, Rear in a transparent-corner mirror mask and Interior
+as an independently movable/resizable layer. Unknown labels are supported;
+without visible Front the first visible camera is the background. Visibility,
+map, media-health recovery, audio ownership and SyncEngine are retained.
+
+The editor separates frame position/size from cover-fit, aspect-preserving video
+crop. Each layer has normalized placement/crop, shape and stacking. Save commits
+the draft to existing machine-local layout storage; Cancel discards it and reset
+is a draft until saved. Switching layouts changes CSS on the same keyed video
+elements, without reloading sources or changing the sync master. Single-camera
+fullscreen temporarily removes the crop/mask and restores it on exit. Dashboard
+fullscreen retains the composition. Database schema 17/parser 8 and media files
+are unchanged; no new native dependency or video export is introduced.
+
+The initial 120 frontend tests, TypeScript/production build, IPC registration checks and
+documentation/version checks pass locally. Focused geometry/storage tests and
+local Chromium harnesses (including the full PlayerShell) with synthetic
+H.264 footage verify mask clipping, frame/crop independence, stable video nodes
+and SyncEngine with zero source reloads, Save/Cancel, mode restoration, Play/Pause,
+seeking, automatic segment advance, Settings Save/Cancel, fullscreen and
+hidden-camera fallback. These checks
+do not establish real VIOFO/HEVC or WebKitGTK/macOS compatibility for the new mask.
+The owner's initial overlay test was positive, with a specific follow-up that
+Rear's visible vertical area was not readily adjustable. Explicit horizontal and
+vertical crop-position sliders now select the visible region (Bottom / road
+aligns the lower part of Rear). Changing zoom or a position slider also selects
+crop-drag mode automatically, avoiding the prior Move frame default when zooming.
+The follow-up passes ten focused geometry/storage tests and the frontend build.
+A synthetic Chromium pixel check confirms Top selects blue sky, Bottom selects
+gray road and additional zoom retains that lower region; frame/Front remain
+unchanged, crop dragging works after zoom, saved positions restore and no video
+source reload occurs. No additional native or CI package build was run.
+The owner confirmed the crop-position follow-up works. Preserve that acceptance.
+Their next screenshot shows the rear video escaping the rounded mirror and
+covering its border. The fix explicitly clips both the frame surface and the
+oversized video itself (in video-local coordinates), adds the prefixed WebKit
+clip/alpha-surface mask, and draws the border as a separate layer above video.
+It does not change saved positions/crops or the decoder/sync configuration.
+Twelve focused tests and the frontend build pass. A Chromium pixel check verifies
+Front at corners/outside, Rear only inside and the gray frame above Rear; the
+video's own mask still passes with ancestor clipping deliberately disabled and
+at 1x/4x/8x with extreme crop offsets. Video elements/sources are retained.
+WebKitGTK is not installed in this cloud image. The owner subsequently confirmed
+the mirror mask holds after zooming/panning, both paused and playing, on the
+requested Ubuntu test. Treat that result and the earlier crop acceptance as
+established. The final Reset crop follow-up uses the same complete crop update
+path as zoom/position controls: zoom returns to 100%, both offsets return to
+center and direct crop dragging remains selected. The UI labels centered axes
+explicitly. Frame placement/size and other cameras remain unchanged. Reset overlay
+still restores all layer defaults as a draft; Cancel preserves the saved layout.
+The final Reset crop browser check confirms both sliders return to Center/50%,
+zoom returns to 100% and the rendered video's center aligns with its stationary
+frame. It also checks other-camera isolation, Cancel restoring old offsets,
+Save/reload persistence, and Reset overlay clearing every layer's crop. The
+production build and documentation/version checks pass. Prepare one PR to main;
+allow its normal required checks to run once and record their actual result.
+Do not repeat accepted crop, Classic/Overlay, GPS or bookmark workflows.
+Existing accepted playback/GPS tests remain valid; do not request their full repetition.
+
+Respect the owner's work cadence: at most two hours active work followed, if
+unfinished, by five hours with no builds/CI/background work. Finish earlier when
+complete. Keep this frontend change's checks targeted and avoid generating all
+platform acceptance packages simply to share a source branch. User test commands
+are in [the overlay acceptance guide](testing/OVERLAY_LAYOUT.md).
+
 ## Releases and documentation status
 
 [Latest Release](https://github.com/Marcus-P/trip-viewer/releases/latest) is the
