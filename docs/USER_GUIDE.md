@@ -78,6 +78,9 @@ Choose **Edit overlay**:
    instead of the sky. Adjusting zoom or either position slider automatically
    enables Adjust video crop; dragging then moves the video inside the fixed
    frame. The saved crop position also applies when changing zoom.
+   **Reset crop** restores 100% zoom and centers both horizontal and vertical
+   crop positions (the position sliders show Center). It leaves that frame's
+   position/size and all other cameras unchanged; Save retains the reset.
 3. **Shape** selects a rounded rectangle or rear-view mirror. Outside the mirror's
    curved outline the layer is transparent, revealing the background. The mirror
    shape does not horizontally flip the recording. **Bring to front** changes

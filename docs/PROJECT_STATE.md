@@ -6,14 +6,15 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
-## Overlay layout candidate (0.9.0, not published)
+## Overlay layout preparation (0.9.0)
 
 Work is isolated on `feat/overlay-camera-layout`, based on main `e476f64`
 (owner-merged PR #10, published stable 0.8.2). At the start of this work GitHub
 had `main` and the active upstream contribution branch; no `develop` existed.
 Do not create/reset a development branch or change stable on that assumption.
 0.9.0 is the backwards-compatible feature candidate; a possible 1.0 decision is
-deferred until acceptance. No feature merge or release publication is authorized.
+deferred until acceptance. The owner authorized preparing the next stable PR
+after the final Reset crop adjustment; the stable merge remains owner-only.
 
 Classic remains the default and retains saved grid proportions. Overlay uses
 Front as the background, Rear in a transparent-corner mirror mask and Interior
@@ -58,10 +59,21 @@ Twelve focused tests and the frontend build pass. A Chromium pixel check verifie
 Front at corners/outside, Rear only inside and the gray frame above Rear; the
 video's own mask still passes with ancestor clipping deliberately disabled and
 at 1x/4x/8x with extreme crop offsets. Video elements/sources are retained.
-WebKitGTK is not installed in this cloud image, so that runtime result remains
-unverified here. The remaining owner check is only the mirror outline on Ubuntu,
-both paused and playing, after zooming/panning Rear. Do not repeat accepted crop,
-Classic/Overlay, GPS or bookmark workflows.
+WebKitGTK is not installed in this cloud image. The owner subsequently confirmed
+the mirror mask holds after zooming/panning, both paused and playing, on the
+requested Ubuntu test. Treat that result and the earlier crop acceptance as
+established. The final Reset crop follow-up uses the same complete crop update
+path as zoom/position controls: zoom returns to 100%, both offsets return to
+center and direct crop dragging remains selected. The UI labels centered axes
+explicitly. Frame placement/size and other cameras remain unchanged. Reset overlay
+still restores all layer defaults as a draft; Cancel preserves the saved layout.
+The final Reset crop browser check confirms both sliders return to Center/50%,
+zoom returns to 100% and the rendered video's center aligns with its stationary
+frame. It also checks other-camera isolation, Cancel restoring old offsets,
+Save/reload persistence, and Reset overlay clearing every layer's crop. The
+production build and documentation/version checks pass. Prepare one PR to main;
+allow its normal required checks to run once and record their actual result.
+Do not repeat accepted crop, Classic/Overlay, GPS or bookmark workflows.
 Existing accepted playback/GPS tests remain valid; do not request their full repetition.
 
 Respect the owner's work cadence: at most two hours active work followed, if

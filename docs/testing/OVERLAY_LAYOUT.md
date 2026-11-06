@@ -4,13 +4,16 @@ This source candidate is on `feat/overlay-camera-layout`, based on stable 0.8.2.
 Its provisional version is 0.9.0; it has not been merged or published as stable.
 The current stable app does not update merely because the cloud branch changed.
 
-## Current focused follow-up: mirror clipping
+## Acceptance status and reset semantics
 
-The owner confirmed the position controls work. After updating the same branch,
-check only that Rear remains inside the mirror's curved outline, its border is
-visible above Rear, and outside corners show Front. Zoom/pan Rear and try both
-paused and playing. The fix retains all saved crop/position settings; the earlier
-accepted controls do not need another full acceptance run.
+The owner confirmed the position controls and mirror clipping, both paused and
+playing. Those checks are accepted; the sequence below remains a reference for
+future regressions, not a request to repeat it before this PR.
+
+The final Reset crop follow-up restores 100% zoom and centers both position
+sliders. The frame and other cameras stay unchanged. Save retains that reset;
+Cancel restores the saved crop. Reset overlay restores all layer defaults,
+including all crop offsets, as a draft until saved.
 
 ## Ubuntu: run directly from the branch
 

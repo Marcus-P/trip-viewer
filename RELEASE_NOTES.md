@@ -12,6 +12,8 @@
   Explicit horizontal/vertical crop-position sliders select the visible area;
   Bottom / road brings the lower part of Rear into view. Zoom/position controls
   automatically enable video-crop dragging instead of moving the frame.
+  Reset crop restores 100% zoom and centers both horizontal and vertical crop
+  positions, while leaving the frame and other camera layers unchanged.
   Explicit masks also constrain the composited video itself when a webview does
   not honor rounded ancestor overflow. The mirror frame is drawn above the video;
   its outer corners remain transparent and reveal Front.
@@ -22,11 +24,12 @@
   or editing. Dashboard fullscreen retains the composition; single-camera
   fullscreen shows the full recording and restores the saved crop when exiting.
 
-This is a source-branch candidate pending the focused owner overlay test. It does
-not change original recordings, archive schema 17, GPS parser 8, native playback
-workarounds, updater behaviour or platform release workflows. Existing camera/OS
-validation limits still apply; synthetic browser tests do not certify HEVC or
-WebKitGTK mask compositing. A possible 1.0 release remains a separate decision.
+The owner accepted overlay playback, crop-position controls and mirror masking
+with VIOFO A229 Pro 3CH footage on Ubuntu 24.04 LTS. Browser checks also cover
+complete crop reset, frame independence and Save/Cancel. Original recordings,
+archive schema 17, GPS parser 8, native playback workarounds, updater behaviour
+and platform release workflows are unchanged. Existing camera/OS validation
+limits still apply; these results do not certify additional cameras or platforms.
 
 ---
 

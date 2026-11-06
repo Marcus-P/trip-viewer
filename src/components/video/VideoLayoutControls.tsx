@@ -62,22 +62,27 @@ export function VideoLayoutControls({ layout, labels, hidden }: Props) {
             <span className="w-10 tabular-nums">{Math.round(panel.crop.zoom * 100)}%</span>
           </label>
           <button type="button" className={control}
-            onClick={() => layout.update(selected, { ...panel, crop: { zoom: 1, x: 0, y: 0 } })}>Reset crop</button>
+            title="Reset zoom to 100% and center the horizontal and vertical crop; keep the frame position and size"
+            onClick={() => updateCrop({ zoom: 1, x: 0, y: 0 })}>Reset crop</button>
           <button type="button" className={control} onClick={() => layout.bringToFront(overlays, selected)}>Bring to front</button>
           <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2" aria-label="Visible video area">
             <label className="flex items-center gap-2">Horizontal crop
               <span className="text-neutral-500">Left</span>
               <input aria-label="Overlay horizontal crop position" type="range" min="0" max="100" step="1"
                 value={Math.round((1 - panel.crop.x) * 50)}
+                aria-valuetext={panel.crop.x === 0 ? "Center" : `${Math.round((1 - panel.crop.x) * 50)}% from left`}
                 onChange={event => updateCrop({ x: 1 - Number(event.target.value) / 50 })} />
               <span className="text-neutral-500">Right</span>
+              {panel.crop.x === 0 && <span className="text-neutral-400">Center</span>}
             </label>
             <label className="flex items-center gap-2">Vertical crop
               <span className="text-neutral-500">Top / sky</span>
               <input aria-label="Overlay vertical crop position" type="range" min="0" max="100" step="1"
                 value={Math.round((1 - panel.crop.y) * 50)}
+                aria-valuetext={panel.crop.y === 0 ? "Center" : `${Math.round((1 - panel.crop.y) * 50)}% from top`}
                 onChange={event => updateCrop({ y: 1 - Number(event.target.value) / 50 })} />
               <span className="text-neutral-500">Bottom / road</span>
+              {panel.crop.y === 0 && <span className="text-neutral-400">Center</span>}
             </label>
           </div>
           <p className="w-full text-neutral-500">Crop position selects the visible part of the recording. Move Vertical crop toward Bottom / road to show less sky. Zoom and crop-position controls enable Adjust video crop, so dragging the video then pans inside the fixed frame. In Move frame mode, drag the lower-right handle to resize. Focus a handle and use arrow keys for fine adjustments (Shift for larger steps). Save keeps the layout after restarting.</p>
