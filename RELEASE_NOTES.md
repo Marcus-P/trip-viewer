@@ -12,6 +12,9 @@
   Explicit horizontal/vertical crop-position sliders select the visible area;
   Bottom / road brings the lower part of Rear into view. Zoom/position controls
   automatically enable video-crop dragging instead of moving the frame.
+  Explicit masks also constrain the composited video itself when a webview does
+  not honor rounded ancestor overflow. The mirror frame is drawn above the video;
+  its outer corners remain transparent and reveal Front.
 - Saves relative positions, crop/zoom, shape and stacking across restarts and
   segment changes. Save commits a draft; Cancel discards it. Reset is previewed
   until saved. Keyboard handles support fine adjustments.

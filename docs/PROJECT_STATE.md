@@ -48,11 +48,20 @@ A synthetic Chromium pixel check confirms Top selects blue sky, Bottom selects
 gray road and additional zoom retains that lower region; frame/Front remain
 unchanged, crop dragging works after zoom, saved positions restore and no video
 source reload occurs. No additional native or CI package build was run.
-This focused follow-up still needs the owner's check; preserve the other accepted
-overlay behaviour and do not request the whole acceptance sequence again.
-The remaining owner check is focused: select Rear, choose Bottom / road, adjust
-zoom and confirm the lower video region remains visible with a stationary frame
-and Front background; save and reopen to confirm the position is retained.
+The owner confirmed the crop-position follow-up works. Preserve that acceptance.
+Their next screenshot shows the rear video escaping the rounded mirror and
+covering its border. The fix explicitly clips both the frame surface and the
+oversized video itself (in video-local coordinates), adds the prefixed WebKit
+clip/alpha-surface mask, and draws the border as a separate layer above video.
+It does not change saved positions/crops or the decoder/sync configuration.
+Twelve focused tests and the frontend build pass. A Chromium pixel check verifies
+Front at corners/outside, Rear only inside and the gray frame above Rear; the
+video's own mask still passes with ancestor clipping deliberately disabled and
+at 1x/4x/8x with extreme crop offsets. Video elements/sources are retained.
+WebKitGTK is not installed in this cloud image, so that runtime result remains
+unverified here. The remaining owner check is only the mirror outline on Ubuntu,
+both paused and playing, after zooming/panning Rear. Do not repeat accepted crop,
+Classic/Overlay, GPS or bookmark workflows.
 Existing accepted playback/GPS tests remain valid; do not request their full repetition.
 
 Respect the owner's work cadence: at most two hours active work followed, if
