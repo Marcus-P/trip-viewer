@@ -1,3 +1,18 @@
+# Trip Viewer 0.9.1
+
+## Clarify development-tool attribution
+
+- Names Codex, OpenAI's coding agent, as the assistance used for the VIOFO-specific
+  and related fork development, replacing the README's imprecise ChatGPT label.
+- Separately credits the maintainer's requirements, sample footage, hands-on
+  testing and final acceptance, with consistent wording in the provenance notice.
+- Retains upstream/contributor credit, logos/icons, copyright and license terms.
+
+Documentation and version metadata only; application behaviour, dependencies,
+archive format, GPS parsing and the accepted 0.9.0 functionality are unchanged.
+
+---
+
 # Trip Viewer 0.9.0
 
 ## Optional overlay camera layout
