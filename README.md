@@ -155,6 +155,7 @@ and release license inventories. No VIOFO logo, firmware or proprietary app code
 is included. VIOFO/A229 Pro are descriptive compatibility names, with no affiliation
 or endorsement implied.
 
-VIOFO-specific and related fork changes were developed with ChatGPT by OpenAI,
-based on requirements, sample footage, testing and validation supplied by Marcus P.
-This does not replace attribution for the original implementation or contributions.
+VIOFO-specific and related changes in this fork were developed with assistance
+from [Codex](https://openai.com/codex/), OpenAI's coding agent. Marcus P. supplied
+the requirements, sample footage, hands-on testing and final acceptance.
+Upstream and third-party authorship, copyright and license notices remain intact.

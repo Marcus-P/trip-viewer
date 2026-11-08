@@ -48,5 +48,7 @@ The original authors’ and contributors’ credit, MIT copyright/permission tex
 and inherited icon assets are retained. Documentation changes do not transfer
 ownership or relicense original code, logos/icons, or dependencies. Linux
 libva/DMABuf fixes incorporated through fork PR #2 are credited to contributor
-[gubiq](https://github.com/gubiq). The README also identifies the AI-assisted
-fork development and the maintainer’s limited VIOFO/Ubuntu functional-test scope.
+[gubiq](https://github.com/gubiq). The README identifies Codex, OpenAI's coding
+agent, as the development assistance tool and records the maintainer's role in
+requirements, test footage, hands-on testing and final acceptance. The
+maintainer's limited camera/OS validation scope remains documented separately.

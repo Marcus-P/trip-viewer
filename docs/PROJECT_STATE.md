@@ -6,6 +6,22 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Development tooling attribution (0.9.1 documentation follow-up)
+
+The README's fork-development acknowledgement now names **Codex, OpenAI's coding
+agent**, replacing the imprecise ChatGPT tool label. It separately records the
+maintainer's requirements, sample footage, hands-on testing and final acceptance.
+The provenance paragraph in THIRD_PARTY_NOTICES.md uses the same wording; original
+upstream/contributor credit, logos/icons and copyright/license terms are retained.
+Historical records remain historical rather than receiving a global word replacement.
+
+This is documentation plus a synchronized PATCH version only, under the owner's
+every-merge increment rule, with mandatory release notes. Run documentation/link,
+format and version/scope checks; no frontend/Rust suite, installer build or test
+artifact is needed for this PR. The existing main publication policy still builds
+all platform packages once after an owner merge to embed the new version.
+Previously accepted 0.9.0 playback/overlay behaviour remains established.
+
 ## Overlay layout preparation (0.9.0)
 
 Work is isolated on `feat/overlay-camera-layout`, based on main `e476f64`
