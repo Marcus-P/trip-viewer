@@ -34,6 +34,24 @@ work. Footage without usable GPS can still play.
 The **Scan** tab performs tag/analysis scans, a separate operation from opening a
 footage folder. “New segments only” can complete immediately when nothing is new.
 
+## Download statistics and feedback
+
+Open **Settings → Download statistics → Load statistics** to read the public
+GitHub package counters. Totals cover all published stable releases by package
+platform. Expand a release for every package filename, format and download count,
+including separate Ubuntu DEB, AppImage and bundle figures. Drafts, prereleases,
+source archives and license downloads are excluded. **Refresh statistics** reads
+fresh figures; ordinary loads share a fifteen-minute cache. The retrieval time is
+shown. Offline/rate-limit errors retain any figures already displayed.
+
+These are package downloads, including repeated, own and automated downloads;
+they do not count unique people, installations or successful updates. The platform
+is the package target, not the downloader's detected OS or version. Statistics
+load only on request and send no installation identifier, media or GPS data.
+**Leave feedback on GitHub** opens the project's new-issue page in your browser;
+please leave a comment or share your experience there. Posting requires a GitHub
+account and your own submission; the app does not post automatically.
+
 ## Video views
 
 - **Settings → Display layout** groups the Front, Interior, Rear and map

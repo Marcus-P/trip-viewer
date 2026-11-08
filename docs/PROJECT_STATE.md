@@ -6,6 +6,21 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Download statistics (0.10.0 preparation)
+
+The owner authorized an English Settings information panel using GitHub's public
+release counters. This replaces no updater and adds no installation telemetry.
+Load statistics is on demand, with bounded pagination, a fifteen-minute cache,
+explicit refresh/error handling and retained figures on failed refresh. The UI
+shows platform totals, release totals and individual filenames/formats/counts.
+Drafts/prereleases and non-package assets are excluded. Package OS targets are
+not detected user operating systems; repeated/own/automated downloads count too.
+A feedback invitation opens a new GitHub issue for the user to submit themselves.
+No app/installation identifiers, media, GPS or usage reports are sent. The broader
+opt-in installation/update telemetry idea remains on hold, not implemented.
+Only frontend, documentation and version checks are relevant; native code,
+updater, archive schema and accepted playback remain unchanged.
+
 ## Development tooling attribution (0.9.1 documentation follow-up)
 
 The README's fork-development acknowledgement now names **Codex, OpenAI's coding
