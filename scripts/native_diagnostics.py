@@ -11,7 +11,9 @@ def report(title, details):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     details = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", details)
     details = "".join(line for line in details.splitlines(keepends=True) if not
-                      (line.startswith("test ") and line.rstrip().endswith("... ok")))[-12000:]
+                      (line.startswith("test ") and line.rstrip().endswith("... ok")))[-8000:]
+    # GitHub may expose only the first ten annotations. Keep the actual failure
+    # tail inside eight, rather than hiding it behind compiler progress.
     for index, start in enumerate(range(0, len(details), 1000), 1):
         part = details[start:start + 1000]
         escaped = part.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")

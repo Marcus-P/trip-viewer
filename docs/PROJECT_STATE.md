@@ -6,6 +6,29 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Windows release download recovery (0.10.1 preparation)
+
+The owner merged download-statistics PR #13 as `a0eae9b`. Release run
+42582001678 failed twice on the NSIS 3.11 archive URL with HTTP 504 after
+successful Windows compilation; macOS packaging succeeded, and Ubuntu publication
+was skipped because it depends on the desktop jobs. This is not evidence that
+0.10.0 was published. Latest Release remains the source of published downloads.
+
+The recovery prefetches the exact Tauri CLI 2.10.1 NSIS archive/plugin through
+GitHub's Release API, verifies pinned SHA-256 hashes, and prepares the existing
+Windows-local Tauri tool directory before compilation. Only download transport
+failures retry (at most three attempts per asset); a checksum mismatch fails
+immediately. Future CLI upgrades require reviewing the tool pins/required files.
+No persistent cache, duplicate tool artifact, app dependency or media change is
+introduced. Native failure annotations now retain the last 8,000 characters in
+eight entries so the cause is visible within GitHub's first ten annotations.
+Packaging tooling explicitly selects installer validation and CI policy checks,
+without repeating unchanged application unit suites or dependency audits. Unknown
+workflow changes still fail closed. Offline helper/diagnostic tests and real
+upstream tool download/preparation are relevant checks; only native CI can confirm Windows packaging. Main publication
+still builds all three platforms after the owner merges. Keep current release
+transfers until publication succeeds or a verified replacement supersedes them.
+
 ## Download statistics (0.10.0 preparation)
 
 The owner authorized an English Settings information panel using GitHub's public

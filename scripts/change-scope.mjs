@@ -52,7 +52,11 @@ export function classifyChanges(changes) {
       scope.backend = true;
     } else if (/^scripts\/(change-scope|check-version|check-docs|check-interfaces)(\.test)?\.mjs$/.test(path)) {
       scope.tooling = true;
-    } else if (/^scripts\/(install-|prepare-|validate-)/.test(path)) {
+    } else if (/^scripts\/(install-|prepare-|validate-)/.test(path) ||
+               [".github/workflows/desktop-packages.yml", "scripts/native_diagnostics.py",
+                "scripts/test_native_packaging.py"].includes(path)) {
+      // Packaging infrastructure needs installer validation, not unchanged app
+      // unit suites or dependency audits. Other workflow changes fail closed.
       scope.bundle = scope.tooling = true;
     } else if (path === "package.json" || path === "package-lock.json" ||
                /^((vite|tsconfig)[^/]*|index\.html)$/.test(path)) {
