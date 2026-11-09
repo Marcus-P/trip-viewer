@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ReleaseUpdates } from "./ReleaseUpdates";
+import { DownloadStatistics } from "./DownloadStatistics";
 import { getLayoutPreferences, saveLayoutPreferences } from "../../settings/layout";
 import { useStore } from "../../state/store";
 import { LABEL_FRONT, LABEL_INTERIOR, LABEL_REAR } from "../../types/model";
@@ -179,6 +180,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         </div>
 
         <div className="mt-5"><ReleaseUpdates /></div>
+        <DownloadStatistics />
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"

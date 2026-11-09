@@ -1,3 +1,21 @@
+# Trip Viewer 0.10.0
+
+## Public download statistics in Settings
+
+- Adds on-demand public GitHub download totals by platform and stable release,
+  with expandable per-package filenames, formats and counts, including separate
+  Ubuntu DEB, AppImage and bundle figures.
+- Shows retrieval time and download-count limitations. Uses bounded pagination,
+  shared caching and explicit refresh; errors keep previously displayed figures.
+- Invites users to leave feedback in the GitHub project through their browser.
+  The app does not submit comments automatically.
+
+No installation telemetry or server is added. Package downloads do not establish
+unique users, installed computers, actual user OS versions or successful updates.
+Existing playback, archive data and updater behaviour are unchanged.
+
+---
+
 # Trip Viewer 0.9.1
 
 ## Clarify development-tool attribution
