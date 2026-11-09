@@ -78,3 +78,13 @@ test("native build-script changes still run Rust tests and package validation", 
   assert.equal(s.backend, true);
   assert.equal(s.bundle, true);
 });
+
+test("native packaging tooling validates installers without unrelated runtime suites", () => {
+  for (const path of [".github/workflows/desktop-packages.yml", "scripts/prepare-windows-nsis.py",
+                      "scripts/native_diagnostics.py", "scripts/test_native_packaging.py"]) {
+    const s = classifyChanges([{ path }]);
+    assert.equal(s.bundle, true, path);
+    assert.equal(s.tooling, true, path);
+    for (const key of ["frontend", "backend", "audit"]) assert.equal(s[key], false, path);
+  }
+});

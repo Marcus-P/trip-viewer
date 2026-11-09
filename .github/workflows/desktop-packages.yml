@@ -43,6 +43,14 @@ jobs:
         with:
           targets: ${{ matrix.rust-targets }}
       - run: npm ci
+      - name: Fetch verified Windows installer tools before compilation
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m unittest discover -s scripts -p test_native_packaging.py
+          python scripts/prepare-windows-nsis.py
       - name: Prepare application and dependency notices
         run: python scripts/prepare-release-licenses.py
       - name: Native Rust tests when relevant

@@ -1,3 +1,20 @@
+# Trip Viewer 0.10.1
+
+## Reliable Windows installer tool download
+
+- Fetches the same pinned NSIS 3.11 and Tauri plugin through the GitHub Release
+  API before compilation, with bounded download retries and SHA-256 verification.
+  The 0.10.0 publication attempts failed on the original NSIS download with HTTP
+  504 after successfully compiling the application.
+- Fails early on unavailable or invalid installer tools, and keeps the actual
+  native failure tail within GitHub's first ten check annotations.
+- Runs installer validation for packaging-tooling edits without repeating
+  unchanged frontend/Rust unit suites or dependency audits.
+- Adds no persistent Actions cache or extra tool artifact. Existing installation,
+  playback, public download statistics and update behaviour are retained.
+
+---
+
 # Trip Viewer 0.10.0
 
 ## Public download statistics in Settings
