@@ -50,6 +50,7 @@ This repository is public-facing project state. Do not commit secrets or persona
 
 ## Branch / PR discipline
 
+- `develop` is the permanent integration branch. Keep it and the active upstream contribution branch. Bugfix/feature PRs target `develop`; after acceptance prepare `develop` → `main` for the owner. Each stable promotion increments the main version once, not once per integration merge. Keep proposed versions synchronized in integration, with release notes; only main publishes installers.
 - `main` is the stable branch. The user reserves stable merges to the repository owner and requested force-push/merge protection. Never use force pushes or admin overrides to bypass protection; the active rules and verification are in `docs/BRANCH_PROTECTION.md`.
 - Follow `docs/VERSIONING.md`: every merged PR increases PATCH, MINOR or MAJOR once as appropriate, with all version files synchronized and CI green. Every merge also updates release notes. Pure documentation PRs still increment PATCH by the owner’s explicit preference, but run only lightweight documentation/version checks; the later release builds packages once to embed that version. Version changes belong in the PR before merging.
 - PR #3 (`fix/webkit-sync-stability`) was merged as version 0.5.0 after green CI and explicit user confirmation of the final playback/GPS-resume tests; see `docs/PROJECT_STATE.md`.

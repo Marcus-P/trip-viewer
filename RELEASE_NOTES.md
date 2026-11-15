@@ -1,3 +1,27 @@
+# Trip Viewer 0.10.2
+
+## VIOFO timelapse and runtime encoder validation
+
+- Uses the shared VIOFO filename recognizer for timelapse channel lookup as well
+  as scanning. Front/Interior/Rear files with different sequence numbers resolve
+  correctly; normal and parking recordings remain separate.
+- Verifies GPU HEVC encoding, CUDA decoding and GPU scaling with tiny synthetic
+  input instead of treating an encoder-list entry as hardware availability.
+  CPU fallback is also tested. Each test stage has a ten-second limit.
+- Revalidates before each encoding run, invalidates the old list-only capability
+  cache once, and retries a failed GPU job once on CPU. Further jobs in that
+  batch use CPU, with bounded per-job CPU pools. Cancellation does not retry;
+  completed job metadata records the encoder that actually succeeded.
+- Shows expandable per-job encoding errors directly in Timelapse.
+- Establishes long-lived `develop` integration before owner-controlled `main`
+  releases. Only `main` publishes installers; integration uses the same proposed
+  0.10.2 version until stable promotion, without an extra release increment.
+
+Original footage, archive schema and GPS parser versions remain unchanged.
+Synthetic tests do not constitute new hardware/camera certification.
+
+---
+
 # Trip Viewer 0.10.1
 
 ## Reliable Windows installer tool download
