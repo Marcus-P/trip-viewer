@@ -13,6 +13,12 @@
   batch use CPU, with bounded per-job CPU pools. Cancellation does not retry;
   completed job metadata records the encoder that actually succeeded.
 - Shows expandable per-job encoding errors directly in Timelapse.
+- Reads FFmpeg's machine-readable progress during source preparation, encoding
+  and finalization. Shows per-phase video progress, CPU/GPU encoder, elapsed time
+  and a current-step ETA before any whole job completes. Multi-window progress
+  keeps its output offset; stale progress suppresses the step ETA rather than
+  showing a misleading countdown. Batch ETA is approximate after one completed
+  attempt; encoding quality and the existing CPU preset remain unchanged.
 - Establishes long-lived `develop` integration before owner-controlled `main`
   releases. Only `main` publishes installers; integration uses the same proposed
   0.10.2 version until stable promotion, without an extra release increment.

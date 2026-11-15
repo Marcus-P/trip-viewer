@@ -23,6 +23,10 @@ the exact successful run linked from the fix PR and use the extracted artifact
 subdirectory. This avoids compiling locally. The test package stays in Actions
 for at most seven days; permanent downloads follow the main release.
 
+The owner accepted working encoding and authorized stable promotion after the
+ETA follow-up passes automated checks. The steps below remain useful optional
+post-install checks; a new manual acceptance round is not a promotion gate.
+
 ## Small acceptance test
 
 1. Confirm version 0.10.2. In Timelapse → gear, run Test once. Older encoder-list
@@ -34,6 +38,10 @@ for at most seven days; permanent downloads follow the main release.
    camera files must stay missing, not be substituted with another recording.
 4. If convenient, check 16x/60x on that short trip. CPU encoding can be much
    slower than GPU encoding; the status must not claim unavailable GPU support.
+   During the first channel, phase progress and a current-step ETA must update
+   before any job completes. Elapsed time is always visible. A stale progress
+   message withholds the step ETA; preparation/encoding/finalization reset their
+   phase indicators explicitly. No fixed encoding-speed guarantee is implied.
 5. If anything fails, expand Encoding error details and copy its message. Test
    cancellation on one running job if a CPU encode is long enough; it must not
    restart the job via fallback after cancellation.

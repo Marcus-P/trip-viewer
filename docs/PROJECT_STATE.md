@@ -28,8 +28,20 @@ plus the opt-in real FFmpeg synthetic test produces nine valid MP4s spanning
 F/I/R and 8x/16x/60x across two source segments. The cloud has no working NVIDIA
 GPU: this exercises rejection of list-only NVENC and working CPU encoding, not
 positive GPU hardware certification. TypeScript/production build and IPC checks
-pass. Real VIOFO acceptance on the owner's machine remains pending; see
-[the focused test](testing/TIMELAPSE_0102.md). Native package CI remains required.
+pass. The owner accepted that VIOFO encoding now runs on Ubuntu and authorized stable
+promotion after adding live ETA, without a further manual acceptance gate.
+The earlier ETA used only whole-job counts (two completed attempts), leaving
+long CPU jobs at 0% / calculating. FFmpeg stdout now reports bounded, incremental
+phase progress while stderr retains its bounded diagnostic tail. The UI shows
+per-phase video duration/progress, CPU/GPU choice, elapsed time and approximate
+current-step ETA; stale updates suppress that ETA. Multi-window offsets share
+one encoding-phase clock. Batch estimates become available after one finished
+attempt. Encoding quality/preset, playback and GPS remain unchanged.
+Four ETA tests, two native progress-parser tests, a Chromium check of the actual
+Timelapse view, and a real FFmpeg test across fixed and multi-window tiers pass.
+The component check covers zero finished jobs, live ETA updates, stale-update
+handling and stage resets. Native package CI for this follow-up is required.
+See [the focused test](testing/TIMELAPSE_0102.md) for optional later checks.
 
 `develop` was created from current stable `01252b1` (0.10.1); work is isolated on
 `fix/viofo-timelapse`. Preserve develop permanently. Prepare bugfix → develop,
