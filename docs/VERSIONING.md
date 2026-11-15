@@ -15,6 +15,15 @@ These rules also apply while MAJOR is zero. Version numbers identify merged
 application changes; the GPS parser version and database schema version have
 separate purposes and must not be bumped merely to match the app version.
 
+`develop` is the permanent integration branch. Feature/bugfix PRs first target
+`develop`; after acceptance an owner-controlled promotion PR targets `main`.
+The increment rule above applies once to the stable promotion relative to `main`.
+An integration merge and its later stable promotion share the same proposed
+version; they do not consume two PATCH numbers. Further related commits in that
+release preparation keep the proposed version. CI checks PRs to both branches;
+only pushes to `main` publish installers. Preserve `develop` after promotion.
+See [branch inventory and workflow](BRANCH_WORKFLOW.md).
+
 Choose and commit the new version before merging, so CI tests and packages the
 exact version users will receive. Further commits to the same PR keep that
 version; they do not increment it repeatedly. If another PR merges first,
