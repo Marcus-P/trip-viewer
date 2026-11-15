@@ -6,6 +6,51 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Timelapse recovery and develop integration (0.10.2 preparation)
+
+The owner confirmed installed 0.10.1 and supplied timelapse logs showing
+all F/I/R jobs skipped as "no files" before encoding. The scanner recognized
+VIOFO through a separate entry point, while timelapse's sibling lookup used the
+legacy naming registry. Auto-detection now recognizes VIOFO centrally, retaining
+per-channel sequence differences and separating parking/normal siblings.
+
+The shared fix also runs bounded synthetic GPU encode/decode/scale tests and a
+CPU encoder test when GPU use is unavailable, instead of trusting `-encoders`.
+An optional machine-settings probe revision invalidates older list-only flags;
+configured paths are retained. Every batch rechecks runtime availability. A GPU
+job may retry once on CPU; subsequent batch jobs stay on CPU, with capped pools.
+Cancellation skips fallback, and completion metadata records the actual encoder.
+The Timelapse table exposes saved per-job errors. No original footage, archive
+migration, GPS parser, updater or release dependency changes are introduced.
+
+Local validation: 349 Rust tests pass (two pre-existing/opt-in tests ignored),
+plus the opt-in real FFmpeg synthetic test produces nine valid MP4s spanning
+F/I/R and 8x/16x/60x across two source segments. The cloud has no working NVIDIA
+GPU: this exercises rejection of list-only NVENC and working CPU encoding, not
+positive GPU hardware certification. TypeScript/production build and IPC checks
+pass. The owner accepted that VIOFO encoding now runs on Ubuntu and authorized stable
+promotion after adding live ETA, without a further manual acceptance gate.
+The earlier ETA used only whole-job counts (two completed attempts), leaving
+long CPU jobs at 0% / calculating. FFmpeg stdout now reports bounded, incremental
+phase progress while stderr retains its bounded diagnostic tail. The UI shows
+per-phase video duration/progress, CPU/GPU choice, elapsed time and approximate
+current-step ETA; stale updates suppress that ETA. Multi-window offsets share
+one encoding-phase clock. Batch estimates become available after one finished
+attempt. Encoding quality/preset, playback and GPS remain unchanged.
+Four ETA tests, two native progress-parser tests, a Chromium check of the actual
+Timelapse view, and a real FFmpeg test across fixed and multi-window tiers pass.
+The component check covers zero finished jobs, live ETA updates, stale-update
+handling and stage resets. Native package CI for this follow-up is required.
+See [the focused test](testing/TIMELAPSE_0102.md) for optional later checks.
+
+`develop` was created from current stable `01252b1` (0.10.1); work is isolated on
+`fix/viofo-timelapse`. Preserve develop permanently. Prepare bugfix → develop,
+then owner-controlled develop → main with one proposed PATCH increment, 0.10.2.
+See [branch inventory](BRANCH_WORKFLOW.md) for merged branches and upstream work.
+The existing upstream PR is #20 (not the historical closed #16). Carry the shared
+functional fix there while retaining Chris' version, dependencies and release
+configuration. Separate optional installation telemetry remains on hold.
+
 ## Windows release download recovery (0.10.1 preparation)
 
 The owner merged download-statistics PR #13 as `a0eae9b`. Release run
@@ -430,7 +475,7 @@ proves this fork was tested with A129 recordings.
 
 ## Remaining work / deferred ideas
 
-- Await upstream review of PR #16; retain its branch and address concrete review findings when requested.
+- Await upstream review of PR #20; retain `contrib/viofo-playback-081` and address concrete review findings when requested. PR #16 is superseded/closed.
 - Broader original-recording camera/firmware, codec and OS validation remains open; preserve existing support and test evidence.
 - Maintenance: mixed static/dynamic `archive.ts` Vite import warning, large bundle, careful cargo-sweep setup, exact toolchain `NO_STRIP` effects, targeted dependency/audit review. Do not conflate these with a media regression or run blind audit fixes.
 - Further feature proposals (unapproved): audio-source picker, mirror views, clip/snapshot/GPS exports; preserve historical design ideas without claiming implementation.
