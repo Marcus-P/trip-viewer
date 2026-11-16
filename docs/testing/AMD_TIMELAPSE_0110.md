@@ -6,7 +6,7 @@ This tests encoding, not playback decoding or NPU acceleration. Actual Radeon
 ## Windows 11 / Radeon 780M
 
 1. Close Trip Viewer. Install the candidate Windows x64 setup executable from
-   the feature PR's **CI → Artifacts → Trip-Viewer-windows…** download (the
+   the feature PR's **CI → Artifacts → test-desktop-Windows-x64-…** download (the
    artifact is a ZIP; extract it and double-click the setup executable).
 2. Open **Timelapse → gear**, keep/select your FFmpeg executable and press
    **Test**. Expect **Encoding verified: AMD / AMF** on a compatible AMD system.
@@ -22,7 +22,7 @@ This tests encoding, not playback decoding or NPU acceleration. Actual Radeon
 
 ## Linux with a compatible API
 
-Use the candidate Ubuntu DEB/AppImage from the same CI run. Install an FFmpeg
+Use the candidate Ubuntu DEB from the same CI run. Install an FFmpeg
 build with `hevc_vaapi` (or `hevc_amf` and its AMD runtime), a compatible graphics
 driver and normal render-device access. On AMD/Mesa systems this commonly means
 the distro's VA-API driver package; package names and codec availability vary.
