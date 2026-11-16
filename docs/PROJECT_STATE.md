@@ -6,6 +6,31 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## AMD and Linux GPU timelapse (0.11.0 preparation)
+
+`feat/amd-timelapse-encoding` starts from owner-merged main/develop `62d014e`
+(0.10.3). Stable 0.10.3's desktop release workflow succeeded. The owner requested
+Radeon 780M support on Windows 11 and Linux where an encoding API is available.
+
+Runtime selection preserves NVENC first, then checks AMF and Linux VA-API render
+nodes (at most eight, stable order), finally CPU/libx265. Every selected GPU must
+pass the bounded two-stage synthetic pipeline check. AMF uses CPU decode/scale
+with GPU encode; VA-API uploads NV12 to the verified render device for GPU
+scale/encode. No NPU support, new dependency, archive migration or media rewrite.
+New backends default to one job; all hardware paths retain cancellation-aware,
+once-only CPU fallback, actual-encoder persistence and live progress/ETA. Probe
+revision 2 invalidates older results without discarding the configured path.
+English setup/progress labels distinguish NVENC, AMF, VA-API and CPU.
+
+Local checks: 366 Rust tests pass (two ignored), 132 frontend tests and production
+build pass. The explicit real-FFmpeg synthetic test also checks CPU output across
+F/I/R and fixed/multi-window tiers. The cloud has no working AMD/render device;
+these checks cannot establish positive Radeon 780M or Linux VA-API operation.
+Run native package CI once and the [focused GPU test](testing/AMD_TIMELAPSE_0110.md)
+before acceptance. Prepare feature → permanent develop, then owner-controlled
+main with one MINOR increment to 0.11.0. Preserve upstream application/release
+identity when carrying the portable functional change into PR #20.
+
 ## Counter-free VIOFO filename compatibility (0.10.3 preparation)
 
 The owner supplied A229 Pro archive filenames without the sequence counter;

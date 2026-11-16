@@ -1,3 +1,27 @@
+# Trip Viewer 0.11.0
+
+## AMD and Linux GPU timelapse encoding
+
+- Adds HEVC encoding through AMD AMF (including Windows) and Linux VA-API.
+  Selection preserves NVIDIA NVENC priority, then tries AMF and accessible
+  Linux render devices before CPU/libx265. Each GPU choice must pass a short
+  real encode/decode/scale test; a compiled-in encoder alone is insufficient.
+- AMF initially uses CPU decoding/scaling and the GPU video encoder. VA-API
+  uploads software-decoded NV12 frames for GPU scaling/encoding and retains the
+  device that passed verification. The NPU is not used.
+- Limits automatic AMF/VA-API concurrency to one job. A GPU failure retries once
+  on CPU and keeps later batch jobs on CPU; cancellation skips the retry.
+- Shows the verified and currently running encoder by name. Invalidates older
+  capability results while preserving the configured FFmpeg path.
+
+Requires a compatible FFmpeg build, working drivers/runtime and device access.
+Cloud checks cover selection, command construction, fallback and real synthetic
+CPU encoding; positive AMD/VA-API hardware acceptance remains pending. No speedup
+factor is promised. Playback, original media, GPS and archive schema are unchanged.
+See the [focused GPU test](docs/testing/AMD_TIMELAPSE_0110.md).
+
+---
+
 # Trip Viewer 0.10.3
 
 ## Counter-free VIOFO filenames

@@ -187,3 +187,23 @@ up an archive. Machine settings use the Tauri app-data directory; layout/camera
 preferences use webview local storage. Clearing application storage can reset
 those display preferences but does not remove bookmarks from the archive DB.
 Schema 17 archives cannot be opened by an older schema-16-only build.
+
+## Timelapse GPU encoding
+
+Open **Timelapse → gear**, select your FFmpeg binary and choose **Test**. The
+verified encoder is shown by name. Automatic selection prefers **NVIDIA / NVENC**,
+then **AMD / AMF**, **GPU / VA-API** on Linux, and finally **CPU / HEVC**.
+
+AMF requires an FFmpeg build with `hevc_amf` and a compatible AMD driver/runtime;
+VA-API requires `hevc_vaapi`, a working Linux driver and permission to access a
+render device under `/dev/dri`. Availability is checked by real short encoding
+and processing tests, again before each batch. Installing FFmpeg alone does not
+guarantee GPU support. The NPU is not involved. CPU decoding still contributes
+load even when AMF/VA-API encoding is active; AMF also scales on the CPU.
+
+Start with one short trip, Front and 8x. Live progress names the encoder actually
+running. A hardware failure retries once on CPU and keeps the rest of that batch
+on CPU. Automatic AMF/VA-API concurrency is one job. Existing playable outputs are
+not rebuilt merely because a new encoder is available; select a rebuild only
+when intended. [The focused test](testing/AMD_TIMELAPSE_0110.md) explains acceptance
+and diagnosis without rechecking already accepted playback features.
