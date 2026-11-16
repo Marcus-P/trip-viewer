@@ -1,3 +1,26 @@
+# Trip Viewer 0.10.3
+
+## Counter-free VIOFO filenames
+
+- Recognizes timestamp/channel names without a sequence counter, such as
+  `YYYY_MMDD_HHMMSS_F.MP4`, alongside numbered VIOFO recordings. Detection is
+  per file; mixed archives require no firmware selector or video renaming.
+- Treats the counter and parking marker independently, keeps F/I/R grouping and
+  normal/parking separation, and accepts case variants of the MP4 extension
+  and channel/parking letters. Rejects malformed timestamps and unknown suffixes
+  without panicking on unexpected Unicode filenames.
+- Applies the same recognition to automatic/manual scans, GPS decoder dispatch
+  and filename time anchors, and timelapse source/sibling lookup.
+- Tests mixed filename forms with real synthetic HEVC input across all nine
+  channel/tier outputs, including progress and multi-window encoding.
+
+This is format compatibility, not a claim of hands-on validation of every past
+firmware. A recording timestamp does not identify its firmware version. Existing
+camera parsers, encoder quality, progress/ETA, archive schema and GPS byte decoder
+remain unchanged. Original media is not renamed or modified.
+
+---
+
 # Trip Viewer 0.10.2
 
 ## VIOFO timelapse and runtime encoder validation
