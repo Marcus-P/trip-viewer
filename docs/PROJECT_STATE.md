@@ -6,6 +6,36 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Counter-free VIOFO filename compatibility (0.10.3 preparation)
+
+The owner supplied A229 Pro archive filenames without the sequence counter;
+0.10.2 rejected them because its VIOFO recognizer required nonempty digits before
+the F/I/R channel. `fix/viofo-legacy-filenames` starts from current published
+0.10.2/main `b5bd724`. The recognizer now parses the known timestamp/channel
+shape with an optional counter and independent parking marker, per file rather
+than selecting one pattern for an entire folder or guessing a firmware version.
+Numbered/unnumbered recordings may coexist, with the same stable timestamp/mode
+group keys. Mixed MP4/channel/parking case is accepted; invalid dates, channels,
+markers and Unicode suffixes are safely rejected. Other camera parsers remain.
+
+The centralized recognition already serves Auto/manual VIOFO scan, GPS dispatch,
+GPS filename/UTC alignment and timelapse sibling lookup. Tests exercise these
+paths, normal/parking separation and missing siblings. 357 Rust tests pass (two
+ignored), plus the explicit real-FFmpeg integration test produces all nine valid
+HEVC F/I/R × 8x/16x/60x outputs from mixed filename generations, with live progress
+and multiple encoding windows. These are synthetic/structural checks, not a new
+real-camera firmware certification. Encoder logic, ETA, archive schema and GPS
+byte parser are unchanged; media need not be renamed or rewritten.
+
+The owner also requested a historical A229 Pro firmware-changelog review. Keep
+vendor release-note evidence separate from owner-observed filenames: recording
+dates do not identify firmware releases, and a missing changelog entry is not
+proof of incompatibility. Do not claim that every historical firmware version
+was tested. [Filename compatibility](VIOFO_FILENAMES.md) records the supported
+structure and evidence limits; attach the firmware-history review to the PR.
+Prepare this PATCH through permanent develop, then owner-controlled main, with
+one proposed 0.10.3 version and mandatory release notes.
+
 ## Timelapse recovery and develop integration (0.10.2 preparation)
 
 The owner confirmed installed 0.10.1 and supplied timelapse logs showing

@@ -9,6 +9,7 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Installation and updates](INSTALLATION.md) | Windows/Mac/Ubuntu installers, release checks and AppImage migration |
 | [Consistency review](CONSISTENCY_REVIEW.md) | Version, docs, IPC, schema, packaging and CI findings |
 | [User guide](USER_GUIDE.md) | Player, map, timeline, bookmarks, camera visibility and library workflows |
+| [VIOFO filenames](VIOFO_FILENAMES.md) | Mixed filename formats, automatic recognition and firmware-evidence limits |
 | [Compatibility](COMPATIBILITY.md) | Camera/platform evidence and limits of functional testing |
 | [Linux setup](../LINUX_DEV_SETUP.md) | Ubuntu build/runtime requirements and other-distro references |
 | [Architecture](../DESIGN.md) | Current components, clocks, storage and inherited decisions |
@@ -18,6 +19,7 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Versioning](VERSIONING.md) | Version increments and synchronized version files |
 | [Branch protection](BRANCH_PROTECTION.md) | Active main rules, owner bypass scope and verification |
 | [Branch workflow](BRANCH_WORKFLOW.md) | Permanent develop integration, stable promotion and audited branches |
+| [VIOFO filename acceptance](testing/VIOFO_LEGACY_0103.md) | Focused counter-free/mixed-format archive test |
 | [Timelapse acceptance](testing/TIMELAPSE_0102.md) | Focused VIOFO/encoder checks for the 0.10.2 candidate |
 | [Release notes](../RELEASE_NOTES.md) | Changes and compatibility implications; published assets are on Latest Release |
 | [Project state](PROJECT_STATE.md) | Current hand-off, accepted tests and remaining work |
