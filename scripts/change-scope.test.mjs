@@ -88,3 +88,10 @@ test("native packaging tooling validates installers without unrelated runtime su
     for (const key of ["frontend", "backend", "audit"]) assert.equal(s[key], false, path);
   }
 });
+
+
+test("GitHub hardware report forms remain documentation-only", () => {
+  const scope = classifyChanges([{ path: ".github/ISSUE_TEMPLATE/gpu-hardware-test.yml" }]);
+  assert.equal(scope.docs_only, true);
+  for (const key of ["frontend", "backend", "bundle", "audit", "tooling"]) assert.equal(scope[key], false);
+});

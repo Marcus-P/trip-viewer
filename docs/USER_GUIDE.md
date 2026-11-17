@@ -227,3 +227,8 @@ This is a licensing distinction, not a paid extension. The package requires the
 appropriate Ubuntu repositories and replaces its free counterpart. Restart Trip
 Viewer and repeat **Test**. This resolved the owner's Intel Comet Lake test;
 it is not a requirement or guarantee for every Intel generation/distribution.
+
+See [GPU compatibility and community reports](GPU_COMPATIBILITY.md) for the
+owner-tested setups and the GitHub channel for other hardware. Replies are
+asynchronous; full real-footage success and synthetic probe success are recorded
+separately. No remote test is run on your computer automatically.

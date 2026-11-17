@@ -60,7 +60,8 @@ workflow's Windows-only manual dispatch. Skip automatic CI for this checkpoint;
 this is not the required full CI gate and does not authorize merging. After
 Windows acceptance run the normal platform checks before develop/main promotion.
 Do not repeat package builds while waiting for the owner. Hardware feedback docs
-and an issue form are authorized follow-ups while the Windows installer builds.
+and the GPU issue form are prepared while the Windows installer builds; publish
+them with the final integration. See GPU_COMPATIBILITY.md for evidence levels.
 
 ### On hold: further GPU throughput work
 
