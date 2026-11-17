@@ -2,7 +2,8 @@
 
 This tests encoding, not playback decoding or NPU acceleration. Positive GPU operation cannot be established in the cloud without those devices.
 The owner has confirmed Intel UHD VA-API encoding and playable 8x output on Ubuntu;
-Windows AMF/QSV hardware validation remains pending.
+Windows Radeon 780M AMF app probing and a progressing real encoding job are
+confirmed; output completion/playback and Intel QSV hardware validation remain open.
 
 ## Windows 11 / Radeon 780M
 

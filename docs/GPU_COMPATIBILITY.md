@@ -14,7 +14,7 @@ support for every GPU/driver/build combination is promised.
 | GPU | OS | API | Evidence and scope |
 | --- | --- | --- | --- |
 | Intel UHD Graphics, Comet Lake / CML GT2 (Core i5-10210U) | Ubuntu 24.04 LTS | VA-API | Owner confirmed app encoding completion and playable 8x output. FFmpeg 6.1.1; the complete Intel media driver resolved an initial scaling failure. |
-| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Owner confirmed a standalone 30-frame Full-HD NV12 encode. The old tiny test stalled. Updated in-app probe and real footage acceptance are still pending. |
+| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. A real Front/8x job is observed progressing; final completion/playback confirmation remains open. Driver 32.0.12033.1030. |
 
 These reports were supplied on 2026-11-17. They do not certify every recording,
 driver or OS update. NVIDIA/NVENC and Windows Intel/QSV are implemented and
@@ -30,8 +30,7 @@ tuning are follow-ups, not prerequisites for the accepted encoding result.
 ## Report a setup or request a focused test
 
 Open a [GPU hardware-test issue](https://github.com/Marcus-P/trip-viewer/issues/new?template=gpu-hardware-test.yml).
-The form becomes available when this change reaches the default branch; before
-then, use a [plain issue](https://github.com/Marcus-P/trip-viewer/issues/new).
+You can also open a [plain issue](https://github.com/Marcus-P/trip-viewer/issues/new).
 Include GPU model, OS, Trip Viewer/test-build version, FFmpeg and driver version
 if known, the displayed encoder, and the result from one short Front/8x trip.
 See the [focused test guide](testing/AMD_TIMELAPSE_0110.md).

@@ -6,62 +6,59 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
-## AMD, Intel and Linux GPU timelapse (0.11.0 preparation)
+## GPU timelapse production release (0.11.0)
 
-`feat/amd-timelapse-encoding` starts from owner-merged main/develop `62d014e`
-(0.10.3). Stable 0.10.3's desktop release workflow succeeded. The owner requested
-Radeon 780M support on Windows 11, Linux encoding APIs and Windows coverage for
-other supported GPU vendors. PR #19 targets permanent develop, then main with
-one MINOR increment to 0.11.0; stable promotion remains owner-controlled.
+The owner authorized completing and publishing the next stable release on
+2026-11-17 after the Windows acceptance checkpoint. Use **0.11.0**, one MINOR
+increment from published 0.10.3/main `62d014e`, with no extra increment when
+integrating into permanent develop. Feature PR #19 targets develop; after full
+CI, integrate and prepare develop → owner-protected main. Do not bypass main
+protection. That main push automatically builds/publishes durable Ubuntu
+AppImage/DEB, Windows x64 and experimental universal Mac installers.
 
-Runtime selection preserves NVENC first, then AMF, Windows Intel Quick Sync
-(QSV), Linux VA-API render nodes (at most eight, stable order), finally CPU.
-Every selected GPU must pass the bounded two-stage synthetic pipeline check.
-QSV derives a hardware session from an Intel D3D11 device; it uses NV12 software
-frames. AMF/QSV use CPU decode/scale with GPU encode; VA-API uploads NV12 to the
-verified render device for GPU scale/encode. Linux retains its accepted VA-API
-path without attempting Windows QSV. There is no NPU integration, new dependency,
-archive migration or original-media rewrite. New backends default to one job;
-all hardware paths retain cancellation-aware, once-only CPU fallback, actual
-encoder persistence and live progress/ETA. Probe revision 4 invalidates older
-results without losing the configured FFmpeg path. English labels name each API.
+Selection is capability-based, not a GPU-model allowlist: verified NVENC, AMF,
+Windows Intel Quick Sync, Linux VA-API, finally CPU/libx265. Every GPU uses a
+finite one-second Full-HD NV12 source and drains both probe stages to EOF, with
+a ten-second deadline per stage. If CUDA processing or VA-API GPU scaling fails
+the probe, a second profile checks CPU processing with the same GPU encoder.
+The verified render device/profile is persisted and used for real jobs; probe
+revision 4 invalidates older flags without losing the configured path. AMF
+production uses NV12. QSV derives a hardware Intel D3D11 session. AMF/QSV/VA-API
+default to one job. Hardware failure in a real job retries once on CPU and later
+jobs stay on CPU; cancellation skips retry. English labels name the actual API.
+There is no NPU integration, new dependency, archive migration or media rewrite.
 
-On 2026-11-17 the owner confirmed real Intel UHD Graphics (Comet Lake) VA-API
-encoding and playable 8x output on Ubuntu 24.04 LTS / FFmpeg 6.1.1, with 8 GiB RAM.
-The free Intel driver initially failed at `scale_vaapi` with unsupported
-VAProfile. Installing Ubuntu's `intel-media-va-driver-non-free` made the full
-application probe and real encoding pass. The owner observed 75–85% CPU load and
-no clear speed gain; no controlled comparison or speedup claim follows. Software
-HEVC decode, data transfer and other processing can still limit throughput.
-Windows AMF/QSV real-hardware validation remains pending.
+Owner-reported hardware evidence:
 
-369 Rust tests pass (two ignored), 132 frontend tests and production build pass.
-The prior real-FFmpeg synthetic CPU test covers F/I/R and fixed/multi-window tiers;
-it is not repeated for Windows-only QSV. Initial PR CI passed Ubuntu AppImage/DEB
-and Windows installer checks. macOS never acquired a runner and was cancelled
-for GitHub capacity reasons (no Mac code failure); the new functional push gets
-one normal package run. Use the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
-Carry suitable portable changes to upstream PR #20 without changing Chris'
-application versions, dependencies, updater or release configuration.
+- Intel UHD Graphics (Comet Lake / CML GT2), Ubuntu 24.04 LTS, FFmpeg 6.1.1:
+  completed real encoding and playable 8x output confirmed. Installing Ubuntu's
+  `intel-media-va-driver-non-free` resolved an initial `scale_vaapi` failure.
+  CPU load 75–85% and some swapping were observed, without a clear speed gain.
+- AMD Radeon 780M (Ryzen 9 8945HS), Windows 11 x64, driver 32.0.12033.1030:
+  finite 30-frame Full-HD NV12 diagnostic passed after the tiny two-frame probe
+  stalled. The updated app's AMF probe passes and a real Front/8x job is observed
+  progressing. The owner reports it seems faster and authorizes release; final
+  Windows job completion/output playback has not yet been separately confirmed.
+- NVIDIA/NVENC and Windows Intel/QSV are implemented with automated checks; no
+  owner hardware acceptance for these paths is claimed. No controlled speed
+  comparison, universal GPU support or Mac GPU certification follows.
 
+373 local Rust tests pass (two ignored), TypeScript/production build and the
+relevant CI policy/interface/version/docs checks pass. Earlier frontend 132-test
+and real synthetic CPU FFmpeg nine-output checks remain established. The
+Windows-only acceptance run 44137617845 passed build and silent install validation
+for functional commit `884713e`. It intentionally did not emit the required full
+CI gate. After owner release authorization, run the normal complete CI on the
+final head, then preserve develop and main's normal checked merge sequence.
 
-Windows follow-up: the owner's Radeon 780M AMF test stalled on two 128-square
-frames, but a finite 30-frame Full-HD NV12 diagnostic completed successfully.
-All GPU APIs now use that finite, model-independent sample and drain both probe
-stages to EOF. The individual trigger of the earlier stall is not isolated.
-AMF production output uses NV12. If NVENC CUDA processing or VA-API GPU scaling
-fails, a second bounded profile checks CPU processing plus the same GPU encoder;
-the verified profile is saved and used for real jobs. No GPU model-name rules.
-373 native tests pass; initial Windows synthetic AMF success does not yet certify
-real footage through the updated app. Prior Intel VA-API app acceptance remains.
-
-At the owner's request, prepare Windows acceptance first via the reusable desktop
-workflow's Windows-only manual dispatch. Skip automatic CI for this checkpoint;
-this is not the required full CI gate and does not authorize merging. After
-Windows acceptance run the normal platform checks before develop/main promotion.
-Do not repeat package builds while waiting for the owner. Hardware feedback docs
-and the GPU issue form are prepared while the Windows installer builds; publish
-them with the final integration. See GPU_COMPATIBILITY.md for evidence levels.
+[GPU compatibility and reports](GPU_COMPATIBILITY.md) and a GitHub hardware-test
+issue form document evidence levels and invite other setups. Replies may take
+days. Users run follow-up tests locally; no automatic remote access or issue-
+monitoring service is introduced. Keep user recordings/paths out of public logs.
+Carry shared functional commit `884713e` into upstream PR #20, preserving Chris'
+version, dependencies, updater and release configuration. The optional Windows-
+only manual workflow remains available for future acceptance checkpoints, while
+normal CI/releases keep all platform packages and the required aggregate gate.
 
 ### On hold: further GPU throughput work
 

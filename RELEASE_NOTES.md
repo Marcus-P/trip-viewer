@@ -23,7 +23,10 @@ Requires a compatible FFmpeg build, working drivers/runtime and device access.
 Cloud checks cover selection, command construction, fallback and real synthetic
 CPU encoding. The owner confirmed real Intel UHD VA-API encoding and playable 8x
 output on Ubuntu 24.04 after installing the complete Intel media driver; Windows
-AMD/QSV hardware acceptance remains pending. No speedup factor is promised. Playback, original media, GPS and archive schema are unchanged.
+AMD AMF app probing and a progressing real encoding job are confirmed. Windows
+output completion/playback and Intel QSV hardware acceptance remain open. No
+speedup factor is promised. Playback, original media, GPS and archive schema are
+unchanged.
 See the [focused GPU test](docs/testing/AMD_TIMELAPSE_0110.md).
 
 ---
