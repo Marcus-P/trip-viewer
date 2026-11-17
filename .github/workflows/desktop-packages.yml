@@ -1,8 +1,25 @@
 name: Native desktop packages
 
 on:
+  workflow_dispatch:
+    inputs:
+      windows-only:
+        description: Build only the Windows hardware acceptance installer
+        type: boolean
+        default: true
+      acceptance:
+        description: Temporary acceptance download (not a release)
+        type: boolean
+        default: true
+      run-tests:
+        description: Repeat native tests before packaging
+        type: boolean
+        default: false
   workflow_call:
     inputs:
+      windows-only:
+        type: boolean
+        default: false
       acceptance:
         type: boolean
         default: false
@@ -19,17 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: Windows-x64
-            runner: windows-2022
-            target: x86_64-pc-windows-msvc
-            rust-targets: x86_64-pc-windows-msvc
-            bundles: nsis
-          - platform: macOS-universal
-            runner: macos-15
-            target: universal-apple-darwin
-            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: dmg
+        include: ${{ fromJSON(inputs.windows-only && '[{"platform":"Windows-x64","runner":"windows-2022","target":"x86_64-pc-windows-msvc","rust-targets":"x86_64-pc-windows-msvc","bundles":"nsis"}]' || '[{"platform":"Windows-x64","runner":"windows-2022","target":"x86_64-pc-windows-msvc","rust-targets":"x86_64-pc-windows-msvc","bundles":"nsis"},{"platform":"macOS-universal","runner":"macos-15","target":"universal-apple-darwin","rust-targets":"aarch64-apple-darwin,x86_64-apple-darwin","bundles":"dmg"}]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5

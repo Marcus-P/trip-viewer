@@ -23,7 +23,7 @@ verified render device for GPU scale/encode. Linux retains its accepted VA-API
 path without attempting Windows QSV. There is no NPU integration, new dependency,
 archive migration or original-media rewrite. New backends default to one job;
 all hardware paths retain cancellation-aware, once-only CPU fallback, actual
-encoder persistence and live progress/ETA. Probe revision 3 invalidates older
+encoder persistence and live progress/ETA. Probe revision 4 invalidates older
 results without losing the configured FFmpeg path. English labels name each API.
 
 On 2026-11-17 the owner confirmed real Intel UHD Graphics (Comet Lake) VA-API
@@ -43,6 +43,24 @@ for GitHub capacity reasons (no Mac code failure); the new functional push gets
 one normal package run. Use the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
 Carry suitable portable changes to upstream PR #20 without changing Chris'
 application versions, dependencies, updater or release configuration.
+
+
+Windows follow-up: the owner's Radeon 780M AMF test stalled on two 128-square
+frames, but a finite 30-frame Full-HD NV12 diagnostic completed successfully.
+All GPU APIs now use that finite, model-independent sample and drain both probe
+stages to EOF. The individual trigger of the earlier stall is not isolated.
+AMF production output uses NV12. If NVENC CUDA processing or VA-API GPU scaling
+fails, a second bounded profile checks CPU processing plus the same GPU encoder;
+the verified profile is saved and used for real jobs. No GPU model-name rules.
+373 native tests pass; initial Windows synthetic AMF success does not yet certify
+real footage through the updated app. Prior Intel VA-API app acceptance remains.
+
+At the owner's request, prepare Windows acceptance first via the reusable desktop
+workflow's Windows-only manual dispatch. Skip automatic CI for this checkpoint;
+this is not the required full CI gate and does not authorize merging. After
+Windows acceptance run the normal platform checks before develop/main promotion.
+Do not repeat package builds while waiting for the owner. Hardware feedback docs
+and an issue form are authorized follow-ups while the Windows installer builds.
 
 ### On hold: further GPU throughput work
 

@@ -12,6 +12,10 @@
   device that passed verification. The NPU is not used.
 - Limits automatic AMF/QSV/VA-API concurrency to one job. A GPU failure retries once
   on CPU and keeps later batch jobs on CPU; cancellation skips the retry.
+- Uses one finite Full-HD GPU probe across vendors instead of relying on two
+  tiny output frames. AMF production uses NV12. Verifies a CPU-processing/GPU-
+  encoding profile when CUDA decode or VA-API scaling is unavailable, before
+  abandoning hardware encoding. No per-model allowlist is required.
 - Shows the verified and currently running encoder by name. Invalidates older
   capability results while preserving the configured FFmpeg path.
 
