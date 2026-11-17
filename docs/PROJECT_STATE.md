@@ -30,7 +30,7 @@ merge, upstream update or stable publication of this follow-up is authorized yet
 
 Local checks: 378 Rust unit tests pass (two opt-in tests ignored), 134 frontend
 tests and the production build pass. Twenty-eight CI/version-policy tests and
-nine native-packaging helper tests pass, including real Debian RC/stable ordering.
+twelve native-packaging helper tests pass, including real Debian RC/stable ordering.
 Hardware acceptance and the Ubuntu AppImage/package CI gate remain pending.
 
 ## GPU timelapse production release (0.11.0)

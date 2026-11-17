@@ -25,6 +25,26 @@ diagnostics = load("native_diagnostics", "native_diagnostics.py")
 
 
 class NativePackagingTests(unittest.TestCase):
+    def test_metadata_uses_output_file_not_completed_process_stdout(self):
+        def run(command, **kwargs):
+            kwargs["stdout"].write(b'{"packages": []}')
+            return subprocess.CompletedProcess(command, 0)
+        with patch.object(diagnostics.subprocess, "run", side_effect=run):
+            self.assertEqual(diagnostics.command_json(["cargo", "metadata"], "."), {"packages": []})
+
+    def test_metadata_empty_output_has_actionable_failure(self):
+        with patch.object(diagnostics.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            with self.assertRaisesRegex(RuntimeError, "no usable JSON"):
+                diagnostics.command_json(["cargo", "metadata"], ".")
+
+    def test_metadata_error_retains_stderr(self):
+        def run(command, **kwargs):
+            kwargs["stderr"].write(b'lock file needs updating')
+            return subprocess.CompletedProcess(command, 1)
+        with patch.object(diagnostics.subprocess, "run", side_effect=run):
+            with self.assertRaisesRegex(RuntimeError, "lock file needs updating"):
+                diagnostics.command_json(["cargo", "metadata"], ".")
+
     @unittest.skipUnless(shutil.which("dpkg-deb"), "requires Debian packaging tools")
     def test_debian_preview_orders_before_stable_and_stable_is_unchanged(self):
         for app_version, expected in [("0.12.0-rc.44152470559", "0.12.0~rc.44152470559"), ("0.12.0", "0.12.0")]:

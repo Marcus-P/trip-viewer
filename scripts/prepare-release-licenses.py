@@ -4,11 +4,10 @@ import json
 import pathlib
 import re
 import shutil
-import subprocess
 import tarfile
 import tempfile
 
-from native_diagnostics import annotate_exceptions
+from native_diagnostics import annotate_exceptions, command_json
 
 annotate_exceptions("Dependency license preparation")
 
@@ -17,12 +16,9 @@ out = root / "release-assets"
 out.mkdir(exist_ok=True)
 version = json.loads((root / "package.json").read_text())["version"]
 lock = json.loads((root / "package-lock.json").read_text())
-metadata_result = subprocess.run(
+metadata = command_json(
     ["cargo", "metadata", "--locked", "--format-version", "1",
-     "--manifest-path", str(root / "src-tauri/Cargo.toml")], cwd=root, capture_output=True, text=True)
-if metadata_result.returncode:
-    raise RuntimeError("Locked dependency metadata failed: " + metadata_result.stderr[-6000:])
-metadata = json.loads(metadata_result.stdout)
+     "--manifest-path", str(root / "src-tauri/Cargo.toml")], cwd=root)
 
 def inventory(name, heading, rows):
     (out / name).write_text(heading + "\nGenerated for Trip Viewer " + version +
