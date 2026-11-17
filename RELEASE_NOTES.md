@@ -1,3 +1,31 @@
+# Trip Viewer 0.12.0-rc.1
+
+## Hardware decoding for timelapse (acceptance preview)
+
+- Tests GPU decoding as well as encoding: Windows D3D11VA, Linux VA-API,
+  NVIDIA CUDA and experimental macOS VideoToolbox, according to available APIs.
+- Linux VA-API prefers device-resident decoding/scaling/encoding. Windows AMF
+  and QSV can decode on the GPU while retaining software filters. Hardware
+  decoding does not imply that every filter or transfer runs on the GPU.
+- Verifies finite Full-HD processing and hardware decoder selection, retains the
+  selected device/profile, and rechecks older capability caches. Real-job
+  processing failures retry software processing with the same encoder before
+  falling back to CPU encoding; cancellation does not retry.
+- Shows the verified decode profile and the profile requested by each encoding
+  attempt. These labels are not live hardware-utilization measurements.
+- Acceptance installers receive unique numeric release-candidate versions.
+  Debian packages use equivalent `~rc.N` ordering, and the app recognizes the
+  final stable version as an upgrade from its release candidates. Main rejects
+  unfinalized prerelease metadata.
+
+The owner confirmed all nine 0.11.0 Windows AMF outputs complete and play
+correctly. Intel UHD VA-API encoding/playback on Ubuntu is also established.
+The new decoding paths still need hardware acceptance; cloud tests do not
+certify GPU performance. Original media, playback, GPS and archive schema remain
+unchanged. This preview is not a published stable release.
+
+---
+
 # Trip Viewer 0.11.0
 
 ## AMD, Intel and Linux GPU timelapse encoding

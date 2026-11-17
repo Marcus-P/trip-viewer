@@ -14,7 +14,7 @@ support for every GPU/driver/build combination is promised.
 | GPU | OS | API | Evidence and scope |
 | --- | --- | --- | --- |
 | Intel UHD Graphics, Comet Lake / CML GT2 (Core i5-10210U) | Ubuntu 24.04 LTS | VA-API | Owner confirmed app encoding completion and playable 8x output. FFmpeg 6.1.1; the complete Intel media driver resolved an initial scaling failure. |
-| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. A real Front/8x job is observed progressing; final completion/playback confirmation remains open. Driver 32.0.12033.1030. |
+| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. The owner confirmed all nine real jobs completed and their outputs play correctly. Driver 32.0.12033.1030. |
 
 These reports were supplied on 2026-11-17. They do not certify every recording,
 driver or OS update. NVIDIA/NVENC and Windows Intel/QSV are implemented and
@@ -22,10 +22,17 @@ covered by automated selection/command tests; no owner hardware acceptance has
 yet been reported for those paths. Other compatible models may work and reports
 are welcome. Do not turn a synthetic probe result into a real-footage claim.
 
-The Intel Linux notebook already uses its GPU for scaling and encoding. Decode
-still runs on CPU there. The owner observed 75–85% CPU load and some swapping;
-no controlled speed comparison was made. GPU decoding and further throughput
-tuning are follow-ups, not prerequisites for the accepted encoding result.
+In stable 0.11.0 the Intel Linux notebook uses its GPU for scaling and encoding,
+while decoding runs on CPU. The owner observed 75–85% CPU load and some swapping;
+no controlled speed comparison was made. The 0.12.0 acceptance preview adds hardware decoding: VA-API under Linux,
+D3D11VA under Windows, CUDA for NVENC and experimental VideoToolbox on Mac.
+Selection uses the available APIs and verified processing profiles. Hardware
+decoding acceptance is still pending; the table above records encoding results.
+Linux VA-API prefers device-resident frames through scaling/encoding; Windows
+D3D11VA downloads native 8/10-bit frames for the existing software filters.
+A processing failure retries with software processing before dropping GPU encoding.
+The displayed decode profile is the requested pipeline, not live utilization.
+See the [decoding acceptance test](testing/GPU_DECODE_0120.md).
 
 ## Report a setup or request a focused test
 

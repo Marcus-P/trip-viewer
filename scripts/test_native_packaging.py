@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -24,6 +25,27 @@ diagnostics = load("native_diagnostics", "native_diagnostics.py")
 
 
 class NativePackagingTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("dpkg-deb"), "requires Debian packaging tools")
+    def test_debian_preview_orders_before_stable_and_stable_is_unchanged(self):
+        for app_version, expected in [("0.12.0-rc.44152470559", "0.12.0~rc.44152470559"), ("0.12.0", "0.12.0")]:
+            with self.subTest(version=app_version), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / "root"
+                (root / "DEBIAN").mkdir(parents=True)
+                (root / "DEBIAN").chmod(0o755)
+                (root / "DEBIAN/control").write_text(
+                    "Package: trip-viewer\nVersion: " + app_version +
+                    "\nArchitecture: amd64\nMaintainer: Test <test@example.invalid>\nDescription: Fixture\n")
+                desktop = root / "usr/share/applications"
+                desktop.mkdir(parents=True)
+                (desktop / "trip-viewer.desktop").write_text("[Desktop Entry]\nName=Trip Viewer\nExec=tripviewer\nType=Application\n")
+                package = Path(folder) / "fixture.deb"
+                subprocess.run(["dpkg-deb", "--build", str(root), str(package)], check=True, capture_output=True)
+                subprocess.run(["python3", str(Path(__file__).with_name("prepare-ubuntu-deb.py")), str(package)], check=True, capture_output=True)
+                actual = subprocess.check_output(["dpkg-deb", "--field", str(package), "Version"], text=True).strip()
+                self.assertEqual(actual, expected)
+                if "~" in actual:
+                    subprocess.run(["dpkg", "--compare-versions", actual, "lt", "0.12.0"], check=True)
+
     def test_download_retries_transport_failure_then_verifies(self):
         with tempfile.TemporaryDirectory() as folder:
             data = b"verified tool"

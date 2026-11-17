@@ -6,6 +6,33 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## GPU decoding follow-up (0.12.0 acceptance preparation)
+
+Published v0.11.0/main and permanent develop match at `fc0fbe8`.
+The owner confirmed completion and correct playback of all nine Windows AMF
+outputs; no further Windows encoding acceptance is requested at this checkpoint.
+The authorized follow-up is isolated on `feat/gpu-decode-pipeline` from develop.
+It probes decoder APIs rather than model names: D3D11VA on Windows, VA-API on
+Linux, CUDA for NVENC and experimental VideoToolbox. Linux VA-API first tries
+hardware frames through scaling/encoding; host-filter variants retain native
+8/10-bit frame download formats. Processing errors retry software processing
+with the same encoder, then retain the established CPU encoder fallback.
+Probe revision 5 invalidates prior results while preserving the FFmpeg path.
+
+New decoding acceptance is pending on Intel UHD/CML GT2 Ubuntu 24.04 LTS and
+AMD Radeon 780M Windows 11. Prior encoding/playback acceptance remains valid;
+no GPU speedup or universal hardware certification is claimed. Settings and
+progress name the selected/requested decode profile, not measured GPU activity.
+Source preview is 0.12.0-rc.1; acceptance CI stamps a unique numeric run ID.
+Stable promotion will be 0.12.0 after acceptance. Debian uses ~rc.N and the
+updater handles RC → stable; these are permanent versioning rules. No main
+merge, upstream update or stable publication of this follow-up is authorized yet.
+
+Local checks: 378 Rust unit tests pass (two opt-in tests ignored), 134 frontend
+tests and the production build pass. Twenty-eight CI/version-policy tests and
+nine native-packaging helper tests pass, including real Debian RC/stable ordering.
+Hardware acceptance and the Ubuntu AppImage/package CI gate remain pending.
+
 ## GPU timelapse production release (0.11.0)
 
 The owner authorized completing and publishing the next stable release on
@@ -37,8 +64,8 @@ Owner-reported hardware evidence:
 - AMD Radeon 780M (Ryzen 9 8945HS), Windows 11 x64, driver 32.0.12033.1030:
   finite 30-frame Full-HD NV12 diagnostic passed after the tiny two-frame probe
   stalled. The updated app's AMF probe passes and a real Front/8x job is observed
-  progressing. The owner reports it seems faster and authorizes release; final
-  Windows job completion/output playback has not yet been separately confirmed.
+  progressing. The owner subsequently confirmed all nine jobs completed and
+  their outputs play correctly. No controlled speed comparison was performed.
 - NVIDIA/NVENC and Windows Intel/QSV are implemented with automated checks; no
   owner hardware acceptance for these paths is claimed. No controlled speed
   comparison, universal GPU support or Mac GPU certification follows.

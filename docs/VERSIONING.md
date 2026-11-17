@@ -71,3 +71,32 @@ A source version is not a publication claim; use Latest Release for downloads.
 Adding Windows installers, experimental universal Mac packages and compiled-target
 update downloads is a MINOR change (0.7.2 → 0.8.0). Platform build success and
 real-recording acceptance remain separate evidence.
+
+## Acceptance builds and stable installation order
+
+Never distribute an acceptance installer with the upcoming stable version.
+Develop/feature source uses `X.Y.Z-rc.1` for the next planned release.
+Acceptance CI stamps all app version files with `X.Y.Z-rc.<GITHUB_RUN_ID>`
+using `node scripts/preview-version.mjs`. The globally unique numeric run ID
+identifies the exact build across workflows. A rerun of the same run retains
+its version; use a new workflow run for a new acceptance installer.
+
+Before preparing develop → main, run `node scripts/preview-version.mjs --stable`
+and commit the finalized metadata and release notes. Main PR validation rejects
+prerelease versions. Acceptance packages for that promotion PR are still stamped
+as release candidates; the main release build embeds the committed stable version.
+All candidates sort below the matching stable version, even with large run IDs.
+Do not use build metadata (`+sha`) as a substitute for installer version ordering.
+
+The app's stable-release check accepts an installed controlled release candidate
+and offers the corresponding final stable release. An older published stable
+release never triggers a downgrade from a newer-core candidate. Debian package
+control versions map `X.Y.Z-rc.N` to `X.Y.Z~rc.N` because Debian's plain `-rc`
+would sort after stable. Windows NSIS uses its SemVer comparison for the full
+DisplayVersion, and the Mac bundle retains the app version; drag-and-replace
+installation remains manual. Keep source, app display and artifact identity
+aligned; the Debian control spelling is the intentional equivalent exception.
+
+Test upgrades from an acceptance build to its final stable version when changing
+packaging/updater logic. Keep artifacts short-lived; published stable installers
+remain durable Release assets.
