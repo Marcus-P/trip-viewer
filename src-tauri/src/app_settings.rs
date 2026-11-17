@@ -48,6 +48,10 @@ pub struct AppSettings {
     pub ffmpeg_vaapi_device: Option<String>,
     #[serde(default)]
     pub ffmpeg_software_processing: Option<bool>,
+    #[serde(default)]
+    pub ffmpeg_decoder: Option<crate::timelapse::types::Decoder>,
+    #[serde(default)]
+    pub ffmpeg_decoder_device: Option<String>,
     /// Revision of the runtime encoder test. Invalidate older results when the
     /// supported GPU backends or pipeline verification change.
     #[serde(default)]

@@ -10,7 +10,7 @@ import {
   type FfmpegCapabilities,
 } from "../../ipc/timelapse";
 import { useStore } from "../../state/store";
-import { verifiedEncoderLabel } from "./encoderLabel";
+import { decoderLabel, verifiedEncoderLabel } from "./encoderLabel";
 
 interface Props {
   onClose: () => void;
@@ -202,6 +202,7 @@ export function FfmpegConfig({ onClose }: Props) {
               <span className="text-emerald-400">✓ {caps.version}</span>
               <span className="ml-2 text-neutral-400">
                 · Encoding verified: {verifiedEncoderLabel(caps)}
+                · Decode profile: {decoderLabel(caps.decoder)}
               </span>
             </div>
           )}

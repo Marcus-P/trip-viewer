@@ -11,3 +11,8 @@ export function verifiedEncoderLabel(caps: FfmpegCapabilities): string {
   return encoderLabel(caps.nvencHevc ? "hevc_nvenc" : caps.amfHevc ? "hevc_amf"
     : caps.qsvHevc ? "hevc_qsv" : caps.vaapiDevice ? "hevc_vaapi" : "libx265");
 }
+
+export function decoderLabel(decoder?: string): string {
+  return ({ software: "CPU", cuda: "NVIDIA / CUDA", d3d11va: "GPU / D3D11VA",
+    vaapi: "GPU / VA-API", videotoolbox: "GPU / VideoToolbox" } as Record<string, string>)[decoder ?? "software"] ?? decoder ?? "CPU";
+}

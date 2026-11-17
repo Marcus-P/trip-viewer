@@ -343,6 +343,8 @@ pub fn compose_filter_from_curve(
         format!("scale_cuda={OUT_WIDTH}:-2:format=yuv420p")
     } else if scale_filter == "scale_vaapi" {
         format!("format=nv12,hwupload,scale_vaapi={OUT_WIDTH}:-2")
+    } else if scale_filter == "scale_vaapi_native" {
+        format!("scale_vaapi={OUT_WIDTH}:-2:format=nv12")
     } else if scale_filter == "scale_then_upload" {
         format!("scale={OUT_WIDTH}:-2,format=nv12,hwupload")
     } else {
@@ -390,6 +392,8 @@ pub fn compose_window_filter(scale_filter: &str, rate: u32) -> String {
         format!("[0:v]scale_cuda={OUT_WIDTH}:-2:format=yuv420p,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_vaapi" {
         format!("[0:v]format=nv12,hwupload,scale_vaapi={OUT_WIDTH}:-2,setpts=PTS/{rate}[out]")
+    } else if scale_filter == "scale_vaapi_native" {
+        format!("[0:v]scale_vaapi={OUT_WIDTH}:-2:format=nv12,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_then_upload" {
         format!("[0:v]scale={OUT_WIDTH}:-2,format=nv12,hwupload,setpts=PTS/{rate}[out]")
     } else {
@@ -400,6 +404,14 @@ pub fn compose_window_filter(scale_filter: &str, rate: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_vaapi_frames_remain_on_device_during_scaling() {
+        let filter = compose_window_filter("scale_vaapi_native", 8);
+        assert!(filter.starts_with("[0:v]scale_vaapi=1920:-2:format=nv12"));
+        assert!(!filter.contains("hwupload") && !filter.contains("hwdownload"));
+        assert!(filter.contains("setpts=PTS/8[out]"));
+    }
 
     #[test]
     fn vaapi_upload_precedes_gpu_scaling_and_time_mapping() {

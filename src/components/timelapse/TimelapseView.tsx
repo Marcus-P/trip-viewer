@@ -12,7 +12,7 @@ import { formatTripStart } from "../../utils/format";
 import { parseCurveJson } from "../../utils/speedCurve";
 import { fallbackCurveForTier } from "../../utils/tripTime";
 import { estimateEncodingStep } from "./encodingProgress";
-import { encoderLabel } from "./encoderLabel";
+import { decoderLabel, encoderLabel } from "./encoderLabel";
 import { TripActionsMenu } from "../trip/TripActionsMenu";
 import { FfmpegConfig } from "./FfmpegConfig";
 
@@ -544,6 +544,7 @@ export function TimelapseView() {
                         <span>
                           {{ preparing: "Preparing source", encoding: "Encoding", finalizing: "Finalizing file" }[encodingProgress.phase]}
                           {" · "}{encoderLabel(encodingProgress.encoder)}
+                          {encodingProgress.phase === "encoding" && <> · Decode profile: {decoderLabel(encodingProgress.decoder)}</>}
                           {" · "}{encodingProgress.tier} / {encodingProgress.channel}
                           {" · trip "}{encodingProgress.tripId.slice(0, 8)}…
                         </span>

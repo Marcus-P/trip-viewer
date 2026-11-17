@@ -26,7 +26,7 @@ use crate::gps;
 use crate::model::GpsPoint;
 use crate::scan::naming::CameraKind;
 use crate::timelapse::events;
-use crate::timelapse::ffmpeg::{self, EncodeArgs, Encoder};
+use crate::timelapse::ffmpeg::{self, EncodeArgs, Encoder, FallbackState, ProcessingProfile};
 use crate::timelapse::types::{Channel, EventWindow, FfmpegCapabilities, JobScope, Tier};
 use crate::timelapse::CancelFlag;
 use crate::timelapse::progress::{EncodingProgress, ProgressCallback};
@@ -190,7 +190,7 @@ fn run_inner(
     // so we walk it once and slice on trip_id boundaries.
     let chunks = group_work_by_trip(&work);
     let pool_size = concurrency.max(1);
-    let gpu_failed = AtomicBool::new(false);
+    let gpu_failed = FallbackState::default();
 
     for chunk in &chunks {
         if cancel.load(Ordering::Relaxed) {
@@ -424,7 +424,7 @@ fn process_item(
     caps: &FfmpegCapabilities,
     output_root: &Path,
     cpu_pool_threads: Option<usize>,
-    gpu_failed: &AtomicBool,
+    gpu_failed: &FallbackState,
 ) -> ProcessOutcome {
     if let Err(e) = mark_running(db, item) {
         eprintln!("[timelapse] mark_running failed: {e}");
@@ -552,6 +552,8 @@ fn process_item(
     let args = EncodeArgs {
         ffmpeg_path,
         vaapi_device: caps.vaapi_device.as_deref(),
+        decoder_device: caps.decoder_device.as_deref(),
+        processing: ProcessingProfile { decoder: caps.decoder, software_scale: caps.software_processing },
         source_paths: &sources,
         output_path: &output_path,
         tier: item.tier,
@@ -561,7 +563,7 @@ fn process_item(
         scratch_dir: &scratch_dir,
         cpu_pool_threads,
         progress: Some(progress),
-        software_input: software_input || caps.software_processing,
+        software_input,
     };
     let started = Instant::now();
     let encode_result = ffmpeg::encode_with_cpu_fallback(&args, cancel, gpu_failed);
@@ -1509,7 +1511,7 @@ mod tests {
                 if channel == "F" { masters.push(path.to_string_lossy().into_owned()); }
             }
         }
-        let gpu_failed = AtomicBool::new(false);
+        let gpu_failed = FallbackState::default();
         for channel in [Channel::Front, Channel::Interior, Channel::Rear] {
             let resolved = resolve_channel_sources(&masters, &[2.0, 2.0], channel).unwrap();
             assert_eq!(resolved.sources.len(), 2);
@@ -1524,9 +1526,12 @@ mod tests {
                 let output = dir.path().join(format!("{}-{}.mp4", tier.as_str(), channel.as_str()));
                 let scratch = dir.path().join(format!("scratch-{}-{}", tier.as_str(), channel.as_str()));
                 let args = EncodeArgs {
-                    ffmpeg_path: &binary, vaapi_device: caps.vaapi_device.as_deref(), source_paths: &resolved.sources, output_path: &output,
+                    ffmpeg_path: &binary, vaapi_device: caps.vaapi_device.as_deref(),
+                    decoder_device: caps.decoder_device.as_deref(),
+                    processing: ProcessingProfile { decoder: caps.decoder, software_scale: caps.software_processing },
+                    source_paths: &resolved.sources, output_path: &output,
                     tier, channel, encoder: Encoder::pick(&caps), curve: &curve,
-                    scratch_dir: &scratch, cpu_pool_threads: Some(1), software_input: caps.software_processing, progress: Some(callback),
+                    scratch_dir: &scratch, cpu_pool_threads: Some(1), software_input: false, progress: Some(callback),
                 };
                 let (path, _) = ffmpeg::encode_with_cpu_fallback(&args, &new_cancel_flag(), &gpu_failed).unwrap();
                 let meta = crate::metadata::mp4_probe::probe(&path).unwrap();
