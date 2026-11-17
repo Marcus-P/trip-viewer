@@ -9,7 +9,7 @@ export function previewVersion(version, build) {
 
 export function setVersion(root, version) {
   const file = (name) => new URL(name, root);
-  const read = (name) => readFileSync(file(name), "utf8");
+  const read = (name) => readFileSync(file(name), "utf8").replace(/\r\n/g, "\n");
   const old = JSON.parse(read("package.json")).version;
   for (const name of ["package.json", "package-lock.json"]) {
     const value = JSON.parse(read(name)); value.version = version;

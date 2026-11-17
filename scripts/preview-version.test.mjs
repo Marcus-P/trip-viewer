@@ -17,7 +17,7 @@ test('acceptance versions remain below their stable release and retain unique ru
   }
 });
 
-test('stamping and finalizing preserve dependencies, historical release notes and version consistency', () => {
+test('Windows CRLF stamping and finalizing preserve dependencies, history and version consistency', () => {
   const root = mkdtempSync(join(tmpdir(), 'trip-preview-'));
   try {
     mkdirSync(join(root, 'src-tauri'));
@@ -29,6 +29,10 @@ test('stamping and finalizing preserve dependencies, historical release notes an
     write('src-tauri/Cargo.lock', '[[package]]\nname = "tripviewer"\nversion = "0.12.0-rc.1"\n[[package]]\nname = "fixture"\nversion = "1.0.0"\n');
     write('RELEASE_VERSION', '0.12.0-rc.1\n');
     write('RELEASE_NOTES.md', '# Trip Viewer 0.12.0-rc.1\n\nChanges\n\n# Trip Viewer 0.11.0\nHistory\n');
+    // Windows Git checkouts may use CRLF even when repository blobs use LF.
+    for (const name of ['package.json', 'package-lock.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'RELEASE_VERSION', 'RELEASE_NOTES.md']) {
+      write(name, read(name).replace(/\n/g, '\r\n'));
+    }
     const url = pathToFileURL(root + '/');
     for (const version of ['0.12.0-rc.44152470559', '0.12.0']) {
       setVersion(url, version);
