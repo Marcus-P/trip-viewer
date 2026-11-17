@@ -20,6 +20,8 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Branch protection](BRANCH_PROTECTION.md) | Active main rules, owner bypass scope and verification |
 | [Branch workflow](BRANCH_WORKFLOW.md) | Permanent develop integration, stable promotion and audited branches |
 | [VIOFO filename acceptance](testing/VIOFO_LEGACY_0103.md) | Focused counter-free/mixed-format archive test |
+| [GPU compatibility and reports](GPU_COMPATIBILITY.md) | Tested GPU setups, evidence limits and community test channel |
+| [AMD/Intel/Linux GPU acceptance](testing/AMD_TIMELAPSE_0110.md) | Focused AMF/QSV/VA-API setup, encoding and fallback test |
 | [Timelapse acceptance](testing/TIMELAPSE_0102.md) | Focused VIOFO/encoder checks for the 0.10.2 candidate |
 | [Release notes](../RELEASE_NOTES.md) | Changes and compatibility implications; published assets are on Latest Release |
 | [Project state](PROJECT_STATE.md) | Current hand-off, accepted tests and remaining work |

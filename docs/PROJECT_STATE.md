@@ -6,6 +6,66 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## GPU timelapse production release (0.11.0)
+
+The owner authorized completing and publishing the next stable release on
+2026-11-17 after the Windows acceptance checkpoint. Use **0.11.0**, one MINOR
+increment from published 0.10.3/main `62d014e`, with no extra increment when
+integrating into permanent develop. Feature PR #19 targets develop; after full
+CI, integrate and prepare develop → owner-protected main. Do not bypass main
+protection. That main push automatically builds/publishes durable Ubuntu
+AppImage/DEB, Windows x64 and experimental universal Mac installers.
+
+Selection is capability-based, not a GPU-model allowlist: verified NVENC, AMF,
+Windows Intel Quick Sync, Linux VA-API, finally CPU/libx265. Every GPU uses a
+finite one-second Full-HD NV12 source and drains both probe stages to EOF, with
+a ten-second deadline per stage. If CUDA processing or VA-API GPU scaling fails
+the probe, a second profile checks CPU processing with the same GPU encoder.
+The verified render device/profile is persisted and used for real jobs; probe
+revision 4 invalidates older flags without losing the configured path. AMF
+production uses NV12. QSV derives a hardware Intel D3D11 session. AMF/QSV/VA-API
+default to one job. Hardware failure in a real job retries once on CPU and later
+jobs stay on CPU; cancellation skips retry. English labels name the actual API.
+There is no NPU integration, new dependency, archive migration or media rewrite.
+
+Owner-reported hardware evidence:
+
+- Intel UHD Graphics (Comet Lake / CML GT2), Ubuntu 24.04 LTS, FFmpeg 6.1.1:
+  completed real encoding and playable 8x output confirmed. Installing Ubuntu's
+  `intel-media-va-driver-non-free` resolved an initial `scale_vaapi` failure.
+  CPU load 75–85% and some swapping were observed, without a clear speed gain.
+- AMD Radeon 780M (Ryzen 9 8945HS), Windows 11 x64, driver 32.0.12033.1030:
+  finite 30-frame Full-HD NV12 diagnostic passed after the tiny two-frame probe
+  stalled. The updated app's AMF probe passes and a real Front/8x job is observed
+  progressing. The owner reports it seems faster and authorizes release; final
+  Windows job completion/output playback has not yet been separately confirmed.
+- NVIDIA/NVENC and Windows Intel/QSV are implemented with automated checks; no
+  owner hardware acceptance for these paths is claimed. No controlled speed
+  comparison, universal GPU support or Mac GPU certification follows.
+
+373 local Rust tests pass (two ignored), TypeScript/production build and the
+relevant CI policy/interface/version/docs checks pass. Earlier frontend 132-test
+and real synthetic CPU FFmpeg nine-output checks remain established. The
+Windows-only acceptance run 44137617845 passed build and silent install validation
+for functional commit `884713e`. It intentionally did not emit the required full
+CI gate. After owner release authorization, run the normal complete CI on the
+final head, then preserve develop and main's normal checked merge sequence.
+
+[GPU compatibility and reports](GPU_COMPATIBILITY.md) and a GitHub hardware-test
+issue form document evidence levels and invite other setups. Replies may take
+days. Users run follow-up tests locally; no automatic remote access or issue-
+monitoring service is introduced. Keep user recordings/paths out of public logs.
+Carry shared functional commit `884713e` into upstream PR #20, preserving Chris'
+version, dependencies, updater and release configuration. The optional Windows-
+only manual workflow remains available for future acceptance checkpoints, while
+normal CI/releases keep all platform packages and the required aggregate gate.
+
+### On hold: further GPU throughput work
+
+Measure comparable CPU/GPU runs before promising faster conversion. GPU decoding
+and additional transfer/filter optimizations are separate follow-ups; the current
+change establishes verified encoding compatibility and preserves accepted output.
+
 ## Counter-free VIOFO filename compatibility (0.10.3 preparation)
 
 The owner supplied A229 Pro archive filenames without the sequence counter;

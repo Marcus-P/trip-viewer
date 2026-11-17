@@ -1,0 +1,72 @@
+name: GPU encoding test / compatibility report
+description: Report a tested GPU setup or request help with timelapse hardware encoding.
+title: "[GPU test]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing Trip Viewer. Reports are reviewed asynchronously; replies can take several days.
+        We may suggest a short diagnostic command or a test build for you to run locally. There is no automatic remote access or background testing service.
+        Share technical results only. Redact usernames, recording paths, GPS data and secrets from logs; original footage is not required for the first report.
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU model
+      placeholder: "Intel UHD Graphics (Comet Lake), AMD Radeon 780M, ..."
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "Windows 11 x64, Ubuntu 24.04 LTS, ..."
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: Trip Viewer version / test build
+      description: Include the test-build commit or download link if available.
+    validations:
+      required: true
+  - type: input
+    id: ffmpeg
+    attributes:
+      label: FFmpeg version
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: Graphics driver version (if known)
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Encoder shown by Trip Viewer
+      options:
+        - "NVIDIA / NVENC"
+        - "AMD / AMF"
+        - "Intel / QSV"
+        - "GPU / VA-API"
+        - "CPU / HEVC"
+        - "Test failed / unknown"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - "Encoding and output playback work"
+        - "Synthetic test passes; app encoding not tested yet"
+        - "App test passes; real encoding fails"
+        - "App test fails or falls back to CPU"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Test details and relevant output
+      description: "Use one short trip, Front and 8x. Include the encoder shown during the run, the result, and relevant errors. Do not rebuild the whole library just for this report."
+    validations:
+      required: true

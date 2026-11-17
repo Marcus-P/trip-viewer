@@ -32,7 +32,7 @@ export function classifyChanges(changes) {
   let hasMetadata = false;
   for (const { path, before = null, after = null } of changes) {
     if (/^[^/]+\.md$/.test(path) || /^docs\/.*\.md$/.test(path) ||
-        path === ".github/FUNDING.yml" || path === ".gitignore") {
+        path === ".github/FUNDING.yml" || /^\.github\/ISSUE_TEMPLATE\/.*\.(yml|yaml|md)$/.test(path) || path === ".gitignore") {
       scope.docs = true;
       continue;
     }
@@ -50,7 +50,7 @@ export function classifyChanges(changes) {
       scope.backend = scope.bundle = true;
     } else if (/^src-tauri\/(tests|examples)\//.test(path)) {
       scope.backend = true;
-    } else if (/^scripts\/(change-scope|check-version|check-docs|check-interfaces)(\.test)?\.mjs$/.test(path)) {
+    } else if (/^scripts\/(change-scope|check-version|check-docs|check-interfaces|desktop-packages)(\.test)?\.mjs$/.test(path)) {
       scope.tooling = true;
     } else if (/^scripts\/(install-|prepare-|validate-)/.test(path) ||
                [".github/workflows/desktop-packages.yml", "scripts/native_diagnostics.py",
