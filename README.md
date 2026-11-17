@@ -159,3 +159,6 @@ VIOFO-specific and related changes in this fork were developed with assistance
 from [Codex](https://openai.com/codex/), OpenAI's coding agent. Marcus P. supplied
 the requirements, sample footage, hands-on testing and final acceptance.
 Upstream and third-party authorship, copyright and license notices remain intact.
+
+GPU encoding reports distinguish [owner-tested setups and unconfirmed hardware](docs/GPU_COMPATIBILITY.md).
+Other compatible GPUs are welcome for community testing through the linked GitHub issue form.

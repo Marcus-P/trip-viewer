@@ -98,3 +98,13 @@ non-destructive and exclude personal locations/paths from public test reports.
 This fork originates from [chrisl8/trip-viewer](https://github.com/chrisl8/trip-viewer).
 Upstream’s historical reports and other contributors’ tests remain credited to
 those contributors; they are not relabeled as new tests performed by Marcus-P.
+
+## GPU timelapse encoding acceptance
+
+The 0.11.0 candidate's real Intel UHD (Comet Lake) VA-API test passed on Ubuntu
+24.04 LTS / FFmpeg 6.1.1 after installing `intel-media-va-driver-non-free`.
+The owner confirmed completion and playable 8x output. CPU load remained 75–85%;
+a speed gain was not measured. This confirms that specific encoding path, not all
+Intel GPUs or all video acceleration. The owner confirmed the AMD Radeon 780M AMF app probe and a progressing real
+Windows 11 encoding job. Windows output completion/playback and Intel QSV
+hardware acceptance remain open. See the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).

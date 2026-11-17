@@ -10,6 +10,10 @@ export type TimelapseJobScope = "newOnly" | "failedOnly" | "rebuildAll";
 export interface FfmpegCapabilities {
   version: string;
   nvencHevc: boolean;
+  amfHevc?: boolean;
+  qsvHevc?: boolean;
+  vaapiDevice?: string | null;
+  softwareProcessing?: boolean;
 }
 
 export interface TimelapseSettings {
