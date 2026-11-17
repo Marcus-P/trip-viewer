@@ -192,18 +192,38 @@ Schema 17 archives cannot be opened by an older schema-16-only build.
 
 Open **Timelapse → gear**, select your FFmpeg binary and choose **Test**. The
 verified encoder is shown by name. Automatic selection prefers **NVIDIA / NVENC**,
-then **AMD / AMF**, **GPU / VA-API** on Linux, and finally **CPU / HEVC**.
+then **AMD / AMF**, **Intel / QSV** on Windows, **GPU / VA-API** on Linux,
+and finally **CPU / HEVC**. This chooses one verified backend, not all GPUs
+simultaneously; it does not benchmark which GPU is fastest.
 
 AMF requires an FFmpeg build with `hevc_amf` and a compatible AMD driver/runtime;
-VA-API requires `hevc_vaapi`, a working Linux driver and permission to access a
+QSV requires `hevc_qsv`, compatible Intel graphics and working D3D11/Quick Sync
+support in FFmpeg and the driver. Use a current FFmpeg build for Intel-adapter
+selection on mixed-vendor Windows systems. VA-API requires `hevc_vaapi`, a working Linux driver and permission to access a
 render device under `/dev/dri`. Availability is checked by real short encoding
 and processing tests, again before each batch. Installing FFmpeg alone does not
 guarantee GPU support. The NPU is not involved. CPU decoding still contributes
-load even when AMF/VA-API encoding is active; AMF also scales on the CPU.
+load even when AMF/QSV/VA-API encoding is active; AMF/QSV also scale on the CPU.
+High CPU usage alone does not indicate a CPU-encoding fallback. Compare the
+same source/tier/settings and total elapsed time to measure a speed difference.
 
 Start with one short trip, Front and 8x. Live progress names the encoder actually
 running. A hardware failure retries once on CPU and keeps the rest of that batch
-on CPU. Automatic AMF/VA-API concurrency is one job. Existing playable outputs are
+on CPU. Automatic AMF/QSV/VA-API concurrency is one job. Existing playable outputs are
 not rebuilt merely because a new encoder is available; select a rebuild only
 when intended. [The focused test](testing/AMD_TIMELAPSE_0110.md) explains acceptance
 and diagnosis without rechecking already accepted playback features.
+
+On Ubuntu with Intel UHD graphics, a driver build may omit processing/encoding
+features. If the probe fails at `scale_vaapi` with an unsupported VAProfile,
+the distro's complete Intel media driver can help:
+
+```bash
+sudo apt update
+sudo apt install intel-media-va-driver-non-free
+```
+
+This is a licensing distinction, not a paid extension. The package requires the
+appropriate Ubuntu repositories and replaces its free counterpart. Restart Trip
+Viewer and repeat **Test**. This resolved the owner's Intel Comet Lake test;
+it is not a requirement or guarantee for every Intel generation/distribution.

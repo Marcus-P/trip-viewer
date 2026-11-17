@@ -6,30 +6,49 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
-## AMD and Linux GPU timelapse (0.11.0 preparation)
+## AMD, Intel and Linux GPU timelapse (0.11.0 preparation)
 
 `feat/amd-timelapse-encoding` starts from owner-merged main/develop `62d014e`
 (0.10.3). Stable 0.10.3's desktop release workflow succeeded. The owner requested
-Radeon 780M support on Windows 11 and Linux where an encoding API is available.
+Radeon 780M support on Windows 11, Linux encoding APIs and Windows coverage for
+other supported GPU vendors. PR #19 targets permanent develop, then main with
+one MINOR increment to 0.11.0; stable promotion remains owner-controlled.
 
-Runtime selection preserves NVENC first, then checks AMF and Linux VA-API render
-nodes (at most eight, stable order), finally CPU/libx265. Every selected GPU must
-pass the bounded two-stage synthetic pipeline check. AMF uses CPU decode/scale
-with GPU encode; VA-API uploads NV12 to the verified render device for GPU
-scale/encode. No NPU support, new dependency, archive migration or media rewrite.
-New backends default to one job; all hardware paths retain cancellation-aware,
-once-only CPU fallback, actual-encoder persistence and live progress/ETA. Probe
-revision 2 invalidates older results without discarding the configured path.
-English setup/progress labels distinguish NVENC, AMF, VA-API and CPU.
+Runtime selection preserves NVENC first, then AMF, Windows Intel Quick Sync
+(QSV), Linux VA-API render nodes (at most eight, stable order), finally CPU.
+Every selected GPU must pass the bounded two-stage synthetic pipeline check.
+QSV derives a hardware session from an Intel D3D11 device; it uses NV12 software
+frames. AMF/QSV use CPU decode/scale with GPU encode; VA-API uploads NV12 to the
+verified render device for GPU scale/encode. Linux retains its accepted VA-API
+path without attempting Windows QSV. There is no NPU integration, new dependency,
+archive migration or original-media rewrite. New backends default to one job;
+all hardware paths retain cancellation-aware, once-only CPU fallback, actual
+encoder persistence and live progress/ETA. Probe revision 3 invalidates older
+results without losing the configured FFmpeg path. English labels name each API.
 
-Local checks: 366 Rust tests pass (two ignored), 132 frontend tests and production
-build pass. The explicit real-FFmpeg synthetic test also checks CPU output across
-F/I/R and fixed/multi-window tiers. The cloud has no working AMD/render device;
-these checks cannot establish positive Radeon 780M or Linux VA-API operation.
-Run native package CI once and the [focused GPU test](testing/AMD_TIMELAPSE_0110.md)
-before acceptance. Prepare feature → permanent develop, then owner-controlled
-main with one MINOR increment to 0.11.0. Preserve upstream application/release
-identity when carrying the portable functional change into PR #20.
+On 2026-11-17 the owner confirmed real Intel UHD Graphics (Comet Lake) VA-API
+encoding and playable 8x output on Ubuntu 24.04 LTS / FFmpeg 6.1.1, with 8 GiB RAM.
+The free Intel driver initially failed at `scale_vaapi` with unsupported
+VAProfile. Installing Ubuntu's `intel-media-va-driver-non-free` made the full
+application probe and real encoding pass. The owner observed 75–85% CPU load and
+no clear speed gain; no controlled comparison or speedup claim follows. Software
+HEVC decode, data transfer and other processing can still limit throughput.
+Windows AMF/QSV real-hardware validation remains pending.
+
+369 Rust tests pass (two ignored), 132 frontend tests and production build pass.
+The prior real-FFmpeg synthetic CPU test covers F/I/R and fixed/multi-window tiers;
+it is not repeated for Windows-only QSV. Initial PR CI passed Ubuntu AppImage/DEB
+and Windows installer checks. macOS never acquired a runner and was cancelled
+for GitHub capacity reasons (no Mac code failure); the new functional push gets
+one normal package run. Use the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
+Carry suitable portable changes to upstream PR #20 without changing Chris'
+application versions, dependencies, updater or release configuration.
+
+### On hold: further GPU throughput work
+
+Measure comparable CPU/GPU runs before promising faster conversion. GPU decoding
+and additional transfer/filter optimizations are separate follow-ups; the current
+change establishes verified encoding compatibility and preserves accepted output.
 
 ## Counter-free VIOFO filename compatibility (0.10.3 preparation)
 

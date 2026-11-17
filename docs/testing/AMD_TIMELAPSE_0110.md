@@ -1,7 +1,8 @@
-# AMD / Linux GPU timelapse acceptance (0.11.0)
+# AMD / Intel / Linux GPU timelapse acceptance (0.11.0)
 
-This tests encoding, not playback decoding or NPU acceleration. Actual Radeon
-780M/VA-API operation cannot be established in a cloud without those devices.
+This tests encoding, not playback decoding or NPU acceleration. Positive GPU operation cannot be established in the cloud without those devices.
+The owner has confirmed Intel UHD VA-API encoding and playable 8x output on Ubuntu;
+Windows AMF/QSV hardware validation remains pending.
 
 ## Windows 11 / Radeon 780M
 
@@ -12,13 +13,26 @@ This tests encoding, not playback decoding or NPU acceleration. Actual Radeon
    **Test**. Expect **Encoding verified: AMD / AMF** on a compatible AMD system.
    A separate working NVIDIA GPU takes priority. If CPU is shown, check that
    this FFmpeg includes `hevc_amf` and the AMD graphics driver is installed.
-3. Choose a single short trip, **Front**, **8x** and start encoding. Rebuild only
-   that selection if it already has an output. Expect progressing video time,
+3. Select **Front** and **8x**, then use the **Rebuild** arrow on one short trip. Expect progressing video time,
    an eventual ETA and **AMD / AMF** in live progress, then a playable output.
 4. Optionally open Task Manager → Performance → GPU and select **Video Encode**.
    CPU load is expected: AMF currently decodes and scales on CPU. GPU 3D/NPU
    graphs do not establish video-encoder use. Report the displayed encoder and
    success/error; no full playback/GPS regression session is requested.
+
+## Windows 11 / other GPU vendors
+
+The same installer automatically prefers verified NVIDIA NVENC, AMD AMF and then
+Intel Quick Sync. Use a compatible FFmpeg build with the corresponding HEVC
+encoder and a working graphics driver. For mixed-vendor Intel adapter selection,
+use a current FFmpeg build; this does not combine all installed GPUs or claim
+that the first passing backend is fastest. Hardware without supported HEVC encode
+may use CPU even if it supports GPU-accelerated playback.
+
+For Intel expect **Encoding verified: Intel / QSV**. Repeat only the short
+Front/8x test using the trip row's **Rebuild** arrow, then play the output. AMF
+and QSV still decode/scale on CPU. Record the verified/active encoder and result;
+there is no need to run the whole library or repeat accepted playback/GPS tests.
 
 ## Linux with a compatible API
 
@@ -44,3 +58,17 @@ HEVC bit depth or footage combination, and no fixed speed gain is promised.
 
 Main publishes durable installers only after owner-controlled promotion; these
 acceptance artifacts expire after seven days. Permanent `develop` is retained.
+
+## Confirmed Intel Linux test
+
+On 2026-11-17 the owner confirmed encoding completion and playable 8x output on
+Intel UHD Graphics (Comet Lake), Ubuntu 24.04 LTS, FFmpeg 6.1.1, 8 GiB RAM.
+`intel-media-va-driver` initially failed at GPU scaling with unsupported
+VAProfile. Replacing it with Ubuntu's `intel-media-va-driver-non-free`, restarting
+the app and retesting enabled **GPU / VA-API**. This package is not a purchase;
+see the [user guide](../USER_GUIDE.md) for the installation command.
+
+Observed CPU use was 75–85% with no obvious speed gain. Decoding is still on CPU;
+no controlled performance comparison was made. Treat GPU decode/transfer tuning
+as follow-up work, not proof that the hardware encoder failed or that it is
+universally faster.

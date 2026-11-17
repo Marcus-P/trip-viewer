@@ -7,7 +7,7 @@ Reviewed against GitHub on 2026-11-16. `main` is the stable branch (there is no
 | --- | --- | --- |
 | `main` | Stable 0.10.3 at `62d014e` | Keep; owner-only protected merges |
 | `develop` | Equal to stable main at the start of 0.11.0 work | Keep permanently; promote through a PR to main |
-| `feat/amd-timelapse-encoding` | AMF and Linux VA-API runtime-verified encoding | Active; PR to develop, then focused GPU acceptance |
+| `feat/amd-timelapse-encoding` | AMF, Windows QSV and Linux VA-API verified encoding | Active; PR to develop, then focused GPU acceptance |
 | `fix/viofo-timelapse` | Fully contained in stable 0.10.2 | Obsolete; eligible for deletion |
 | `fix/viofo-legacy-filenames` | Fully contained in stable 0.10.3 | Obsolete; eligible for deletion |
 | `contrib/viofo-playback-081` | Open upstream [PR #20](https://github.com/chrisl8/trip-viewer/pull/20) | Keep; include the shared timelapse fix |
