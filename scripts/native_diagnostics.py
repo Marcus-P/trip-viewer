@@ -1,9 +1,26 @@
 #!/usr/bin/env python3
 """Make native failures readable in check annotations without large log uploads."""
 import pathlib
+import json
+import subprocess
+import tempfile
 import re
 import sys
 import traceback
+
+
+def command_json(command, cwd):
+    """Read command JSON through files, including on Windows native runners."""
+    with tempfile.TemporaryDirectory(prefix="trip-viewer-metadata-") as work:
+        output = pathlib.Path(work) / "metadata.json"
+        errors = pathlib.Path(work) / "stderr.txt"
+        with output.open("wb") as stdout, errors.open("wb") as stderr:
+            result = subprocess.run(command, cwd=cwd, stdout=stdout, stderr=stderr)
+        details = errors.read_text(encoding="utf-8", errors="replace")[-6000:]
+        data = output.read_bytes()
+        if result.returncode or not data.strip():
+            raise RuntimeError("Dependency metadata produced no usable JSON (exit " + str(result.returncode) + "): " + details)
+        return json.loads(data)
 
 
 def report(title, details):

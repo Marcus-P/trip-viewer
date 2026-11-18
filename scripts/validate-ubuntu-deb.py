@@ -12,7 +12,7 @@ version = json.loads((root / "package.json").read_text())["version"]
 def field(name):
     return subprocess.check_output(["dpkg-deb", "--field", str(package), name], text=True).strip()
 assert field("Package") == "trip-viewer", "Unexpected Debian package identity"
-assert field("Version") == version, "Package and application versions differ"
+assert field("Version") == version.replace("-rc.", "~rc."), "Package and application versions differ"
 assert field("Architecture") == "amd64", "Only Ubuntu x86_64 is published"
 depends = field("Depends")
 for name in ["gstreamer1.0-libav", "gstreamer1.0-plugins-good",

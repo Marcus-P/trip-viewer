@@ -25,10 +25,10 @@ export interface PublishedRelease {
   installerLabel: string | null;
 }
 
-function versionParts(value: string): bigint[] {
-  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value);
-  if (!match) throw Error("Invalid stable release version");
-  return match.slice(1).map(BigInt);
+function versionParts(value: string, allowPreview = false): { core: bigint[]; preview: bigint | null } {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.(0|[1-9]\d*))?$/.exec(value);
+  if (!match || (!allowPreview && match[4])) throw Error("Invalid release version");
+  return { core: match.slice(1, 4).map(BigInt), preview: match[4] === undefined ? null : BigInt(match[4]) };
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -46,10 +46,10 @@ export function parsePublishedRelease(value: unknown, installed: string,
   }
   const version = release.tag_name.slice(1);
   const available = versionParts(version);
-  const current = versionParts(installed);
-  const different = available.findIndex((part, index) => part !== current[index]);
-  const relation = different < 0 ? "same" :
-    available[different] > current[different] ? "newer" : "installedAhead";
+  const current = versionParts(installed, true);
+  const different = available.core.findIndex((part, index) => part !== current.core[index]);
+  const relation = different < 0 ? (current.preview !== null ? "newer" : "same") :
+    available.core[different] > current.core[different] ? "newer" : "installedAhead";
   const installer = target === "unsupported" ? null : INSTALLERS[target];
   const name = installer ? "Trip.Viewer_" + version + "_" + installer.suffix : "";
   const expectedUrl = RELEASES_PAGE + "/download/v" + version + "/" + name;

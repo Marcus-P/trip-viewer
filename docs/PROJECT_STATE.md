@@ -6,6 +6,145 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Stable 0.12.0 promotion: Linux and Windows accepted
+
+The owner merged feature PR #21 into permanent develop as `9aabc9d` on
+2026-11-18. Main remains published 0.11.0 at `fc0fbe8`. Release branch
+`release/0.12.0` starts at that develop merge, preserves the Linux acceptance
+records and finalizes synchronized version entries/release notes as 0.12.0.
+Application/decoder/encoder code still matches accepted feature head `52c3fc9`.
+
+The owner accepted the revised Ubuntu Intel UHD/CML GT2 Front/16x workload:
+the log shows VA-API decoding/scaling/encoding, successful completion in 850.6s
+without processing fallback, and correct finished-output playback was confirmed.
+
+Windows 11 x64 / Radeon 780M acceptance is now also confirmed. The FFmpeg Test
+reported AMD / AMF encoding and GPU / D3D11VA decoding. The running Front/16x
+screenshot showed those same profiles; the owner then confirmed completion and
+problem-free playback. The trip was reported as 23m54s / approximately 11 GB;
+Front conversion took an estimated two to three minutes. The size is a trip
+report, not a verified Front-only file-size measurement. No saved Windows run
+log or controlled benchmark was collected; do not claim exact stage times or
+log-proven absence of transient fallback. No further owner encoding is needed.
+Other GPUs, Windows Intel/QSV and macOS hardware remain separately unverified.
+
+Prepare the main promotion PR from release/0.12.0, with one required integration
+CI run. The Windows test installer 0.12.0-rc.44263923946 and the release branch
+have identical application code. Only acceptance docs, release notes and version
+metadata changed after the accepted build. Do not repeat owner playback/GPU
+tests for those changes. The final main release automatically builds/publishes
+all three platform installers after the owner's merge. RC → stable installation
+ordering is documented and tested. Keep develop permanent and synchronize it
+after stable promotion. Do not merge main without explicit owner authorization.
+
+### On hold: further Windows throughput tuning
+
+The owner asked about a snapshot of roughly 51% video-codec utilization with
+12% aggregate CPU use. CPU scaling/filtering is currently limited to two threads
+on the hardware-decode path; individual core saturation, transfer/scheduling and
+codec-engine utilization need measurement before identifying a bottleneck.
+GPU scaling, thread tuning or additional concurrency are possible follow-ups,
+not part of this accepted release. Do not raise memory/queue/concurrency limits
+or promise a speedup without comparable timed tests and stability evidence.
+
+## GPU decoding follow-up (0.12.0 acceptance preparation)
+
+Published v0.11.0/main and permanent develop match at `fc0fbe8`.
+The owner confirmed completion and correct playback of all nine Windows AMF
+outputs; no further Windows encoding acceptance is requested at this checkpoint.
+The authorized follow-up is isolated on `feat/gpu-decode-pipeline` from develop.
+It probes decoder APIs rather than model names: D3D11VA on Windows, VA-API on
+Linux, CUDA for NVENC and experimental VideoToolbox. Linux VA-API first tries
+hardware frames through scaling/encoding; host-filter variants retain native
+8/10-bit frame download formats. Processing errors retry software processing
+with the same encoder, then retain the established CPU encoder fallback.
+Probe revision 6 invalidates prior results while preserving the FFmpeg path.
+
+On 2026-11-18 the owner installed 0.12.0-rc.44180688812 on the Intel UHD/CML
+GT2 Ubuntu 24.04 LTS notebook. Checksum verification and upgrade from 0.11.0
+succeeded; Debian used 0.12.0~rc.44180688812. The synthetic probe reports VA-API
+for encoding and decoding. All three real 8x channel jobs completed and the
+owner confirmed correct 8x playback. However, the long run logged a hardware
+processing failure in the filter graph: "Cannot allocate memory". The same-GPU-
+encoder/software-processing fallback activated and remains active for subsequent
+jobs in that batch. Therefore this confirms working recovery/output playback,
+not sustained GPU decoding on this memory-constrained notebook. The failure does
+not establish whether host RAM, driver/surface allocation or filtering caused it.
+Front/Interior/Rear elapsed times were approximately 69m20s / 21m44s / 36m50s;
+these include retry work and are not a controlled performance comparison.
+Investigate bounded decoder/filter surface allocation before claiming the long
+GPU-decoding path accepted. The expected NVENC rejection on an Intel-only system
+is separate from the memory error. No new encoding is requested from the owner
+at this checkpoint. Windows D3D11VA decoding remains untested on owner hardware.
+Prior encoding/playback acceptance remains valid;
+no GPU speedup or universal hardware certification is claimed. Settings and
+progress name the selected/requested decode profile, not measured GPU activity.
+Source preview is 0.12.0-rc.2; acceptance CI stamps a unique numeric run ID.
+Stable promotion will be 0.12.0 after acceptance. Debian uses ~rc.N and the
+updater handles RC → stable; these are permanent versioning rules. No main
+merge, upstream update or stable publication of this follow-up is authorized yet.
+
+Local checks: 378 Rust unit tests pass (two opt-in tests ignored), 134 frontend
+tests and the production build pass. Twenty-eight CI/version-policy tests and
+twelve native-packaging helper tests pass, including real Debian RC/stable ordering.
+Native CI run 44180688812 passed Ubuntu AppImage/DEB build and installation,
+Windows installation/version/basic launch, universal Mac package/signature/basic
+launch and the required ubuntu gate. Preserve these test downloads until a
+replacement is verified. The remaining decoding issue above is hardware runtime
+acceptance, not a failed package build. PR #21 targets develop; no merge or
+stable publication is authorized by the playback confirmation alone.
+
+### Memory follow-up implementation (new acceptance pending)
+
+The owner authorized fixing the runtime memory failure on 2026-11-18. FFmpeg
+6.1 VA-API VPP uses a fixed ten-surface pool by default; exhaustion returns an
+allocation failure without proving that host RAM is exhausted. Equal input and
+output size/format bypasses VPP, which the original Full-HD → Full-HD probe
+could do. Sources and limits are documented in the decoding test guide.
+
+The follow-up explicitly reserves 4 + 16 VA-API scaler surfaces, sets encoder
+async depth to one, and uses one hardware decoder thread, eight extra decoder
+surfaces and two complex-filter threads. These are API-based settings, not GPU
+model rules. The finite Full-HD/NV12 source is retained; the processing test now
+loops eight times, resizes to 720p and accelerates 8x with CFR output. Real
+hardware-decoding jobs first test up to eight seconds of their actual first
+source at production scaling under a twenty-second wall deadline. Fallback
+therefore occurs before a full source copy/encode when that sample fails.
+Preflight checks actual hardware decoder selection; bounded stderr capture
+retains the last format-selection evidence even with verbose per-frame output.
+Cancellation preserves its sentinel and existing accepted output is untouched.
+Each attempt logs encoder, decoder and software-scaling state.
+
+382 Rust unit tests pass (two opt-in tests ignored), including probe coverage,
+real-input limits, cancellation/output preservation and bounded decoder evidence.
+The real synthetic FFmpeg regression also passes all nine channel/tier outputs
+in about two minutes. New native package CI is pending for this follow-up; no
+claim of a physical GPU fix follows from cloud tests. Keep
+main/develop and upstream PR unchanged. Next owner checkpoint is one short
+Front/8x trip on the Ubuntu notebook, not the whole 76-minute three-channel trip.
+
+### Revised Ubuntu RC: real 16x Front completion (2026-11-18)
+
+After installing the revised acceptance build 0.12.0-rc.44263923946, the owner
+ran one Front/16x job on the Intel UHD/CML GT2 Ubuntu notebook. The supplied log
+records `encoder=hevc_vaapi decoder=vaapi software-scale=false`, followed by
+successful job completion after 850.6 seconds (14m10.6s). No hardware-processing
+failure, real-input preflight failure, memory error or CPU-processing retry is
+present in this log. This is positive real-workload evidence for the VA-API
+path after the memory follow-up, not just a synthetic probe result. The logged
+`segments=9` denotes speed-curve windows (`curve.len()`), not nine camera files.
+Subsequent HTTP/range requests opened the generated 16x Front output. The owner
+then explicitly confirmed that the finished 16x video plays without problems.
+The revised Linux Front/16x workload and playback are accepted. Windows D3D11VA acceptance remains pending. This is
+not a controlled speed comparison with the earlier 8x fallback run.
+
+CI run 44263923946 passed every native package job and the required ubuntu gate.
+No additional encoding, build or stable merge is needed to review this log.
+Next: the owner can merge the green feature PR #21 into permanent develop.
+Then prepare the finalized 0.12.0 stable promotion for owner review. Preserve
+main until explicit promotion authorization; no new encoding test is required
+for this accepted Linux workload. Windows D3D11VA remains separately untested.
+
 ## GPU timelapse production release (0.11.0)
 
 The owner authorized completing and publishing the next stable release on
@@ -37,8 +176,8 @@ Owner-reported hardware evidence:
 - AMD Radeon 780M (Ryzen 9 8945HS), Windows 11 x64, driver 32.0.12033.1030:
   finite 30-frame Full-HD NV12 diagnostic passed after the tiny two-frame probe
   stalled. The updated app's AMF probe passes and a real Front/8x job is observed
-  progressing. The owner reports it seems faster and authorizes release; final
-  Windows job completion/output playback has not yet been separately confirmed.
+  progressing. The owner subsequently confirmed all nine jobs completed and
+  their outputs play correctly. No controlled speed comparison was performed.
 - NVIDIA/NVENC and Windows Intel/QSV are implemented with automated checks; no
   owner hardware acceptance for these paths is claimed. No controlled speed
   comparison, universal GPU support or Mac GPU certification follows.

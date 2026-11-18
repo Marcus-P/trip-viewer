@@ -1,3 +1,40 @@
+# Trip Viewer 0.12.0
+
+## Hardware decoding and reliable timelapse processing
+
+- Selects verified decoding APIs alongside the existing encoders: Linux VA-API,
+  Windows D3D11VA, NVIDIA CUDA and experimental macOS VideoToolbox, without a
+  GPU-model allowlist. Linux VA-API can keep frames on the device through
+  decoding/scaling/encoding. Windows AMF/QSV retain software filters where needed.
+- Fixes a weak Full-HD probe that could bypass VA-API scaling. The finite NV12
+  source now exercises actual resizing and eight looped seconds accelerated 8x.
+  Before each hardware-decoded channel, checks a bounded sample of the actual
+  source with production scaling and a twenty-second deadline.
+- Gives VA-API scaling finite surface reserves, limits asynchronous encoding and
+  hardware processing depth, and invalidates older capability caches without
+  losing the FFmpeg path. Processing failures retain the GPU encoder with
+  software processing before the established CPU-encoding fallback. Cancellation
+  remains cancellation, and existing accepted output is preserved until success.
+- Shows the verified/requested decode profile and logs each attempt. Bounded
+  diagnostics retain decoder-selection evidence. These are not live GPU meters.
+- Gives acceptance installers unique numeric RC versions below the final stable
+  version. Debian uses equivalent `~rc.N` ordering; the app recognizes RC →
+  stable as an upgrade. Main rejects unfinalized candidate metadata.
+
+Linux acceptance: the owner completed a real Intel UHD/CML GT2 Front/16x VA-API
+job in 850.6 seconds without memory error or CPU-processing fallback and confirmed
+problem-free output playback on Ubuntu 24.04 LTS. This is not a controlled
+speed comparison. The owner also confirmed the Windows 11 Radeon 780M
+D3D11VA-decoding plus AMF-encoding Front/16x test completed and its output plays
+correctly. Other GPUs and Mac hardware remain separately
+unverified. Original media, playback/GPS behavior, archive schema, logos and
+license notices remain unchanged.
+
+Release preparation is not publication. Current downloads remain at Latest
+Release until the owner merges the promotion and package publication succeeds.
+
+---
+
 # Trip Viewer 0.11.0
 
 ## AMD, Intel and Linux GPU timelapse encoding

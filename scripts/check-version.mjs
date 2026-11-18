@@ -17,13 +17,15 @@ const versions = {
   "RELEASE_VERSION": read("RELEASE_VERSION").trim(),
 };
 const parse = (value) => {
-  if (typeof value !== "string" || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)) {
-    throw new Error(`Expected stable MAJOR.MINOR.PATCH, got ${value}`);
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.(0|[1-9]\d*))?$/.test(value)) {
+    throw new Error(`Expected MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-rc.N, got ${value}`);
   }
-  return value.split(".").map(BigInt);
+  return value.split("-")[0].split(".").map(BigInt);
 };
 try {
   const current = parse(pkg.version);
+  const stableRequired = process.env.GITHUB_BASE_REF === "main" || process.env.GITHUB_REF === "refs/heads/main" || process.env.REQUIRE_STABLE_VERSION === "true";
+  if (stableRequired && pkg.version.includes("-")) throw Error("Finalize the prerelease version before main promotion");
   if (!read("RELEASE_NOTES.md").startsWith("# Trip Viewer " + pkg.version + "\n")) {
     throw new Error("RELEASE_NOTES.md must start with the proposed application version");
   }
@@ -39,10 +41,11 @@ try {
     const notesChanged = execFileSync("git", ["diff", "--name-only", base, "--", "RELEASE_NOTES.md"], { encoding: "utf8" }).trim();
     if (!notesChanged) throw new Error("Every merge must update RELEASE_NOTES.md");
     const changed = current.findIndex((part, index) => part !== previous[index]);
-    if (changed < 0 || current[changed] <= previous[changed]) {
+    const samePreviewCore = changed < 0 && process.env.GITHUB_BASE_REF === "develop" && (old.includes("-rc.") || pkg.version.includes("-rc."));
+    if (!samePreviewCore && (changed < 0 || current[changed] <= previous[changed])) {
       throw new Error(`Merge version must increase: base ${old}, proposed ${pkg.version}`);
     }
-    if (current[changed] !== previous[changed] + 1n || current.slice(changed + 1).some(part => part !== 0n)) {
+    if (!samePreviewCore && (current[changed] !== previous[changed] + 1n || current.slice(changed + 1).some(part => part !== 0n))) {
       throw new Error(`Use one patch, minor or major increment and reset lower components: ${old} -> ${pkg.version}`);
     }
     console.log(`Merge version: ${old} -> ${pkg.version}`);

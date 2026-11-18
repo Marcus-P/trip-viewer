@@ -43,7 +43,9 @@ fn cached_capabilities(s: &AppSettings) -> Option<FfmpegCapabilities> {
             amf_hevc: s.ffmpeg_amf_hevc.unwrap_or(false),
             qsv_hevc: s.ffmpeg_qsv_hevc.unwrap_or(false),
             vaapi_device: s.ffmpeg_vaapi_device.clone(),
-            software_processing: s.ffmpeg_software_processing.unwrap_or(false),
+            software_processing: s.ffmpeg_software_processing.unwrap_or(true),
+            decoder: s.ffmpeg_decoder.unwrap_or_default(),
+            decoder_device: s.ffmpeg_decoder_device.clone(),
         }),
         _ => None,
     }
@@ -59,16 +61,20 @@ mod cache_tests {
             "ffmpeg_path":"ffmpeg", "ffmpeg_version":"old", "nvenc_hevc":false,
             "ffmpeg_probe_revision":2
         }"#).unwrap();
-        for revision in [None, Some(1), Some(2), Some(3)] {
+        for revision in [None, Some(1), Some(2), Some(3), Some(4), Some(5)] {
             settings.ffmpeg_probe_revision = revision;
             assert!(cached_capabilities(&settings).is_none());
         }
         assert_eq!(settings.ffmpeg_path.as_deref(), Some("ffmpeg"));
         settings.ffmpeg_probe_revision = Some(ffmpeg::FFMPEG_PROBE_REVISION);
         settings.ffmpeg_vaapi_device = Some("/dev/dri/renderD129".into());
+        settings.ffmpeg_decoder = Some(crate::timelapse::types::Decoder::Vaapi);
+        settings.ffmpeg_decoder_device = Some("/dev/dri/renderD129".into());
         let roundtrip: AppSettings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         let caps = cached_capabilities(&roundtrip).unwrap();
         assert_eq!(caps.vaapi_device.as_deref(), Some("/dev/dri/renderD129"));
+        assert_eq!(caps.decoder, crate::timelapse::types::Decoder::Vaapi);
+        assert_eq!(caps.decoder_device.as_deref(), Some("/dev/dri/renderD129"));
         assert!(!caps.amf_hevc);
         assert!(!caps.qsv_hevc);
         settings.ffmpeg_amf_hevc = Some(true);
@@ -98,6 +104,8 @@ pub async fn clear_timelapse_settings(
         s.ffmpeg_qsv_hevc = None;
         s.ffmpeg_vaapi_device = None;
         s.ffmpeg_software_processing = None;
+        s.ffmpeg_decoder = None;
+        s.ffmpeg_decoder_device = None;
     })
 }
 
@@ -165,6 +173,8 @@ pub async fn test_ffmpeg(
         s.ffmpeg_qsv_hevc = Some(caps_for_save.qsv_hevc);
         s.ffmpeg_vaapi_device = caps_for_save.vaapi_device;
         s.ffmpeg_software_processing = Some(caps_for_save.software_processing);
+        s.ffmpeg_decoder = Some(caps_for_save.decoder);
+        s.ffmpeg_decoder_device = caps_for_save.decoder_device;
         s.ffmpeg_probe_revision = Some(ffmpeg::FFMPEG_PROBE_REVISION);
     })?;
     Ok(caps)
@@ -209,6 +219,8 @@ pub async fn start_timelapse(
         s.ffmpeg_qsv_hevc = Some(checked.qsv_hevc);
         s.ffmpeg_vaapi_device = checked.vaapi_device;
         s.ffmpeg_software_processing = Some(checked.software_processing);
+        s.ffmpeg_decoder = Some(checked.decoder);
+        s.ffmpeg_decoder_device = checked.decoder_device;
         s.ffmpeg_probe_revision = Some(ffmpeg::FFMPEG_PROBE_REVISION);
     })?;
     let concurrency_override = s.timelapse_max_concurrent_jobs.map(|n| n as usize);

@@ -50,10 +50,12 @@ export function classifyChanges(changes) {
       scope.backend = scope.bundle = true;
     } else if (/^src-tauri\/(tests|examples)\//.test(path)) {
       scope.backend = true;
-    } else if (/^scripts\/(change-scope|check-version|check-docs|check-interfaces|desktop-packages)(\.test)?\.mjs$/.test(path)) {
+    } else if (path === "scripts/preview-version.mjs") {
+      scope.bundle = scope.tooling = true;
+    } else if (/^scripts\/(change-scope|check-version|check-docs|check-interfaces|desktop-packages|preview-version)(\.test)?\.mjs$/.test(path)) {
       scope.tooling = true;
     } else if (/^scripts\/(install-|prepare-|validate-)/.test(path) ||
-               [".github/workflows/desktop-packages.yml", "scripts/native_diagnostics.py",
+               [".github/workflows/desktop-packages.yml", ".github/workflows/ci.yml", "scripts/native_diagnostics.py",
                 "scripts/test_native_packaging.py"].includes(path)) {
       // Packaging infrastructure needs installer validation, not unchanged app
       // unit suites or dependency audits. Other workflow changes fail closed.

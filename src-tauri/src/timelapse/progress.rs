@@ -9,6 +9,7 @@ use serde::Serialize;
 pub struct EncodingProgress {
     pub phase: &'static str,
     pub encoder: &'static str,
+    pub decoder: &'static str,
     pub processed_seconds: f64,
     pub total_seconds: f64,
     pub elapsed_seconds: f64,
@@ -21,6 +22,7 @@ pub struct Reporter {
     callback: ProgressCallback,
     phase: &'static str,
     encoder: &'static str,
+    decoder: &'static str,
     total: f64,
     offset: f64,
     started: Instant,
@@ -28,14 +30,16 @@ pub struct Reporter {
 
 impl Reporter {
     pub fn new(callback: ProgressCallback, phase: &'static str, encoder: &'static str, total: f64) -> Self {
-        Self { callback, phase, encoder, total, offset: 0.0, started: Instant::now() }
+        Self { callback, phase, encoder, decoder: "software", total, offset: 0.0, started: Instant::now() }
     }
+
+    pub fn decoder(mut self, decoder: &'static str) -> Self { self.decoder = decoder; self }
 
     pub fn offset(&self, offset: f64) -> Self { Self { offset, ..self.clone() } }
 
     pub fn emit(&self, seconds: f64) {
         (self.callback)(EncodingProgress {
-            phase: self.phase, encoder: self.encoder,
+            phase: self.phase, encoder: self.encoder, decoder: self.decoder,
             processed_seconds: (self.offset + seconds).clamp(0.0, self.total.max(0.0)),
             total_seconds: self.total,
             elapsed_seconds: self.started.elapsed().as_secs_f64(),
