@@ -82,6 +82,26 @@ claim of a physical GPU fix follows from cloud tests. Keep
 main/develop and upstream PR unchanged. Next owner checkpoint is one short
 Front/8x trip on the Ubuntu notebook, not the whole 76-minute three-channel trip.
 
+### Revised Ubuntu RC: real 16x Front completion (2026-11-18)
+
+After installing the revised acceptance build 0.12.0-rc.44263923946, the owner
+ran one Front/16x job on the Intel UHD/CML GT2 Ubuntu notebook. The supplied log
+records `encoder=hevc_vaapi decoder=vaapi software-scale=false`, followed by
+successful job completion after 850.6 seconds (14m10.6s). No hardware-processing
+failure, real-input preflight failure, memory error or CPU-processing retry is
+present in this log. This is positive real-workload evidence for the VA-API
+path after the memory follow-up, not just a synthetic probe result. The logged
+`segments=9` denotes speed-curve windows (`curve.len()`), not nine camera files.
+Subsequent HTTP/range requests opened the generated 16x Front output; correct
+visual playback has not yet been confirmed by the owner. Do not infer that
+from HTTP success alone. Windows D3D11VA acceptance remains pending. This is
+not a controlled speed comparison with the earlier 8x fallback run.
+
+CI run 44263923946 passed every native package job and the required ubuntu gate.
+No additional encoding, build or stable merge is needed to review this log.
+Next: ask the owner whether the finished 16x output plays correctly; preserve
+main/develop until explicit promotion authorization.
+
 ## GPU timelapse production release (0.11.0)
 
 The owner authorized completing and publishing the next stable release on

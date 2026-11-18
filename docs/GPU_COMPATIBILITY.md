@@ -56,3 +56,11 @@ there is no automatic remote control, issue-monitoring agent or telemetry servic
 Share only technical details and redact personal paths, usernames, GPS data and
 secrets. Original footage is not required for the initial report. Compatibility
 entries will distinguish reported probe success from completed real encoding.
+
+## Revised Ubuntu decoding result (2026-11-18)
+
+The revised 0.12.0-rc.44263923946 completed a real Intel UHD/CML GT2 Front/16x
+job with VA-API encoding/decoding and GPU scaling in 850.6 seconds. The supplied
+log contains no memory error or processing fallback. This is a successful real
+job after the surface-pool follow-up; visual playback confirmation is pending.
+It does not certify Windows D3D11VA, every recording or a speedup factor.
