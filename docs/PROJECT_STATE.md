@@ -6,29 +6,46 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
-## Stable 0.12.0 preparation: Windows checkpoint pending
+## Stable 0.12.0 promotion: Linux and Windows accepted
 
 The owner merged feature PR #21 into permanent develop as `9aabc9d` on
 2026-11-18. Main remains published 0.11.0 at `fc0fbe8`. Release branch
-`release/0.12.0` starts at that develop merge, preserves the local Linux
-acceptance records, and finalizes the six synchronized version entries and
-release notes as 0.12.0. Application/decoder/encoder code matches the accepted
-feature head `52c3fc9`; no new installer build is needed for Windows testing.
+`release/0.12.0` starts at that develop merge, preserves the Linux acceptance
+records and finalizes synchronized version entries/release notes as 0.12.0.
+Application/decoder/encoder code still matches accepted feature head `52c3fc9`.
 
-Use the existing tested-CI Windows artifact from run 44263923946, installer
-version 0.12.0-rc.44263923946. The owner now requests Windows 11 coverage of the
-new combined path: AMD Radeon 780M AMF encoding was accepted in 0.11.0, while
-D3D11VA hardware decoding has not yet been accepted. First run the FFmpeg Test
-and expect AMD / AMF plus GPU / D3D11VA, then one short Front/16x job through
-that trip row's Rebuild button (one job). Verify the running decoder stays on
-D3D11VA and the finished video plays. Do not ask for all nine outputs again.
+The owner accepted the revised Ubuntu Intel UHD/CML GT2 Front/16x workload:
+the log shows VA-API decoding/scaling/encoding, successful completion in 850.6s
+without processing fallback, and correct finished-output playback was confirmed.
 
-Keep release promotion/main publication pending that Windows result. Release
-metadata/docs can be prepared now without new CI or package artifacts. After
-acceptance, prepare the main promotion PR with the finalized version, keeping
-permanent develop and its merged feature history. The later stable 0.12.0 is
-newer than both Ubuntu and Windows RC installers. No stable merge is authorized
-by the owner's merge of PR #21 alone.
+Windows 11 x64 / Radeon 780M acceptance is now also confirmed. The FFmpeg Test
+reported AMD / AMF encoding and GPU / D3D11VA decoding. The running Front/16x
+screenshot showed those same profiles; the owner then confirmed completion and
+problem-free playback. The trip was reported as 23m54s / approximately 11 GB;
+Front conversion took an estimated two to three minutes. The size is a trip
+report, not a verified Front-only file-size measurement. No saved Windows run
+log or controlled benchmark was collected; do not claim exact stage times or
+log-proven absence of transient fallback. No further owner encoding is needed.
+Other GPUs, Windows Intel/QSV and macOS hardware remain separately unverified.
+
+Prepare the main promotion PR from release/0.12.0, with one required integration
+CI run. The Windows test installer 0.12.0-rc.44263923946 and the release branch
+have identical application code. Only acceptance docs, release notes and version
+metadata changed after the accepted build. Do not repeat owner playback/GPU
+tests for those changes. The final main release automatically builds/publishes
+all three platform installers after the owner's merge. RC → stable installation
+ordering is documented and tested. Keep develop permanent and synchronize it
+after stable promotion. Do not merge main without explicit owner authorization.
+
+### On hold: further Windows throughput tuning
+
+The owner asked about a snapshot of roughly 51% video-codec utilization with
+12% aggregate CPU use. CPU scaling/filtering is currently limited to two threads
+on the hardware-decode path; individual core saturation, transfer/scheduling and
+codec-engine utilization need measurement before identifying a bottleneck.
+GPU scaling, thread tuning or additional concurrency are possible follow-ups,
+not part of this accepted release. Do not raise memory/queue/concurrency limits
+or promise a speedup without comparable timed tests and stability evidence.
 
 ## GPU decoding follow-up (0.12.0 acceptance preparation)
 

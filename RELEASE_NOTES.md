@@ -24,9 +24,9 @@
 Linux acceptance: the owner completed a real Intel UHD/CML GT2 Front/16x VA-API
 job in 850.6 seconds without memory error or CPU-processing fallback and confirmed
 problem-free output playback on Ubuntu 24.04 LTS. This is not a controlled
-speed comparison. Prior Windows 11 Radeon 780M AMF encoding/playback is accepted;
-**the new D3D11VA-decoding plus AMF-encoding path still awaits one focused Windows
-test before stable promotion**. Other GPUs and Mac hardware remain separately
+speed comparison. The owner also confirmed the Windows 11 Radeon 780M
+D3D11VA-decoding plus AMF-encoding Front/16x test completed and its output plays
+correctly. Other GPUs and Mac hardware remain separately
 unverified. Original media, playback/GPS behavior, archive schema, logos and
 license notices remain unchanged.
 

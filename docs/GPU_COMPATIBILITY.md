@@ -14,7 +14,7 @@ support for every GPU/driver/build combination is promised.
 | GPU | OS | API | Evidence and scope |
 | --- | --- | --- | --- |
 | Intel UHD Graphics, Comet Lake / CML GT2 (Core i5-10210U) | Ubuntu 24.04 LTS | VA-API | Owner confirmed app encoding completion and playable 8x output. FFmpeg 6.1.1; the complete Intel media driver resolved an initial scaling failure. |
-| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. The owner confirmed all nine real jobs completed and their outputs play correctly. Driver 32.0.12033.1030. |
+| AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. The owner confirmed all nine 0.11.0 jobs completed and play correctly. In the revised 0.12.0 RC, D3D11VA decoding + AMF encoding were observed in the Front/16x run, which completed with correct playback. Driver 32.0.12033.1030. |
 
 These reports were supplied on 2026-11-17. They do not certify every recording,
 driver or OS update. NVIDIA/NVENC and Windows Intel/QSV are implemented and
@@ -33,7 +33,8 @@ processing while retaining GPU encoding. All three 8x channel outputs completed
 and 8x playback was confirmed. This validates recovery, not sustained GPU decoding
 on that system. The precise runtime allocation cause remains unconfirmed; the next RC adds
 finite VA-API surface reserves, bounded processing depth and a real-source
-preflight. Hardware retesting remains pending; no speedup claim follows. Windows D3D11VA hardware acceptance is still pending.
+preflight. The revised Linux and Windows results below supersede the earlier pending
+acceptance status; no controlled speedup claim follows.
 The table above records encoding results.
 Linux VA-API prefers device-resident frames through scaling/encoding; Windows
 D3D11VA downloads native 8/10-bit frames for the existing software filters.
@@ -65,3 +66,15 @@ log contains no memory error or processing fallback. This is a successful real
 job after the surface-pool follow-up; the owner also explicitly confirmed
 problem-free playback of the finished 16x video.
 It does not certify Windows D3D11VA, every recording or a speedup factor.
+
+## Windows decoding acceptance (2026-11-18)
+
+The owner accepted the revised 0.12.0-rc.44263923946 on Windows 11 x64 with
+Radeon 780M. The probe and running Front/16x screenshot show AMD / AMF encoding
+and GPU / D3D11VA decoding; completion and correct output playback were then
+confirmed. For a trip reported as 23m54s and about 11 GB, Front conversion was
+estimated at two to three minutes. This is an owner estimate, not a controlled
+benchmark or verified Front-only byte count. There is no saved Windows run log
+for a stronger claim about every phase or transient fallback. Previous 0.11.0
+AMF encoding acceptance remains valid. No additional owner run is required for
+version finalization. Other GPU/driver setups and Mac hardware remain unverified.

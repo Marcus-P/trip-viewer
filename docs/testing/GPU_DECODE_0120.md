@@ -22,7 +22,7 @@ Windows uses the x64 setup installer. The future stable 0.12.0 sorts above both.
    before claiming any speedup. Preparing source is a stream-copy phase and
    does not measure decoder throughput.
 
-## Later checkpoint: Windows AMD computer
+## Windows AMD checkpoint (completed)
 
 The owner has already confirmed all nine 0.11.0 AMF outputs complete and play.
 No repeat encoding is requested now. When testing this next stage, the FFmpeg
@@ -74,3 +74,13 @@ that short selected trip/channel/tier. Report whether the log shows
 failure appears, and whether the new output plays. The new preflight may take
 up to twenty seconds; no full-library rebuild is needed. A successful short
 check is the first checkpoint, not proof against all long-running driver leaks.
+
+## Owner acceptance result
+
+The revised RC passed the real Linux Front/16x workload without logged fallback,
+and the owner confirmed playback. Windows 11 Radeon 780M also passed the observed
+D3D11VA + AMF Front/16x run and finished-output playback. The Windows conversion
+time was an approximate owner report; no saved Windows job log exists. These
+checks are complete for this release. Do not ask the owner to repeat them for
+release-note or version-only finalization. Keep broader hardware/performance
+claims separate from this evidence.
