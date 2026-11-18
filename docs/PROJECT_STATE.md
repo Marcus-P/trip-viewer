@@ -92,15 +92,17 @@ failure, real-input preflight failure, memory error or CPU-processing retry is
 present in this log. This is positive real-workload evidence for the VA-API
 path after the memory follow-up, not just a synthetic probe result. The logged
 `segments=9` denotes speed-curve windows (`curve.len()`), not nine camera files.
-Subsequent HTTP/range requests opened the generated 16x Front output; correct
-visual playback has not yet been confirmed by the owner. Do not infer that
-from HTTP success alone. Windows D3D11VA acceptance remains pending. This is
+Subsequent HTTP/range requests opened the generated 16x Front output. The owner
+then explicitly confirmed that the finished 16x video plays without problems.
+The revised Linux Front/16x workload and playback are accepted. Windows D3D11VA acceptance remains pending. This is
 not a controlled speed comparison with the earlier 8x fallback run.
 
 CI run 44263923946 passed every native package job and the required ubuntu gate.
 No additional encoding, build or stable merge is needed to review this log.
-Next: ask the owner whether the finished 16x output plays correctly; preserve
-main/develop until explicit promotion authorization.
+Next: the owner can merge the green feature PR #21 into permanent develop.
+Then prepare the finalized 0.12.0 stable promotion for owner review. Preserve
+main until explicit promotion authorization; no new encoding test is required
+for this accepted Linux workload. Windows D3D11VA remains separately untested.
 
 ## GPU timelapse production release (0.11.0)
 

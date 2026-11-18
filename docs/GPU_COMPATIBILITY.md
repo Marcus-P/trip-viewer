@@ -62,5 +62,6 @@ entries will distinguish reported probe success from completed real encoding.
 The revised 0.12.0-rc.44263923946 completed a real Intel UHD/CML GT2 Front/16x
 job with VA-API encoding/decoding and GPU scaling in 850.6 seconds. The supplied
 log contains no memory error or processing fallback. This is a successful real
-job after the surface-pool follow-up; visual playback confirmation is pending.
+job after the surface-pool follow-up; the owner also explicitly confirmed
+problem-free playback of the finished 16x video.
 It does not certify Windows D3D11VA, every recording or a speedup factor.
