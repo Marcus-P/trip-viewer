@@ -342,9 +342,9 @@ pub fn compose_filter_from_curve(
     let head = if scale_filter == "scale_cuda" {
         format!("scale_cuda={OUT_WIDTH}:-2:format=yuv420p")
     } else if scale_filter == "scale_vaapi" {
-        format!("format=nv12,hwupload,scale_vaapi={OUT_WIDTH}:-2")
+        format!("format=nv12,hwupload,scale_vaapi={OUT_WIDTH}:-2:extra_hw_frames=16")
     } else if scale_filter == "scale_vaapi_native" {
-        format!("scale_vaapi={OUT_WIDTH}:-2:format=nv12")
+        format!("scale_vaapi={OUT_WIDTH}:-2:format=nv12:extra_hw_frames=16")
     } else if scale_filter == "scale_then_upload" {
         format!("scale={OUT_WIDTH}:-2,format=nv12,hwupload")
     } else {
@@ -388,16 +388,28 @@ pub fn compose_filter_from_curve(
 /// the decoder's own queues regardless of how many windows the curve
 /// has.
 pub fn compose_window_filter(scale_filter: &str, rate: u32) -> String {
+    compose_sized_window_filter(scale_filter, rate, OUT_WIDTH)
+}
+
+/// The probe must resize: a Full-HD → Full-HD VA-API filter can silently
+/// bypass VPP, so it would never exercise the scaler's surface pool.
+pub fn compose_probe_filter(scale_filter: &str) -> String {
+    compose_sized_window_filter(scale_filter, 8, 1280)
+}
+
+fn compose_sized_window_filter(scale_filter: &str, rate: u32, width: u32) -> String {
     if scale_filter == "scale_cuda" {
-        format!("[0:v]scale_cuda={OUT_WIDTH}:-2:format=yuv420p,setpts=PTS/{rate}[out]")
+        format!("[0:v]scale_cuda={width}:-2:format=yuv420p,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_vaapi" {
-        format!("[0:v]format=nv12,hwupload,scale_vaapi={OUT_WIDTH}:-2,setpts=PTS/{rate}[out]")
+        format!("[0:v]format=nv12,hwupload,scale_vaapi={width}:-2:extra_hw_frames=16,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_vaapi_native" {
-        format!("[0:v]scale_vaapi={OUT_WIDTH}:-2:format=nv12,setpts=PTS/{rate}[out]")
+        // FFmpeg 6.1 VPP defaults to ten fixed output surfaces. Explicitly
+        // allow 4 base + 16 extra surfaces, rather than an unbounded pool.
+        format!("[0:v]scale_vaapi={width}:-2:format=nv12:extra_hw_frames=16,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_then_upload" {
-        format!("[0:v]scale={OUT_WIDTH}:-2,format=nv12,hwupload,setpts=PTS/{rate}[out]")
+        format!("[0:v]scale={width}:-2,format=nv12,hwupload,setpts=PTS/{rate}[out]")
     } else {
-        format!("[0:v]format=yuv420p,{scale_filter}={OUT_WIDTH}:-2,setpts=PTS/{rate}[out]")
+        format!("[0:v]format=yuv420p,{scale_filter}={width}:-2,setpts=PTS/{rate}[out]")
     }
 }
 

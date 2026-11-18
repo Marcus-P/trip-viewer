@@ -61,7 +61,7 @@ mod cache_tests {
             "ffmpeg_path":"ffmpeg", "ffmpeg_version":"old", "nvenc_hevc":false,
             "ffmpeg_probe_revision":2
         }"#).unwrap();
-        for revision in [None, Some(1), Some(2), Some(3), Some(4)] {
+        for revision in [None, Some(1), Some(2), Some(3), Some(4), Some(5)] {
             settings.ffmpeg_probe_revision = revision;
             assert!(cached_capabilities(&settings).is_none());
         }
