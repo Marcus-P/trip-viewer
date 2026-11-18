@@ -24,10 +24,10 @@ Windows uses the x64 setup installer. The future stable 0.12.0 sorts above both.
 
 ## Windows AMD checkpoint (completed)
 
-The owner has already confirmed all nine 0.11.0 AMF outputs complete and play.
-No repeat encoding is requested now. When testing this next stage, the FFmpeg
-check should show **AMD / AMF** encoding and **GPU / D3D11VA** decoding when the
-runtime test passes. Test just one short Front/8x output and playback then.
+The owner confirmed all nine 0.11.0 AMF outputs complete and play. The revised
+0.12.0 RC was then accepted with **AMD / AMF** encoding and **GPU / D3D11VA**
+decoding observed in the probe and running Front/16x job. Completion and
+finished-output playback were confirmed. No repeat owner encoding is needed.
 CPU scaling and frame transfer can still consume CPU on this path. The NPU is
 not used. Other Windows GPUs are selected by verified APIs, not a model list.
 
