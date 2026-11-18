@@ -59,6 +59,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub timelapse_max_concurrent_jobs: Option<u32>,
     #[serde(default)]
+    pub timelapse_calibration: Vec<crate::timelapse::calibration::Record>,
+    #[serde(default)]
     pub recent_archives: Vec<RecentArchive>,
     #[serde(default)]
     pub last_archive: Option<String>,

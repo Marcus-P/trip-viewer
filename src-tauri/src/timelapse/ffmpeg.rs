@@ -21,6 +21,7 @@
 //! across the gaps (see `speed_curve::restrict_curve_to_coverage`).
 
 use std::fs;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
@@ -201,38 +202,45 @@ fn verified_gpu_choices(
     caps
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ProcessingProfile { pub decoder: Decoder, pub software_scale: bool }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GpuScale { D3d11, Amf, Qsv }
 
-impl ProcessingProfile {
-    pub const SOFTWARE: Self = Self { decoder: Decoder::Software, software_scale: true };
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessingProfile {
+    pub decoder: Decoder, pub software_scale: bool,
+    #[serde(default)] pub gpu_scale: Option<GpuScale>,
 }
 
-fn processing_profiles(encoder: Encoder, hw: &str, windows: bool, linux: bool, mac: bool) -> Vec<ProcessingProfile> {
+impl ProcessingProfile {
+    pub const SOFTWARE: Self = Self { decoder: Decoder::Software, software_scale: true, gpu_scale: None };
+}
+
+pub(crate) fn processing_profiles(encoder: Encoder, hw: &str, windows: bool, linux: bool, mac: bool) -> Vec<ProcessingProfile> {
     let has = |name: &str| hw.split_whitespace().any(|item| item == name);
     let mut profiles = Vec::new();
     if matches!(encoder, Encoder::HevcNvenc) && has("cuda") {
-        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: false });
-        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: true });
+        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: false, gpu_scale: None });
+        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: true, gpu_scale: None });
     }
     if matches!(encoder, Encoder::HevcVaapi) && has("vaapi") {
-        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false });
+        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false, gpu_scale: None });
     }
     if windows && has("d3d11va") {
-        profiles.push(ProcessingProfile { decoder: Decoder::D3d11, software_scale: true });
+        profiles.push(ProcessingProfile { decoder: Decoder::D3d11, software_scale: true, gpu_scale: None });
     } else if linux && has("vaapi") {
-        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: true });
+        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: true, gpu_scale: None });
     } else if mac && has("videotoolbox") {
-        profiles.push(ProcessingProfile { decoder: Decoder::Videotoolbox, software_scale: true });
+        profiles.push(ProcessingProfile { decoder: Decoder::Videotoolbox, software_scale: true, gpu_scale: None });
     }
     if matches!(encoder, Encoder::HevcVaapi) {
-        profiles.push(ProcessingProfile { decoder: Decoder::Software, software_scale: false });
+        profiles.push(ProcessingProfile { decoder: Decoder::Software, software_scale: false, gpu_scale: None });
     }
     profiles.push(ProcessingProfile::SOFTWARE);
     profiles
 }
 
-fn vaapi_render_nodes() -> Vec<String> {
+pub(crate) fn vaapi_render_nodes() -> Vec<String> {
     if !cfg!(target_os = "linux") { return Vec::new(); }
     render_nodes_in(Path::new("/dev/dri"))
 }
@@ -330,7 +338,7 @@ fn processing_probe_command(
         else { speed_curve::compose_window_filter(encoder.processing_filter(profile), 8) };
     pipeline.arg("-i").arg(source).arg("-filter_complex").arg(filter)
         .args(["-map", "[out]", "-an", "-fps_mode", "cfr"]);
-    apply_encoder_flags(&mut pipeline, encoder, Some(1));
+    apply_processing_encoder_flags(&mut pipeline, encoder, Some(1), profile);
     pipeline.args(["-f", "null", "-"]);
     Ok(pipeline)
 }
@@ -343,7 +351,7 @@ fn preflight_hardware_input(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Resul
     let Some(source) = args.source_paths.first() else { return Ok(()); };
     let mut command = processing_probe_command(args.ffmpeg_path, args.encoder, args.vaapi_device,
         args.decoder_device, args.processing, Path::new(source), false)?;
-    command.args(["-loglevel", "debug"]);
+    command.args(["-loglevel", "debug", "-filter_complex_threads", &args.filter_threads.to_string()]);
     run_ffmpeg_capture(command, cancel, Some(Duration::from_secs(20)), None)
         .and_then(|log| if decoder_verified(&String::from_utf8_lossy(&log), args.processing.decoder) { Ok(()) }
             else { Err(AppError::Internal("hardware decoding was not confirmed on the real input sample".into())) })
@@ -354,7 +362,7 @@ fn preflight_hardware_input(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Resul
 /// What encoder the caller picked for this invocation. Decided once at
 /// job-start time from the cached capabilities so a whole batch uses a
 /// consistent codec.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Encoder {
     HevcNvenc,
     HevcAmf,
@@ -387,13 +395,29 @@ impl Encoder {
         }
     }
 
-    fn processing_filter(&self, profile: ProcessingProfile) -> &'static str {
+    pub(crate) fn processing_filter(&self, profile: ProcessingProfile) -> &'static str {
+        if !profile.software_scale {
+            match profile.gpu_scale {
+                Some(GpuScale::D3d11) => return "scale_d3d11_native",
+                Some(GpuScale::Amf) => return "vpp_amf_native",
+                Some(GpuScale::Qsv) => return "scale_qsv_native",
+                None => {},
+            }
+        }
         match (self, profile.decoder, profile.software_scale) {
             (Encoder::HevcNvenc, Decoder::Cuda, false) => "scale_cuda",
             (Encoder::HevcVaapi, Decoder::Vaapi, false) => "scale_vaapi_native",
             (Encoder::HevcVaapi, _, true) => "scale_then_upload",
             (Encoder::HevcVaapi, _, false) => "scale_vaapi",
             _ => "scale",
+        }
+    }
+
+    pub fn scaler_label(self, profile: ProcessingProfile) -> &'static str {
+        match self.processing_filter(profile) {
+            "scale_d3d11_native" => "GPU / D3D11", "vpp_amf_native" => "GPU / AMF",
+            "scale_qsv_native" => "GPU / QSV", "scale_cuda" => "GPU / CUDA",
+            "scale_vaapi" | "scale_vaapi_native" => "GPU / VA-API", _ => "CPU",
         }
     }
 
@@ -437,11 +461,16 @@ fn apply_device_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>)
 }
 
 fn apply_decode_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>, profile: ProcessingProfile) {
+    apply_decode_flags_tuned(cmd, encoder, device, profile, 2);
+}
+
+fn apply_decode_flags_tuned(cmd: &mut Command, encoder: Encoder, device: Option<&str>, profile: ProcessingProfile, threads: usize) {
+    if threads > 0 { cmd.args(["-filter_complex_threads", &threads.clamp(1, 8).to_string()]); }
     if profile.decoder.is_hardware() {
         // Input-only options: keep frame-thread proliferation bounded while
         // reserving finite surfaces for downstream consumers. Do not restrict
         // software decoding or the CPU encoder's separate output thread pool.
-        cmd.args(["-threads:v", "1", "-extra_hw_frames", "8", "-filter_complex_threads", "2"]);
+        cmd.args(["-threads:v", "1", "-extra_hw_frames", "8"]);
     }
     match profile.decoder {
         Decoder::Software => {},
@@ -456,6 +485,10 @@ fn apply_decode_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>,
                 cmd.args(["-init_hw_device", &spec]); "tripviewer_decode"
             };
             cmd.args(["-hwaccel", "d3d11va", "-hwaccel_device", name]);
+            if profile.gpu_scale.is_some() && !profile.software_scale {
+                cmd.args(["-hwaccel_output_format", "d3d11"]);
+                if profile.gpu_scale != Some(GpuScale::Qsv) { cmd.args(["-filter_hw_device", name]); }
+            }
             // Default output downloads the native software format, including
             // P010 for 10-bit input, instead of forcing an invalid NV12 download.
         },
@@ -486,6 +519,7 @@ pub struct EncodeArgs<'a> {
     pub vaapi_device: Option<&'a str>,
     pub decoder_device: Option<&'a str>,
     pub processing: ProcessingProfile,
+    pub filter_threads: usize,
     pub source_paths: &'a [String],
     pub output_path: &'a Path,
     #[allow(dead_code)] // surfaced via EncodeArgs for future logging/metrics
@@ -578,6 +612,7 @@ pub fn encode_trip_channel(
         vaapi_device: args.vaapi_device,
         decoder_device: args.decoder_device,
         processing: args.processing,
+        filter_threads: args.filter_threads,
         source_paths: args.source_paths,
         output_path: &tmp_output,
         tier: args.tier,
@@ -657,8 +692,8 @@ pub fn encode_with_cpu_fallback(
         } else { args.processing };
         with_processing_fallback(preferred, cancel, &state.processing_failed, |processing| {
             let attempt = EncodeArgs { processing, ..retry_args.clone() };
-            eprintln!("[timelapse] processing: encoder={} decoder={} software-scale={}",
-                encoder.as_str(), processing.decoder.as_str(), processing.software_scale);
+            eprintln!("[timelapse] processing: encoder={} decoder={} software-scale={} scaler={} filter-threads={}",
+                encoder.as_str(), processing.decoder.as_str(), processing.software_scale, encoder.scaler_label(processing), args.filter_threads);
             encode_trip_channel(&attempt, cancel)
         })
     })
@@ -701,7 +736,8 @@ fn with_cpu_fallback(
 fn reporter(args: &EncodeArgs<'_>, phase: &'static str, total: f64) -> Option<Reporter> {
     args.progress.as_ref().map(|callback|
         Reporter::new(callback.clone(), phase, args.encoder.as_str(), total)
-            .decoder(if phase == "encoding" && !args.software_input { args.processing.decoder.as_str() } else { "software" }))
+            .decoder(if phase == "encoding" && !args.software_input { args.processing.decoder.as_str() } else { "software" })
+            .processing(args.encoder.scaler_label(if args.software_input { ProcessingProfile::SOFTWARE } else { args.processing }), args.filter_threads))
 }
 
 fn output_seconds(args: &EncodeArgs<'_>) -> f64 {
@@ -744,7 +780,7 @@ fn encode_single_shot(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<Path
     apply_loglevel_flags(&mut cmd);
     apply_device_flags(&mut cmd, args.encoder, args.vaapi_device)?;
 
-    apply_decode_flags(&mut cmd, args.encoder, args.decoder_device.or(args.vaapi_device), profile);
+    apply_decode_flags_tuned(&mut cmd, args.encoder, args.decoder_device.or(args.vaapi_device), profile, args.filter_threads);
 
     cmd.arg("-i")
         .arg(&source_path)
@@ -754,7 +790,7 @@ fn encode_single_shot(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<Path
         .arg("[out]")
         .arg("-an");
 
-    apply_encoder_flags(&mut cmd, args.encoder, args.cpu_pool_threads);
+    apply_processing_encoder_flags(&mut cmd, args.encoder, args.cpu_pool_threads, profile);
 
     cmd.arg(args.output_path);
 
@@ -850,6 +886,7 @@ fn encode_multi_window(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<Pat
             args.vaapi_device,
             args.decoder_device,
             args.processing,
+            args.filter_threads,
             args.cpu_pool_threads,
             cancel,
             report.as_ref().map(|report| report.offset(output_offset)),
@@ -960,6 +997,7 @@ fn encode_window(
     vaapi_device: Option<&str>,
     decoder_device: Option<&str>,
     processing: ProcessingProfile,
+    filter_threads: usize,
     cpu_pool_threads: Option<usize>,
     cancel: &CancelFlag,
     progress: Option<Reporter>,
@@ -976,7 +1014,7 @@ fn encode_window(
     apply_loglevel_flags(&mut cmd);
     apply_device_flags(&mut cmd, encoder, vaapi_device)?;
 
-    apply_decode_flags(&mut cmd, encoder, decoder_device.or(vaapi_device), profile);
+    apply_decode_flags_tuned(&mut cmd, encoder, decoder_device.or(vaapi_device), profile, filter_threads);
 
     cmd.arg("-ss")
         .arg(format!("{window_start_s:.3}"))
@@ -990,7 +1028,7 @@ fn encode_window(
         .arg("[out]")
         .arg("-an");
 
-    apply_encoder_flags(&mut cmd, encoder, cpu_pool_threads);
+    apply_processing_encoder_flags(&mut cmd, encoder, cpu_pool_threads, profile);
 
     cmd.arg(output);
 
@@ -1072,6 +1110,15 @@ fn apply_loglevel_flags(cmd: &mut Command) {
         .arg("-nostats")
         .arg("-loglevel")
         .arg("error");
+}
+
+fn apply_processing_encoder_flags(cmd: &mut Command, encoder: Encoder, cpu_threads: Option<usize>, profile: ProcessingProfile) {
+    apply_encoder_flags(cmd, encoder, cpu_threads);
+    if !profile.software_scale {
+        if let Some(scale) = profile.gpu_scale {
+            cmd.args(["-pix_fmt", match scale { GpuScale::D3d11 => "d3d11", GpuScale::Amf => "amf", GpuScale::Qsv => "qsv" }]);
+        }
+    }
 }
 
 /// Apply the encoder-specific output args (codec, preset, quality).
@@ -1157,7 +1204,13 @@ fn run_ffmpeg_with_deadline(cmd: Command, cancel: &CancelFlag, timeout: Option<D
 }
 
 fn run_ffmpeg_capture(
-    mut cmd: Command, cancel: &CancelFlag, timeout: Option<Duration>, progress: Option<Reporter>,
+    cmd: Command, cancel: &CancelFlag, timeout: Option<Duration>, progress: Option<Reporter>,
+) -> Result<Vec<u8>, AppError> {
+    run_ffmpeg_capture_poll(cmd, cancel, timeout, progress, Duration::from_millis(500))
+}
+
+fn run_ffmpeg_capture_poll(
+    mut cmd: Command, cancel: &CancelFlag, timeout: Option<Duration>, progress: Option<Reporter>, poll: Duration,
 ) -> Result<Vec<u8>, AppError> {
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     if progress.is_some() {
@@ -1191,7 +1244,7 @@ fn run_ffmpeg_capture(
         }
         match child.try_wait() {
             Ok(Some(_status)) => break (false, false),
-            Ok(None) => thread::sleep(Duration::from_millis(500)),
+            Ok(None) => thread::sleep(poll),
             Err(e) => {
                 return Err(AppError::Internal(format!(
                     "error waiting on ffmpeg: {e}"
@@ -1285,8 +1338,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_windows_scaling_keeps_device_frames_and_overrides_encoder_format() {
+        for (scale, encoder, format, filter) in [
+            (GpuScale::D3d11, Encoder::HevcAmf, "d3d11", "scale_d3d11=width=1920"),
+            (GpuScale::Amf, Encoder::HevcAmf, "amf", "vpp_amf=w=1920"),
+            (GpuScale::Qsv, Encoder::HevcQsv, "qsv", "scale_qsv=w=1920"),
+        ] {
+            let profile = ProcessingProfile { decoder: Decoder::D3d11, software_scale: false, gpu_scale: Some(scale) };
+            let command = processing_probe_command("ffmpeg", encoder, None, None, profile, Path::new("source.mp4"), false).unwrap();
+            let args: Vec<_> = command.get_args().map(|a|a.to_string_lossy().into_owned()).collect();
+            assert!(args.windows(2).any(|p|p==["-hwaccel_output_format","d3d11"]));
+            let pixel_formats: Vec<_> = args.windows(2).filter(|p|p[0]=="-pix_fmt").map(|p|p[1].as_str()).collect();
+            assert_eq!(pixel_formats.last().copied(), Some(format));
+            let graph = &args[args.iter().position(|a|a=="-filter_complex").unwrap()+1];
+            assert!(graph.contains(filter));assert!(!graph.contains("hwdownload"));
+        }
+    }
+
+    #[test]
     fn probe_exercises_resize_timelapse_and_finite_surface_reuse() {
-        let profile = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false };
+        let profile = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false, gpu_scale: None };
         let (_, pipeline) = hardware_probe_commands("ffmpeg", Encoder::HevcVaapi,
             Some("/dev/dri/renderD128"), None, profile, Path::new("probe.mp4")).unwrap();
         let args = pipeline.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
@@ -1304,7 +1375,7 @@ mod tests {
     #[test]
     fn real_input_preflight_is_bounded_and_uses_production_scale() {
         let command = processing_probe_command("ffmpeg", Encoder::HevcAmf, None, None,
-            ProcessingProfile { decoder: Decoder::D3d11, software_scale: true }, Path::new("real source.mp4"), false).unwrap();
+            ProcessingProfile { decoder: Decoder::D3d11, software_scale: true, gpu_scale: None }, Path::new("real source.mp4"), false).unwrap();
         let args = command.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
         assert!(args.windows(2).any(|p| p == ["-t", "8"]));
         assert!(args.windows(2).any(|p| p == ["-i", "real source.mp4"]));
@@ -1322,7 +1393,7 @@ mod tests {
         let sources = vec![dir.path().join("source.mp4").to_string_lossy().into_owned()];
         let scratch = dir.path().join("scratch");
         let args = EncodeArgs { ffmpeg_path: missing.to_str().unwrap(), vaapi_device: Some("/dev/dri/renderD128"),
-            decoder_device: None, processing: ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false },
+            decoder_device: None, filter_threads: 2, processing: ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false, gpu_scale: None },
             source_paths: &sources, output_path: &output, tier: Tier::Tier8x, channel: Channel::Front,
             encoder: Encoder::HevcVaapi, curve: &[], scratch_dir: &scratch, cpu_pool_threads: Some(1),
             progress: None, software_input: false };
@@ -1383,7 +1454,7 @@ mod tests {
     fn processing_failure_retries_same_encoder_and_persists_for_batch() {
         let cancel = crate::timelapse::worker::new_cancel_flag();
         let failed = std::sync::atomic::AtomicBool::new(false);
-        let preferred = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false };
+        let preferred = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false, gpu_scale: None };
         let mut calls = Vec::new();
         let result = with_processing_fallback(preferred, &cancel, &failed, |profile| {
             calls.push(profile);
@@ -1403,7 +1474,7 @@ mod tests {
     fn processing_cancellation_does_not_retry_and_failures_preserve_diagnostics() {
         let cancel = crate::timelapse::worker::new_cancel_flag();
         let failed = std::sync::atomic::AtomicBool::new(false);
-        let profile = ProcessingProfile { decoder: Decoder::D3d11, software_scale: true };
+        let profile = ProcessingProfile { decoder: Decoder::D3d11, software_scale: true, gpu_scale: None };
         let mut calls = 0;
         let result = with_processing_fallback(profile, &cancel, &failed, |_| {
             calls += 1;
@@ -1424,10 +1495,10 @@ mod tests {
     #[test]
     fn processing_profiles_follow_available_apis_not_models() {
         let linux = processing_profiles(Encoder::HevcVaapi, "vaapi", false, true, false);
-        assert_eq!(linux[0], ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false });
+        assert_eq!(linux[0], ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false, gpu_scale: None });
         assert_eq!(*linux.last().unwrap(), ProcessingProfile::SOFTWARE);
         let windows = processing_profiles(Encoder::HevcAmf, "d3d11va", true, false, false);
-        assert_eq!(windows[0], ProcessingProfile { decoder: Decoder::D3d11, software_scale: true });
+        assert_eq!(windows[0], ProcessingProfile { decoder: Decoder::D3d11, software_scale: true, gpu_scale: None });
         assert_eq!(processing_profiles(Encoder::LibX265, "", true, false, false), vec![ProcessingProfile::SOFTWARE]);
     }
 
@@ -1444,7 +1515,7 @@ mod tests {
         for (encoder, decoder, device) in [(Encoder::HevcAmf, Decoder::D3d11, None),
             (Encoder::HevcVaapi, Decoder::Vaapi, Some("/dev/dri/renderD128"))] {
             let (_, command) = hardware_probe_commands("ffmpeg", encoder, device, device,
-                ProcessingProfile { decoder, software_scale: true }, Path::new("probe.mp4")).unwrap();
+                ProcessingProfile { decoder, software_scale: true, gpu_scale: None }, Path::new("probe.mp4")).unwrap();
             let args = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
             assert!(args.iter().any(|arg| arg == "-hwaccel"));
             assert!(!args.iter().any(|arg| arg == "-hwaccel_output_format" || arg.contains("hwdownload")));
@@ -1670,4 +1741,59 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(3));
     }
 
+}
+
+
+/// Bounded read-only inventory/metadata command. Both pipes are drained to avoid
+/// deadlocks; output is capped and cancellation kills/reaps the child.
+pub(crate) fn tuning_query(mut cmd: Command, cancel: &CancelFlag, timeout: Duration) -> Result<String, AppError> {
+    cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|e| AppError::Internal(e.to_string()))?;
+    let stdout = child.stdout.take().map(|p| thread::spawn(move || drain_to_tail(p, 128 * 1024)));
+    let stderr = child.stderr.take().map(|p| thread::spawn(move || drain_to_tail(p, 128 * 1024)));
+    let start = Instant::now();
+    let status = loop {
+        if cancel.load(Ordering::Relaxed) || start.elapsed() >= timeout {
+            let _ = child.kill(); let _ = child.wait(); break None;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) => thread::sleep(Duration::from_millis(20)),
+            Err(_) => { let _ = child.kill(); let _ = child.wait(); break None; }
+        }
+    };
+    let out = stdout.map(|h| h.join().unwrap_or_default()).unwrap_or_default();
+    let err = stderr.map(|h| h.join().unwrap_or_default()).unwrap_or_default();
+    if !status.is_some_and(|s| s.success()) { return Err(AppError::Internal("calibration query cancelled, failed or timed out".into())); }
+    Ok(format!("{}\n{}", String::from_utf8_lossy(&out), String::from_utf8_lossy(&err)))
+}
+
+/// Same finite real-source workload for every candidate, including frame
+/// transfers and encoder drain. Null output never touches archive outputs.
+pub(crate) fn benchmark(
+    path: &str, source: &Path, encoder: Encoder, profile: ProcessingProfile,
+    device: Option<&str>, decoder_device: Option<&str>, threads: usize,
+    cpu_threads: usize, cancel: &CancelFlag, timeout: Duration,
+) -> Result<Duration, AppError> {
+    use std::sync::{Arc, atomic::AtomicBool};
+    let mut cmd = ffmpeg_command(path);
+    apply_loglevel_flags(&mut cmd);
+    apply_device_flags(&mut cmd, encoder, device)?;
+    apply_decode_flags_tuned(&mut cmd, encoder, decoder_device.or(device), profile, threads);
+    cmd.args(["-loglevel", "debug", "-t", "4", "-i"]).arg(source)
+        .arg("-filter_complex").arg(speed_curve::compose_window_filter(encoder.processing_filter(profile), 8))
+        .args(["-map", "[out]", "-an", "-fps_mode", "cfr"]);
+    apply_processing_encoder_flags(&mut cmd, encoder, Some(cpu_threads), profile);
+    cmd.args(["-f", "null", "-"]);
+    let produced = Arc::new(AtomicBool::new(false));
+    let flag = produced.clone();
+    let reporter = Reporter::new(Arc::new(move |p| {
+        if p.processed_seconds > 0.0 { flag.store(true, Ordering::Relaxed); }
+    }), "calibrating", encoder.as_str(), 10.0);
+    let started = Instant::now();
+    let log = run_ffmpeg_capture_poll(cmd, cancel, Some(timeout), Some(reporter), Duration::from_millis(20))?;
+    if !produced.load(Ordering::Relaxed) || (profile.decoder.is_hardware() && !decoder_verified(&String::from_utf8_lossy(&log), profile.decoder)) {
+        return Err(AppError::Internal("calibration produced no timed output or hardware decoding was not confirmed".into()));
+    }
+    Ok(started.elapsed())
 }

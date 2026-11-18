@@ -23,25 +23,24 @@ experimental. No further manual encoding is needed for this published release.
 Old acceptance artifacts from known superseded runs can be removed after the
 verified publication; keep durable release assets and useful check history.
 
-### On hold: automatic performance calibration
+### In progress: 0.13.0 automatic performance calibration
 
-The owner asks about arbitrary supported hardware and maximum available
-throughput. 0.12.0 provides verified API-based compatibility selection, not an
-automatic search for the fastest configuration. The first working encoder and
-processing profile wins by fixed priority. AMF/QSV/VA-API auto-concurrency is one;
-NVENC/CPU retain conservative legacy heuristics and a physical-RAM cap. Hardware
-filter threading is limited to two. A successful probe does not establish the
-fastest pipeline, and no universal hardware/100%-utilization guarantee is made.
+The owner explicitly authorized implementation on the separate
+`feat/automatic-performance-calibration` branch. Proposed source version is
+0.13.0-rc.1; CI stamps unique RC run IDs. Main/develop and stable 0.12.0 remain
+unchanged. The [implementation and acceptance plan](PERFORMANCE_PLAN.md) records
+bounded real-source comparison, local cache, native GPU-scaling candidates,
+thread/concurrency tuning and live-memory/fallback safeguards. Physical RC
+acceptance is pending; previous accepted tests establish the baseline only.
+Feature PRs target permanent develop, then an owner-controlled stable promotion.
 
-The next-stage [performance proposal](PERFORMANCE_PLAN.md) describes bounded
-local calibration, available GPU scaling, measured thread/concurrency selection,
-local invalidation-aware caching and memory-safe backoff. No tuning code or new
-benchmark run has been started. The current question is whether to implement
-that separate feature release or discuss its design first. This planning
-checkpoint is local/unpushed to avoid a documentation-only release/build cycle;
-main/develop and published 0.12.0 remain unchanged. Start any approved work from
-this checkpoint on a dedicated feature branch, preserving its acceptance notes
-and applying the next version/mandatory-release-note policy before integration.
+Local validation: 134 frontend tests and the frontend production build pass;
+391 Rust unit tests passed before the additional native-scaling command test,
+which also passes. The explicit real-FFmpeg calibration sample test passed and
+preserved its input bytes. Cache reuse/selection, deadlines/cancellation,
+failed/empty output, required hardware evidence and memory ceilings are covered.
+Interface, version-increment and documentation checks pass. Hosted desktop builds
+and physical calibration acceptance are still pending at this checkpoint.
 
 ## Stable 0.12.0 promotion: Linux and Windows accepted
 

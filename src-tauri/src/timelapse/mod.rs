@@ -18,6 +18,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+pub mod calibration;
 pub mod cleanup;
 pub mod commands;
 pub mod concurrency;

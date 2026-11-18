@@ -10,6 +10,8 @@ pub struct EncodingProgress {
     pub phase: &'static str,
     pub encoder: &'static str,
     pub decoder: &'static str,
+    pub scaler: &'static str,
+    pub filter_threads: usize,
     pub processed_seconds: f64,
     pub total_seconds: f64,
     pub elapsed_seconds: f64,
@@ -23,6 +25,8 @@ pub struct Reporter {
     phase: &'static str,
     encoder: &'static str,
     decoder: &'static str,
+    scaler: &'static str,
+    filter_threads: usize,
     total: f64,
     offset: f64,
     started: Instant,
@@ -30,16 +34,18 @@ pub struct Reporter {
 
 impl Reporter {
     pub fn new(callback: ProgressCallback, phase: &'static str, encoder: &'static str, total: f64) -> Self {
-        Self { callback, phase, encoder, decoder: "software", total, offset: 0.0, started: Instant::now() }
+        Self { callback, phase, encoder, decoder: "software", scaler: "CPU", filter_threads: 2, total, offset: 0.0, started: Instant::now() }
     }
 
     pub fn decoder(mut self, decoder: &'static str) -> Self { self.decoder = decoder; self }
+
+    pub fn processing(mut self, scaler: &'static str, threads: usize) -> Self { self.scaler = scaler; self.filter_threads = threads; self }
 
     pub fn offset(&self, offset: f64) -> Self { Self { offset, ..self.clone() } }
 
     pub fn emit(&self, seconds: f64) {
         (self.callback)(EncodingProgress {
-            phase: self.phase, encoder: self.encoder, decoder: self.decoder,
+            phase: self.phase, encoder: self.encoder, decoder: self.decoder, scaler: self.scaler, filter_threads: self.filter_threads,
             processed_seconds: (self.offset + seconds).clamp(0.0, self.total.max(0.0)),
             total_seconds: self.total,
             elapsed_seconds: self.started.elapsed().as_secs_f64(),
