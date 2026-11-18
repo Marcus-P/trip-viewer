@@ -6,6 +6,43 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Published 0.12.0 and the remaining performance scope
+
+The owner merged promotion PR #22 as `6fd867e` on 2026-11-18. Release run
+44365307354 succeeded. Stable v0.12.0 is Latest Release, with thirteen nonempty
+durable assets. Five package checksums match GitHub's SHA-256 metadata; the
+Ubuntu DEB, Windows setup and experimental universal Mac DMG were downloaded
+and verified. The DEB embeds stable 0.12.0, and the live updater recognizes it as
+newer than the accepted RC on all three targets. Original license/provenance
+notices match the previous release. Main and permanent develop both point to
+`6fd867e` on GitHub and were synchronized without a force push.
+
+The owner's Linux VA-API and Windows D3D11VA + AMF Front/16x tests and finished
+playback are accepted. Other hardware remains separately unverified; Mac is
+experimental. No further manual encoding is needed for this published release.
+Old acceptance artifacts from known superseded runs can be removed after the
+verified publication; keep durable release assets and useful check history.
+
+### On hold: automatic performance calibration
+
+The owner asks about arbitrary supported hardware and maximum available
+throughput. 0.12.0 provides verified API-based compatibility selection, not an
+automatic search for the fastest configuration. The first working encoder and
+processing profile wins by fixed priority. AMF/QSV/VA-API auto-concurrency is one;
+NVENC/CPU retain conservative legacy heuristics and a physical-RAM cap. Hardware
+filter threading is limited to two. A successful probe does not establish the
+fastest pipeline, and no universal hardware/100%-utilization guarantee is made.
+
+The next-stage [performance proposal](PERFORMANCE_PLAN.md) describes bounded
+local calibration, available GPU scaling, measured thread/concurrency selection,
+local invalidation-aware caching and memory-safe backoff. No tuning code or new
+benchmark run has been started. The current question is whether to implement
+that separate feature release or discuss its design first. This planning
+checkpoint is local/unpushed to avoid a documentation-only release/build cycle;
+main/develop and published 0.12.0 remain unchanged. Start any approved work from
+this checkpoint on a dedicated feature branch, preserving its acceptance notes
+and applying the next version/mandatory-release-note policy before integration.
+
 ## Stable 0.12.0 promotion: Linux and Windows accepted
 
 The owner merged feature PR #21 into permanent develop as `9aabc9d` on
