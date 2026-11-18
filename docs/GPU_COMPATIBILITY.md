@@ -31,8 +31,9 @@ VA-API decoding passes the short probe, but the long real run reported
 "Cannot allocate memory" during hardware filtering and retried with software
 processing while retaining GPU encoding. All three 8x channel outputs completed
 and 8x playback was confirmed. This validates recovery, not sustained GPU decoding
-on that system. The exact memory allocation cause remains under investigation;
-no speedup claim follows. Windows D3D11VA hardware acceptance is still pending.
+on that system. The precise runtime allocation cause remains unconfirmed; the next RC adds
+finite VA-API surface reserves, bounded processing depth and a real-source
+preflight. Hardware retesting remains pending; no speedup claim follows. Windows D3D11VA hardware acceptance is still pending.
 The table above records encoding results.
 Linux VA-API prefers device-resident frames through scaling/encoding; Windows
 D3D11VA downloads native 8/10-bit frames for the existing software filters.

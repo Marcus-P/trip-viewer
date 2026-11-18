@@ -39,3 +39,38 @@ playback results. Replies can take days. No automatic diagnostics upload,
 remote control or telemetry is enabled. Avoid publishing recordings, GPS data,
 personal paths or credentials. macOS VideoToolbox remains experimental and
 requires separate hardware acceptance.
+
+## Memory follow-up: evidence and focused retest
+
+The first Ubuntu RC passed its short probe and later completed three playable
+8x outputs, but logged `Cannot allocate memory` and activated software
+processing with the same GPU encoder. Treat that as recovery acceptance.
+It does not establish that hardware decoding sustained the real workload.
+
+FFmpeg 6.1's [VA-API VPP pool](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavfilter/vaapi_vpp.c)
+uses a default of ten surfaces through
+[filter initialization](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavfilter/avfilter.c).
+The [VA-API allocator](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavutil/hwcontext_vaapi.c)
+also returns allocation failure when its fixed pool is exhausted. This error
+therefore does not prove host-RAM exhaustion.
+[Equal-size scaling can bypass VPP](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavfilter/vf_scale_vaapi.c).
+The follow-up uses an explicit 20-surface scaler pool, lower queue/thread depth,
+real resizing in the synthetic 8x probe and a bounded actual-source preflight.
+Codec reference surfaces and driver allocations still exist; this is not a
+hard cap on total process/driver memory and does not promise every GPU works.
+
+For the new RC, close the old app and install the new artifact using its exact
+ZIP filename; older PR #21 ZIPs may also exist in Downloads. After the FFmpeg
+Test, launch the app with a terminal log and test only one short Front/8x trip:
+
+```bash
+tripviewer 2>&1 | tee /tmp/tripviewer-gpu-memory.log
+```
+
+Prefer a short trip that contains normal full-resolution Front footage, not a
+lower-resolution generated timelapse. If it is already completed, rebuild only
+that short selected trip/channel/tier. Report whether the log shows
+`decoder=vaapi software-scale=false`, whether a hardware-processing/preflight
+failure appears, and whether the new output plays. The new preflight may take
+up to twenty seconds; no full-library rebuild is needed. A successful short
+check is the first checkpoint, not proof against all long-running driver leaks.

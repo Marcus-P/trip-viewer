@@ -1,6 +1,27 @@
-# Trip Viewer 0.12.0-rc.1
+# Trip Viewer 0.12.0-rc.2
 
 ## Hardware decoding for timelapse (acceptance preview)
+
+### Memory-pressure follow-up
+
+- Reserves a finite VA-API scaler pool (20 surfaces) instead of relying on
+  FFmpeg 6.1's ten-surface default, limits VA-API asynchronous encoding depth
+  to one, and bounds hardware decoder/filter threading with eight extra decoder
+  surfaces. Software decoding/encoding thread policies remain unchanged.
+- Keeps the finite Full-HD/NV12 source but tests real resizing to 720p and
+  eight looped seconds accelerated 8x, so equal-size scaler passthrough cannot
+  hide processing-buffer failures. Decoder evidence survives bounded debug logs.
+- Before processing a hardware-decoded channel, checks up to eight seconds of
+  its actual input with the production 1080p scaling profile and a twenty-second
+  deadline. Failure switches to the established fallback before preparing the
+  whole trip. Cancellation remains cancellation; existing output is preserved.
+- Revalidates revision-5 probe caches without losing the FFmpeg path, and logs
+  the encoder/decoder/scaling profile of each real attempt.
+
+The previous Ubuntu preview produced playable 8x outputs only after hardware
+processing ran out of buffers/memory and recovered with software processing.
+The fixed-pool mechanism is evidenced by FFmpeg source; it does not establish
+that the notebook exhausted host RAM. New sustained-GPU acceptance is pending.
 
 - Tests GPU decoding as well as encoding: Windows D3D11VA, Linux VA-API,
   NVIDIA CUDA and experimental macOS VideoToolbox, according to available APIs.

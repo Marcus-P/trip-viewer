@@ -17,7 +17,7 @@ Linux, CUDA for NVENC and experimental VideoToolbox. Linux VA-API first tries
 hardware frames through scaling/encoding; host-filter variants retain native
 8/10-bit frame download formats. Processing errors retry software processing
 with the same encoder, then retain the established CPU encoder fallback.
-Probe revision 5 invalidates prior results while preserving the FFmpeg path.
+Probe revision 6 invalidates prior results while preserving the FFmpeg path.
 
 On 2026-11-18 the owner installed 0.12.0-rc.44180688812 on the Intel UHD/CML
 GT2 Ubuntu 24.04 LTS notebook. Checksum verification and upgrade from 0.11.0
@@ -38,7 +38,7 @@ at this checkpoint. Windows D3D11VA decoding remains untested on owner hardware.
 Prior encoding/playback acceptance remains valid;
 no GPU speedup or universal hardware certification is claimed. Settings and
 progress name the selected/requested decode profile, not measured GPU activity.
-Source preview is 0.12.0-rc.1; acceptance CI stamps a unique numeric run ID.
+Source preview is 0.12.0-rc.2; acceptance CI stamps a unique numeric run ID.
 Stable promotion will be 0.12.0 after acceptance. Debian uses ~rc.N and the
 updater handles RC → stable; these are permanent versioning rules. No main
 merge, upstream update or stable publication of this follow-up is authorized yet.
@@ -52,6 +52,35 @@ launch and the required ubuntu gate. Preserve these test downloads until a
 replacement is verified. The remaining decoding issue above is hardware runtime
 acceptance, not a failed package build. PR #21 targets develop; no merge or
 stable publication is authorized by the playback confirmation alone.
+
+### Memory follow-up implementation (new acceptance pending)
+
+The owner authorized fixing the runtime memory failure on 2026-11-18. FFmpeg
+6.1 VA-API VPP uses a fixed ten-surface pool by default; exhaustion returns an
+allocation failure without proving that host RAM is exhausted. Equal input and
+output size/format bypasses VPP, which the original Full-HD → Full-HD probe
+could do. Sources and limits are documented in the decoding test guide.
+
+The follow-up explicitly reserves 4 + 16 VA-API scaler surfaces, sets encoder
+async depth to one, and uses one hardware decoder thread, eight extra decoder
+surfaces and two complex-filter threads. These are API-based settings, not GPU
+model rules. The finite Full-HD/NV12 source is retained; the processing test now
+loops eight times, resizes to 720p and accelerates 8x with CFR output. Real
+hardware-decoding jobs first test up to eight seconds of their actual first
+source at production scaling under a twenty-second wall deadline. Fallback
+therefore occurs before a full source copy/encode when that sample fails.
+Preflight checks actual hardware decoder selection; bounded stderr capture
+retains the last format-selection evidence even with verbose per-frame output.
+Cancellation preserves its sentinel and existing accepted output is untouched.
+Each attempt logs encoder, decoder and software-scaling state.
+
+382 Rust unit tests pass (two opt-in tests ignored), including probe coverage,
+real-input limits, cancellation/output preservation and bounded decoder evidence.
+The real synthetic FFmpeg regression also passes all nine channel/tier outputs
+in about two minutes. New native package CI is pending for this follow-up; no
+claim of a physical GPU fix follows from cloud tests. Keep
+main/develop and upstream PR unchanged. Next owner checkpoint is one short
+Front/8x trip on the Ubuntu notebook, not the whole 76-minute three-channel trip.
 
 ## GPU timelapse production release (0.11.0)
 
