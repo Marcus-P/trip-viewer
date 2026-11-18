@@ -26,8 +26,14 @@ In stable 0.11.0 the Intel Linux notebook uses its GPU for scaling and encoding,
 while decoding runs on CPU. The owner observed 75–85% CPU load and some swapping;
 no controlled speed comparison was made. The 0.12.0 acceptance preview adds hardware decoding: VA-API under Linux,
 D3D11VA under Windows, CUDA for NVENC and experimental VideoToolbox on Mac.
-Selection uses the available APIs and verified processing profiles. Hardware
-decoding acceptance is still pending; the table above records encoding results.
+Selection uses the available APIs and verified processing profiles. The owner tested 0.12.0-rc.44180688812 on the Intel notebook on 2026-11-18:
+VA-API decoding passes the short probe, but the long real run reported
+"Cannot allocate memory" during hardware filtering and retried with software
+processing while retaining GPU encoding. All three 8x channel outputs completed
+and 8x playback was confirmed. This validates recovery, not sustained GPU decoding
+on that system. The exact memory allocation cause remains under investigation;
+no speedup claim follows. Windows D3D11VA hardware acceptance is still pending.
+The table above records encoding results.
 Linux VA-API prefers device-resident frames through scaling/encoding; Windows
 D3D11VA downloads native 8/10-bit frames for the existing software filters.
 A processing failure retries with software processing before dropping GPU encoding.

@@ -19,8 +19,23 @@ hardware frames through scaling/encoding; host-filter variants retain native
 with the same encoder, then retain the established CPU encoder fallback.
 Probe revision 5 invalidates prior results while preserving the FFmpeg path.
 
-New decoding acceptance is pending on Intel UHD/CML GT2 Ubuntu 24.04 LTS and
-AMD Radeon 780M Windows 11. Prior encoding/playback acceptance remains valid;
+On 2026-11-18 the owner installed 0.12.0-rc.44180688812 on the Intel UHD/CML
+GT2 Ubuntu 24.04 LTS notebook. Checksum verification and upgrade from 0.11.0
+succeeded; Debian used 0.12.0~rc.44180688812. The synthetic probe reports VA-API
+for encoding and decoding. All three real 8x channel jobs completed and the
+owner confirmed correct 8x playback. However, the long run logged a hardware
+processing failure in the filter graph: "Cannot allocate memory". The same-GPU-
+encoder/software-processing fallback activated and remains active for subsequent
+jobs in that batch. Therefore this confirms working recovery/output playback,
+not sustained GPU decoding on this memory-constrained notebook. The failure does
+not establish whether host RAM, driver/surface allocation or filtering caused it.
+Front/Interior/Rear elapsed times were approximately 69m20s / 21m44s / 36m50s;
+these include retry work and are not a controlled performance comparison.
+Investigate bounded decoder/filter surface allocation before claiming the long
+GPU-decoding path accepted. The expected NVENC rejection on an Intel-only system
+is separate from the memory error. No new encoding is requested from the owner
+at this checkpoint. Windows D3D11VA decoding remains untested on owner hardware.
+Prior encoding/playback acceptance remains valid;
 no GPU speedup or universal hardware certification is claimed. Settings and
 progress name the selected/requested decode profile, not measured GPU activity.
 Source preview is 0.12.0-rc.1; acceptance CI stamps a unique numeric run ID.
@@ -31,7 +46,12 @@ merge, upstream update or stable publication of this follow-up is authorized yet
 Local checks: 378 Rust unit tests pass (two opt-in tests ignored), 134 frontend
 tests and the production build pass. Twenty-eight CI/version-policy tests and
 twelve native-packaging helper tests pass, including real Debian RC/stable ordering.
-Hardware acceptance and the Ubuntu AppImage/package CI gate remain pending.
+Native CI run 44180688812 passed Ubuntu AppImage/DEB build and installation,
+Windows installation/version/basic launch, universal Mac package/signature/basic
+launch and the required ubuntu gate. Preserve these test downloads until a
+replacement is verified. The remaining decoding issue above is hardware runtime
+acceptance, not a failed package build. PR #21 targets develop; no merge or
+stable publication is authorized by the playback confirmation alone.
 
 ## GPU timelapse production release (0.11.0)
 
