@@ -117,3 +117,15 @@ describe("platform installer selection", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 });
+
+
+it("upgrades every controlled RC to the matching stable version without downgrading newer candidates", () => {
+  const published = { ...release(), tag_name: "v0.12.0" };
+  for (const target of ["linux-x64", "windows-x64", "macos-universal"] as const) {
+    expect(parsePublishedRelease(published, "0.12.0-rc.44152470559", target).relation).toBe("newer");
+    expect(parsePublishedRelease(published, "0.12.0", target).relation).toBe("same");
+    expect(parsePublishedRelease(published, "0.13.0-rc.1", target).relation).toBe("installedAhead");
+    expect(parsePublishedRelease({ ...published, tag_name: "v0.11.0" }, "0.12.0-rc.1", target).relation).toBe("installedAhead");
+  }
+  expect(() => parsePublishedRelease({ ...published, tag_name: "v0.12.0-rc.1" }, "0.11.0")).toThrow();
+});

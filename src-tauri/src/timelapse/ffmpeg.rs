@@ -29,11 +29,11 @@ use std::time::{Duration, Instant};
 
 use crate::error::AppError;
 use crate::timelapse::speed_curve::{self, CurveSegment};
-use crate::timelapse::types::{Channel, FfmpegCapabilities, Tier};
+use crate::timelapse::types::{Channel, Decoder, FfmpegCapabilities, Tier};
 use crate::timelapse::CancelFlag;
 use crate::timelapse::progress::{ProgressCallback, Reporter};
 
-pub const FFMPEG_PROBE_REVISION: u32 = 4;
+pub const FFMPEG_PROBE_REVISION: u32 = 6;
 
 // On Windows, a GUI-subsystem process (the installed build sets
 // `windows_subsystem = "windows"`) that spawns a console child via
@@ -136,38 +136,31 @@ pub fn probe_ffmpeg(path: &str) -> Result<FfmpegCapabilities, AppError> {
     if !encoders_out.status.success() {
         return Err(AppError::Internal("ffmpeg could not list its encoders".into()));
     }
+    let hw_out = ffmpeg_command(path).args(["-hide_banner", "-hwaccels"]).output()
+        .map_err(|e| AppError::Internal(format!("could not list FFmpeg decode APIs: {e}")))?;
+    let hw = String::from_utf8_lossy(&hw_out.stdout);
     let nodes = vaapi_render_nodes();
-    let mut software_processing = false;
+    let mut selected = ProcessingProfile::SOFTWARE;
+    let mut decode_device = None;
     let mut caps = verified_gpu_choices(&encoders_text, &nodes, cfg!(target_os = "windows"), |encoder, device| {
-        if let Some(mode) = verified_processing(encoder, |software| {
-            match probe_hardware_encoding(path, encoder, device, software) {
-                Ok(()) => true,
-                Err(error) => {
-                    eprintln!("[timelapse] {} pipeline (software processing={software}) unavailable: {error}", encoder.as_str());
-                    false
-                }
-            }
-        }) {
-            software_processing = mode;
-            true
-        } else {
-            false
+        let decoder_node = device.map(str::to_owned).or_else(|| nodes.first().cloned());
+        let profiles = processing_profiles(encoder, &hw, cfg!(target_os = "windows"), cfg!(target_os = "linux"), cfg!(target_os = "macos"));
+        match probe_encoder_profiles(path, encoder, device, decoder_node.as_deref(), &profiles) {
+            Ok(profile) => { selected = profile; decode_device = decoder_node; true }
+            Err(error) => { eprintln!("[timelapse] {} pipeline unavailable: {error}", encoder.as_str()); false }
         }
     });
-    caps.software_processing = software_processing;
     if !Encoder::pick(&caps).is_hardware() {
-        if !encoders_text.contains("libx265") {
-            return Err(AppError::Internal(
-                "GPU encoding is unavailable and this FFmpeg has no libx265 CPU encoder".into(),
-            ));
+        if !encoders_text.split_whitespace().any(|name| name == "libx265") {
+            return Err(AppError::Internal("GPU encoding is unavailable and this FFmpeg has no libx265 CPU encoder".into()));
         }
-        let mut cpu = synthetic_probe_command(path);
-        apply_encoder_flags(&mut cpu, Encoder::LibX265, Some(1));
-        cpu.args(["-f", "null", "-"]);
-        run_probe(cpu).map_err(|error| AppError::Internal(format!(
-            "GPU encoding is unavailable and the CPU encoding test failed: {error}"
-        )))?;
+        decode_device = nodes.first().cloned();
+        let profiles = processing_profiles(Encoder::LibX265, &hw, cfg!(target_os = "windows"), cfg!(target_os = "linux"), cfg!(target_os = "macos"));
+        selected = probe_encoder_profiles(path, Encoder::LibX265, None, decode_device.as_deref(), &profiles)?;
     }
+    caps.software_processing = selected.software_scale;
+    caps.decoder = selected.decoder;
+    caps.decoder_device = decode_device;
 
     caps.version = version_line;
     Ok(caps)
@@ -179,7 +172,7 @@ fn verified_gpu_choices(
 ) -> FfmpegCapabilities {
     let mut caps = FfmpegCapabilities {
         version: String::new(), nvenc_hevc: false, amf_hevc: false, qsv_hevc: false, vaapi_device: None,
-        software_processing: false,
+        software_processing: false, decoder: Decoder::Software, decoder_device: None,
     };
     // Preserve NVENC/AMF priority, then Windows QSV and Linux VA-API. Never
     // advertise a compiled-in encoder without running its actual pipeline.
@@ -208,13 +201,35 @@ fn verified_gpu_choices(
     caps
 }
 
-fn verified_processing(encoder: Encoder, mut probe: impl FnMut(bool) -> bool) -> Option<bool> {
-    if probe(false) { return Some(false); }
-    // Hardware HEVC encode does not imply CUDA decode or GPU scaling support.
-    // Keep the encoder usable when only those processing stages are missing.
-    if matches!(encoder, Encoder::HevcNvenc | Encoder::HevcVaapi) && probe(true) {
-        Some(true)
-    } else { None }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProcessingProfile { pub decoder: Decoder, pub software_scale: bool }
+
+impl ProcessingProfile {
+    pub const SOFTWARE: Self = Self { decoder: Decoder::Software, software_scale: true };
+}
+
+fn processing_profiles(encoder: Encoder, hw: &str, windows: bool, linux: bool, mac: bool) -> Vec<ProcessingProfile> {
+    let has = |name: &str| hw.split_whitespace().any(|item| item == name);
+    let mut profiles = Vec::new();
+    if matches!(encoder, Encoder::HevcNvenc) && has("cuda") {
+        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: false });
+        profiles.push(ProcessingProfile { decoder: Decoder::Cuda, software_scale: true });
+    }
+    if matches!(encoder, Encoder::HevcVaapi) && has("vaapi") {
+        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false });
+    }
+    if windows && has("d3d11va") {
+        profiles.push(ProcessingProfile { decoder: Decoder::D3d11, software_scale: true });
+    } else if linux && has("vaapi") {
+        profiles.push(ProcessingProfile { decoder: Decoder::Vaapi, software_scale: true });
+    } else if mac && has("videotoolbox") {
+        profiles.push(ProcessingProfile { decoder: Decoder::Videotoolbox, software_scale: true });
+    }
+    if matches!(encoder, Encoder::HevcVaapi) {
+        profiles.push(ProcessingProfile { decoder: Decoder::Software, software_scale: false });
+    }
+    profiles.push(ProcessingProfile::SOFTWARE);
+    profiles
 }
 
 fn vaapi_render_nodes() -> Vec<String> {
@@ -234,34 +249,53 @@ fn render_nodes_in(directory: &Path) -> Vec<String> {
     nodes
 }
 
-fn synthetic_probe_command(path: &str) -> Command {
-    let mut command = ffmpeg_command(path);
-    apply_loglevel_flags(&mut command);
-    command.args(["-f", "lavfi", "-i", "color=size=128x128:rate=30",
-        "-frames:v", "2", "-pix_fmt", "yuv420p", "-an"]);
-    command
-}
-
 fn run_probe(command: Command) -> Result<(), AppError> {
     let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     run_ffmpeg_with_deadline(command, &cancel, Some(Duration::from_secs(10)), None)
 }
 
-fn probe_hardware_encoding(path: &str, encoder: Encoder, device: Option<&str>, software_processing: bool) -> Result<(), AppError> {
+fn probe_encoder_profiles(path: &str, encoder: Encoder, device: Option<&str>, decoder_device: Option<&str>, profiles: &[ProcessingProfile]) -> Result<ProcessingProfile, AppError> {
     struct ProbeFile(PathBuf);
-    impl Drop for ProbeFile {
-        fn drop(&mut self) { let _ = fs::remove_file(&self.0); }
-    }
-    let source = ProbeFile(std::env::temp_dir().join(format!(
-        "tripviewer-gpu-probe-{}.mp4", uuid::Uuid::new_v4()
-    )));
-    let (encode, pipeline) = hardware_probe_commands(path, encoder, device, software_processing, &source.0)?;
+    impl Drop for ProbeFile { fn drop(&mut self) { let _ = fs::remove_file(&self.0); } }
+    let source = ProbeFile(std::env::temp_dir().join(format!("tripviewer-gpu-probe-{}.mp4", uuid::Uuid::new_v4())));
+    let (encode, _) = hardware_probe_commands(path, encoder, device, decoder_device, ProcessingProfile::SOFTWARE, &source.0)?;
     run_probe(encode)?;
-    run_probe(pipeline)
+    let mut last = None;
+    for profile in profiles {
+        let (_, pipeline) = hardware_probe_commands(path, encoder, device, decoder_device, *profile, &source.0)?;
+        let mut pipeline = pipeline;
+        if profile.decoder.is_hardware() { pipeline.args(["-loglevel", "debug"]); }
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let result = run_ffmpeg_capture(pipeline, &cancel, Some(Duration::from_secs(10)), None).and_then(|log| {
+            if profile.decoder.is_hardware() && !decoder_verified(&String::from_utf8_lossy(&log), profile.decoder) {
+                Err(AppError::Internal(format!("{} was requested but hardware decoding was not confirmed", profile.decoder.as_str())))
+            } else { Ok(()) }
+        });
+        match result {
+            Ok(()) => return Ok(*profile),
+            Err(error) => {
+                eprintln!("[timelapse] {} decode={} software-scale={} unavailable: {error}", encoder.as_str(), profile.decoder.as_str(), profile.software_scale);
+                last = Some(error);
+            }
+        }
+    }
+    Err(last.unwrap_or_else(|| AppError::Internal("no usable processing profile".into())))
+}
+
+fn decoder_format(log: &str) -> Option<&str> {
+    log.lines().filter_map(|line| line.split("Format ").nth(1)
+        .and_then(|tail| tail.strip_suffix(" chosen by get_format().")))
+        .filter(|value| value.len() <= 64 && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
+        .last()
+}
+
+fn decoder_verified(log: &str, decoder: Decoder) -> bool {
+    let expected = match decoder { Decoder::D3d11 => "d3d11", Decoder::Videotoolbox => "videotoolbox_vld", _ => decoder.as_str() };
+    decoder_format(log) == Some(expected)
 }
 
 fn hardware_probe_commands(
-    path: &str, encoder: Encoder, device: Option<&str>, software_processing: bool, source: &Path,
+    path: &str, encoder: Encoder, device: Option<&str>, decoder_device: Option<&str>, profile: ProcessingProfile, source: &Path,
 ) -> Result<(Command, Command), AppError> {
     // One model-independent, finite GPU sample. Drain both stages to EOF;
     // tiny output-frame-limited AMF probes stalled on the owner's GPU.
@@ -270,22 +304,51 @@ fn hardware_probe_commands(
     apply_device_flags(&mut encode, encoder, device)?;
     encode.args(["-f", "lavfi", "-i", "color=size=1920x1080:rate=30:duration=1", "-an", "-vf"]);
     encode.arg(if matches!(encoder, Encoder::HevcVaapi) { "format=nv12,hwupload" } else { "format=nv12" });
-    apply_encoder_flags(&mut encode, encoder, None);
+    apply_encoder_flags(&mut encode, encoder, Some(1));
     encode.arg(source);
 
+    let pipeline = processing_probe_command(path, encoder, device, decoder_device, profile, source, true)?;
+    Ok((encode, pipeline))
+}
+
+fn processing_probe_command(
+    path: &str, encoder: Encoder, device: Option<&str>, decoder_device: Option<&str>,
+    profile: ProcessingProfile, source: &Path, synthetic: bool,
+) -> Result<Command, AppError> {
     let mut pipeline = ffmpeg_command(path);
     apply_loglevel_flags(&mut pipeline);
     apply_device_flags(&mut pipeline, encoder, device)?;
-    if encoder.needs_cuda_hwaccel() && !software_processing {
-        pipeline.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
+    apply_decode_flags(&mut pipeline, encoder, decoder_device.or(device), profile);
+    if synthetic {
+        // Repeat the finite source eight times, then accelerate 8x. This
+        // exercises buffer reuse and encoder draining without regenerating input.
+        pipeline.args(["-stream_loop", "7"]);
+    } else {
+        pipeline.args(["-t", "8"]);
     }
-    pipeline.arg("-i").arg(source)
-        .arg("-filter_complex")
-        .arg(speed_curve::compose_window_filter(encoder.scale_filter_for_input(software_processing), 1))
-        .args(["-map", "[out]", "-an"]);
-    apply_encoder_flags(&mut pipeline, encoder, None);
+    let filter = if synthetic { speed_curve::compose_probe_filter(encoder.processing_filter(profile)) }
+        else { speed_curve::compose_window_filter(encoder.processing_filter(profile), 8) };
+    pipeline.arg("-i").arg(source).arg("-filter_complex").arg(filter)
+        .args(["-map", "[out]", "-an", "-fps_mode", "cfr"]);
+    apply_encoder_flags(&mut pipeline, encoder, Some(1));
     pipeline.args(["-f", "null", "-"]);
-    Ok((encode, pipeline))
+    Ok(pipeline)
+}
+
+/// Full-HD synthetic input cannot certify real 4K/10-bit driver allocation.
+/// Check a bounded, read-only sample before copying/encoding the entire channel.
+fn preflight_hardware_input(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<(), AppError> {
+    if cancel.load(Ordering::Relaxed) { return Err(AppError::Internal("cancelled".into())); }
+    if args.software_input || !args.processing.decoder.is_hardware() { return Ok(()); }
+    let Some(source) = args.source_paths.first() else { return Ok(()); };
+    let mut command = processing_probe_command(args.ffmpeg_path, args.encoder, args.vaapi_device,
+        args.decoder_device, args.processing, Path::new(source), false)?;
+    command.args(["-loglevel", "debug"]);
+    run_ffmpeg_capture(command, cancel, Some(Duration::from_secs(20)), None)
+        .and_then(|log| if decoder_verified(&String::from_utf8_lossy(&log), args.processing.decoder) { Ok(()) }
+            else { Err(AppError::Internal("hardware decoding was not confirmed on the real input sample".into())) })
+        .map_err(|error| if cancel.load(Ordering::Relaxed) { AppError::Internal("cancelled".into()) }
+            else { AppError::Internal(format!("Real-input hardware preflight failed: {error}")) })
 }
 
 /// What encoder the caller picked for this invocation. Decided once at
@@ -324,11 +387,13 @@ impl Encoder {
         }
     }
 
-    fn scale_filter_for_input(&self, software: bool) -> &'static str {
-        match (self, software) {
-            (Encoder::HevcNvenc, true) => "scale",
-            (Encoder::HevcVaapi, true) => "scale_then_upload",
-            _ => self.scale_filter(),
+    fn processing_filter(&self, profile: ProcessingProfile) -> &'static str {
+        match (self, profile.decoder, profile.software_scale) {
+            (Encoder::HevcNvenc, Decoder::Cuda, false) => "scale_cuda",
+            (Encoder::HevcVaapi, Decoder::Vaapi, false) => "scale_vaapi_native",
+            (Encoder::HevcVaapi, _, true) => "scale_then_upload",
+            (Encoder::HevcVaapi, _, false) => "scale_vaapi",
+            _ => "scale",
         }
     }
 
@@ -366,9 +431,44 @@ fn apply_device_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>)
     if matches!(encoder, Encoder::HevcVaapi) {
         let device = device.filter(|device| !device.is_empty()).ok_or_else(||
             AppError::Internal("VA-API encoding requires a verified render device".into()))?;
-        cmd.args(["-vaapi_device", device]);
+        cmd.args(["-init_hw_device", &format!("vaapi=tripviewer_vaapi:{device}"), "-filter_hw_device", "tripviewer_vaapi"]);
     }
     Ok(())
+}
+
+fn apply_decode_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>, profile: ProcessingProfile) {
+    if profile.decoder.is_hardware() {
+        // Input-only options: keep frame-thread proliferation bounded while
+        // reserving finite surfaces for downstream consumers. Do not restrict
+        // software decoding or the CPU encoder's separate output thread pool.
+        cmd.args(["-threads:v", "1", "-extra_hw_frames", "8", "-filter_complex_threads", "2"]);
+    }
+    match profile.decoder {
+        Decoder::Software => {},
+        Decoder::Cuda => {
+            cmd.args(["-hwaccel", "cuda"]);
+            if !profile.software_scale { cmd.args(["-hwaccel_output_format", "cuda"]); }
+        },
+        Decoder::D3d11 => {
+            let name = if matches!(encoder, Encoder::HevcQsv) { "tripviewer_intel" } else {
+                let vendor = match encoder { Encoder::HevcAmf => Some("0x1002"), Encoder::HevcNvenc => Some("0x10de"), _ => None };
+                let spec = vendor.map(|id| format!("d3d11va=tripviewer_decode:,vendor_id={id}")).unwrap_or_else(|| "d3d11va=tripviewer_decode".into());
+                cmd.args(["-init_hw_device", &spec]); "tripviewer_decode"
+            };
+            cmd.args(["-hwaccel", "d3d11va", "-hwaccel_device", name]);
+            // Default output downloads the native software format, including
+            // P010 for 10-bit input, instead of forcing an invalid NV12 download.
+        },
+        Decoder::Vaapi => {
+            let name = if matches!(encoder, Encoder::HevcVaapi) { "tripviewer_vaapi" } else {
+                let spec = device.map(|node| format!("vaapi=tripviewer_decode:{node}")).unwrap_or_else(|| "vaapi=tripviewer_decode".into());
+                cmd.args(["-init_hw_device", &spec]); "tripviewer_decode"
+            };
+            cmd.args(["-hwaccel", "vaapi", "-hwaccel_device", name]);
+            if !profile.software_scale { cmd.args(["-hwaccel_output_format", "vaapi"]); }
+        },
+        Decoder::Videotoolbox => { cmd.args(["-hwaccel", "videotoolbox"]); },
+    }
 }
 
 /// Arguments for one per-channel encode. `source_paths` are the
@@ -384,6 +484,8 @@ fn apply_device_flags(cmd: &mut Command, encoder: Encoder, device: Option<&str>)
 pub struct EncodeArgs<'a> {
     pub ffmpeg_path: &'a str,
     pub vaapi_device: Option<&'a str>,
+    pub decoder_device: Option<&'a str>,
+    pub processing: ProcessingProfile,
     pub source_paths: &'a [String],
     pub output_path: &'a Path,
     #[allow(dead_code)] // surfaced via EncodeArgs for future logging/metrics
@@ -451,6 +553,8 @@ pub fn encode_trip_channel(
         return Err(AppError::Internal("no source segments for trip".into()));
     }
 
+    preflight_hardware_input(args, cancel)?;
+
     if let Some(parent) = args.output_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -472,6 +576,8 @@ pub fn encode_trip_channel(
     let tmp_args = EncodeArgs {
         ffmpeg_path: args.ffmpeg_path,
         vaapi_device: args.vaapi_device,
+        decoder_device: args.decoder_device,
+        processing: args.processing,
         source_paths: args.source_paths,
         output_path: &tmp_output,
         tier: args.tier,
@@ -507,20 +613,54 @@ pub fn encode_trip_channel(
     }
 }
 
+#[derive(Default)]
+pub struct FallbackState {
+    pub encoder_failed: std::sync::atomic::AtomicBool,
+    pub processing_failed: std::sync::atomic::AtomicBool,
+}
+
+fn with_processing_fallback(
+    preferred: ProcessingProfile, cancel: &CancelFlag, failed: &std::sync::atomic::AtomicBool,
+    mut encode: impl FnMut(ProcessingProfile) -> Result<PathBuf, AppError>,
+) -> Result<PathBuf, AppError> {
+    let profile = if failed.load(Ordering::Relaxed) { ProcessingProfile::SOFTWARE } else { preferred };
+    match encode(profile) {
+        Ok(path) => Ok(path),
+        Err(error) if profile != ProcessingProfile::SOFTWARE && !cancel.load(Ordering::Relaxed) => {
+            failed.store(true, Ordering::Relaxed);
+            eprintln!("[timelapse] hardware processing failed; retaining encoder with software processing: {error}");
+            encode(ProcessingProfile::SOFTWARE).map_err(|fallback| {
+                if cancel.load(Ordering::Relaxed) { fallback } else {
+                    AppError::Internal(format!("Hardware processing failed: {error}; software processing retry failed: {fallback}"))
+                }
+            })
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// A GPU may pass the small probe yet fail on real footage or session limits.
 /// Retry that job once on CPU, and keep later jobs in this batch on CPU too.
 pub fn encode_with_cpu_fallback(
     args: &EncodeArgs<'_>, cancel: &CancelFlag,
-    gpu_failed: &std::sync::atomic::AtomicBool,
+    state: &FallbackState,
 ) -> Result<(PathBuf, Encoder), AppError> {
-    with_cpu_fallback(args.encoder, cancel, gpu_failed, |encoder| {
+    with_cpu_fallback(args.encoder, cancel, &state.encoder_failed, |encoder| {
         let retry_args = EncodeArgs {
             encoder,
             cpu_pool_threads: if args.encoder.is_hardware()
                 && matches!(encoder, Encoder::LibX265) { Some(1) } else { args.cpu_pool_threads },
             ..args.clone()
         };
-        encode_trip_channel(&retry_args, cancel)
+        let preferred = if (matches!(encoder, Encoder::LibX265) && state.encoder_failed.load(Ordering::Relaxed)) || args.software_input {
+            ProcessingProfile::SOFTWARE
+        } else { args.processing };
+        with_processing_fallback(preferred, cancel, &state.processing_failed, |processing| {
+            let attempt = EncodeArgs { processing, ..retry_args.clone() };
+            eprintln!("[timelapse] processing: encoder={} decoder={} software-scale={}",
+                encoder.as_str(), processing.decoder.as_str(), processing.software_scale);
+            encode_trip_channel(&attempt, cancel)
+        })
     })
 }
 
@@ -560,7 +700,8 @@ fn with_cpu_fallback(
 /// trivial.
 fn reporter(args: &EncodeArgs<'_>, phase: &'static str, total: f64) -> Option<Reporter> {
     args.progress.as_ref().map(|callback|
-        Reporter::new(callback.clone(), phase, args.encoder.as_str(), total))
+        Reporter::new(callback.clone(), phase, args.encoder.as_str(), total)
+            .decoder(if phase == "encoding" && !args.software_input { args.processing.decoder.as_str() } else { "software" }))
 }
 
 fn output_seconds(args: &EncodeArgs<'_>) -> f64 {
@@ -595,19 +736,15 @@ fn encode_single_shot(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<Path
     // encodes in the multi-window path; the single-segment curve's
     // rate determines the speed factor.
     let rate = args.curve.first().map(|s| s.rate).unwrap_or(1);
-    let scale_filter = args.encoder.scale_filter_for_input(args.software_input);
+    let profile = if args.software_input { ProcessingProfile::SOFTWARE } else { args.processing };
+    let scale_filter = args.encoder.processing_filter(profile);
     let filter = speed_curve::compose_window_filter(scale_filter, rate);
 
     let mut cmd = ffmpeg_command(args.ffmpeg_path);
     apply_loglevel_flags(&mut cmd);
     apply_device_flags(&mut cmd, args.encoder, args.vaapi_device)?;
 
-    if args.encoder.needs_cuda_hwaccel() && !args.software_input {
-        cmd.arg("-hwaccel")
-            .arg("cuda")
-            .arg("-hwaccel_output_format")
-            .arg("cuda");
-    }
+    apply_decode_flags(&mut cmd, args.encoder, args.decoder_device.or(args.vaapi_device), profile);
 
     cmd.arg("-i")
         .arg(&source_path)
@@ -711,6 +848,8 @@ fn encode_multi_window(args: &EncodeArgs<'_>, cancel: &CancelFlag) -> Result<Pat
             &window_path,
             args.ffmpeg_path,
             args.vaapi_device,
+            args.decoder_device,
+            args.processing,
             args.cpu_pool_threads,
             cancel,
             report.as_ref().map(|report| report.offset(output_offset)),
@@ -819,6 +958,8 @@ fn encode_window(
     output: &Path,
     ffmpeg_path: &str,
     vaapi_device: Option<&str>,
+    decoder_device: Option<&str>,
+    processing: ProcessingProfile,
     cpu_pool_threads: Option<usize>,
     cancel: &CancelFlag,
     progress: Option<Reporter>,
@@ -827,19 +968,15 @@ fn encode_window(
         let _ = fs::remove_file(output);
     }
 
-    let scale_filter = encoder.scale_filter_for_input(software_input);
+    let profile = if software_input { ProcessingProfile::SOFTWARE } else { processing };
+    let scale_filter = encoder.processing_filter(profile);
     let filter = speed_curve::compose_window_filter(scale_filter, rate);
 
     let mut cmd = ffmpeg_command(ffmpeg_path);
     apply_loglevel_flags(&mut cmd);
     apply_device_flags(&mut cmd, encoder, vaapi_device)?;
 
-    if encoder.needs_cuda_hwaccel() && !software_input {
-        cmd.arg("-hwaccel")
-            .arg("cuda")
-            .arg("-hwaccel_output_format")
-            .arg("cuda");
-    }
+    apply_decode_flags(&mut cmd, encoder, decoder_device.or(vaapi_device), profile);
 
     cmd.arg("-ss")
         .arg(format!("{window_start_s:.3}"))
@@ -964,7 +1101,7 @@ fn apply_encoder_flags(cmd: &mut Command, encoder: Encoder, cpu_pool_threads: Op
                 "-rc", "cqp", "-qp_i", "26", "-qp_p", "26", "-pix_fmt", "nv12"]);
         }
         Encoder::HevcVaapi => {
-            cmd.args(["-c:v", "hevc_vaapi", "-qp", "26"]);
+            cmd.args(["-c:v", "hevc_vaapi", "-qp", "26", "-async_depth", "1"]);
         }
         Encoder::HevcQsv => {
             // Software decode/scale is intentional for this first Windows
@@ -1015,9 +1152,13 @@ fn run_ffmpeg_with_cancel(cmd: Command, cancel: &CancelFlag, progress: Option<Re
     run_ffmpeg_with_deadline(cmd, cancel, None, progress)
 }
 
-fn run_ffmpeg_with_deadline(
+fn run_ffmpeg_with_deadline(cmd: Command, cancel: &CancelFlag, timeout: Option<Duration>, progress: Option<Reporter>) -> Result<(), AppError> {
+    run_ffmpeg_capture(cmd, cancel, timeout, progress).map(|_| ())
+}
+
+fn run_ffmpeg_capture(
     mut cmd: Command, cancel: &CancelFlag, timeout: Option<Duration>, progress: Option<Reporter>,
-) -> Result<(), AppError> {
+) -> Result<Vec<u8>, AppError> {
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     if progress.is_some() {
         cmd.args(["-progress", "pipe:1"]);
@@ -1069,7 +1210,7 @@ fn run_ffmpeg_with_deadline(
     if let Some(handle) = progress_handle { let _ = handle.join(); }
 
     if timed_out {
-        return Err(AppError::Internal("FFmpeg capability test timed out after 10 seconds".into()));
+        return Err(AppError::Internal(format!("FFmpeg capability test timed out after {} seconds", timeout.map(|limit| limit.as_secs()).unwrap_or(0))));
     }
 
     if cancelled {
@@ -1084,7 +1225,7 @@ fn run_ffmpeg_with_deadline(
         )));
     }
 
-    Ok(())
+    Ok(stderr_tail)
 }
 
 /// Read a child's stderr to EOF while keeping only the last
@@ -1096,10 +1237,19 @@ fn drain_to_tail<R: std::io::Read>(mut reader: R, max_bytes: usize) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::with_capacity(max_bytes.saturating_mul(2));
     let high_water = max_bytes.saturating_mul(2).max(8192);
     let mut chunk = [0u8; 4096];
+    let mut fragment = Vec::new();
+    let mut last_format = None;
     loop {
         match reader.read(&mut chunk) {
             Ok(0) | Err(_) => break,
             Ok(n) => {
+                // Preserve decoder-selection evidence independently of verbose
+                // per-frame logs; retain only the last short format token.
+                fragment.extend_from_slice(&chunk[..n]);
+                if let Some(format) = decoder_format(&String::from_utf8_lossy(&fragment)) {
+                    last_format = Some(format.to_owned());
+                }
+                if fragment.len() > 256 { fragment.drain(..fragment.len() - 256); }
                 buf.extend_from_slice(&chunk[..n]);
                 if buf.len() > high_water {
                     let drop = buf.len() - max_bytes;
@@ -1111,6 +1261,15 @@ fn drain_to_tail<R: std::io::Read>(mut reader: R, max_bytes: usize) -> Vec<u8> {
     if buf.len() > max_bytes {
         let drop = buf.len() - max_bytes;
         buf.drain(..drop);
+    }
+    if let Some(format) = last_format {
+        let mut header = format!("Format {format} chosen by get_format().\n").into_bytes();
+        if header.len() <= max_bytes {
+            let budget = max_bytes - header.len();
+            if buf.len() > budget { buf.drain(..buf.len() - budget); }
+            header.extend(buf);
+            return header;
+        }
     }
     buf
 }
@@ -1126,10 +1285,78 @@ mod tests {
     use super::*;
 
     #[test]
+    fn probe_exercises_resize_timelapse_and_finite_surface_reuse() {
+        let profile = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false };
+        let (_, pipeline) = hardware_probe_commands("ffmpeg", Encoder::HevcVaapi,
+            Some("/dev/dri/renderD128"), None, profile, Path::new("probe.mp4")).unwrap();
+        let args = pipeline.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        assert!(args.windows(2).any(|p| p == ["-stream_loop", "7"]));
+        assert!(args.windows(2).any(|p| p == ["-fps_mode", "cfr"]));
+        let filter = args.windows(2).find(|p| p[0] == "-filter_complex").unwrap()[1].clone();
+        assert!(filter.contains("scale_vaapi=1280:-2"));
+        assert!(filter.contains("extra_hw_frames=16") && filter.contains("setpts=PTS/8"));
+        assert!(args.windows(2).any(|p| p == ["-async_depth", "1"]));
+        let input = args.iter().position(|p| p == "-i").unwrap();
+        assert!(args[..input].windows(2).any(|p| p == ["-threads:v", "1"]));
+        assert!(args[..input].windows(2).any(|p| p == ["-extra_hw_frames", "8"]));
+    }
+
+    #[test]
+    fn real_input_preflight_is_bounded_and_uses_production_scale() {
+        let command = processing_probe_command("ffmpeg", Encoder::HevcAmf, None, None,
+            ProcessingProfile { decoder: Decoder::D3d11, software_scale: true }, Path::new("real source.mp4"), false).unwrap();
+        let args = command.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        assert!(args.windows(2).any(|p| p == ["-t", "8"]));
+        assert!(args.windows(2).any(|p| p == ["-i", "real source.mp4"]));
+        assert!(!args.iter().any(|p| p == "-stream_loop"));
+        assert!(args.iter().any(|p| p.contains("scale=1920:-2")));
+        assert_eq!(&args[args.len()-3..], &["-f", "null", "-"]);
+    }
+
+    #[test]
+    fn failed_preflight_preserves_existing_output_and_does_not_prepare_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("existing.mp4");
+        fs::write(&output, b"accepted output").unwrap();
+        let missing = dir.path().join("missing-ffmpeg");
+        let sources = vec![dir.path().join("source.mp4").to_string_lossy().into_owned()];
+        let scratch = dir.path().join("scratch");
+        let args = EncodeArgs { ffmpeg_path: missing.to_str().unwrap(), vaapi_device: Some("/dev/dri/renderD128"),
+            decoder_device: None, processing: ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false },
+            source_paths: &sources, output_path: &output, tier: Tier::Tier8x, channel: Channel::Front,
+            encoder: Encoder::HevcVaapi, curve: &[], scratch_dir: &scratch, cpu_pool_threads: Some(1),
+            progress: None, software_input: false };
+        let error = encode_trip_channel(&args, &crate::timelapse::worker::new_cancel_flag()).unwrap_err();
+        assert!(error.to_string().contains("Real-input hardware preflight failed"));
+        assert_eq!(fs::read(&output).unwrap(), b"accepted output");
+        assert!(!scratch.exists());
+        let cancelled = crate::timelapse::worker::new_cancel_flag();
+        cancelled.store(true, Ordering::Relaxed);
+        let error = encode_trip_channel(&args, &cancelled).unwrap_err();
+        assert!(matches!(error, AppError::Internal(ref message) if message == "cancelled"));
+        assert_eq!(fs::read(&output).unwrap(), b"accepted output");
+    }
+
+    #[test]
+    fn bounded_logs_retain_last_decoder_evidence_even_after_verbose_frame_output() {
+        let mut log = "x".repeat(4090);
+        log.push_str("\nFormat vaapi chosen by get_format().\n");
+        log.push_str(&"frame debug detail\n".repeat(10000));
+        let captured = drain_to_tail(log.as_bytes(), 65536);
+        assert!(captured.len() <= 65536);
+        assert!(decoder_verified(&String::from_utf8_lossy(&captured), Decoder::Vaapi));
+        log.push_str("Format yuv420p chosen by get_format().\n");
+        log.push_str(&"more details\n".repeat(10000));
+        let captured = drain_to_tail(log.as_bytes(), 65536);
+        assert!(captured.len() <= 65536);
+        assert!(!decoder_verified(&String::from_utf8_lossy(&captured), Decoder::Vaapi));
+    }
+
+    #[test]
     fn all_gpu_probes_use_finite_full_hd_input_and_drain_to_eof() {
         for (encoder, device) in [(Encoder::HevcAmf, None), (Encoder::HevcNvenc, None),
             (Encoder::HevcQsv, None), (Encoder::HevcVaapi, Some("/dev/dri/renderD129"))] {
-            let (encode, pipeline) = hardware_probe_commands("ffmpeg", encoder, device, false, Path::new("probe.mp4")).unwrap();
+            let (encode, pipeline) = hardware_probe_commands("ffmpeg", encoder, device, device, ProcessingProfile::SOFTWARE, Path::new("probe.mp4")).unwrap();
             let args = |command: &Command| command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
             let source = args(&encode);
             assert!(source.windows(2).any(|pair| pair == ["-i", "color=size=1920x1080:rate=30:duration=1"]));
@@ -1140,7 +1367,7 @@ mod tests {
                 assert!(!command.iter().any(|arg| arg == "-frames:v"));
                 assert!(command.windows(2).any(|pair| pair == ["-c:v", encoder.as_str()]));
                 if matches!(encoder, Encoder::HevcVaapi) {
-                    assert!(command.windows(2).any(|pair| pair == ["-vaapi_device", "/dev/dri/renderD129"]));
+                    assert!(command.windows(2).any(|pair| pair == ["-init_hw_device", "vaapi=tripviewer_vaapi:/dev/dri/renderD129"]));
                 }
             }
             assert!(source.iter().any(|arg| arg.starts_with("format=nv12")));
@@ -1153,18 +1380,74 @@ mod tests {
     }
 
     #[test]
-    fn optional_gpu_processing_can_fall_back_without_discarding_hardware_encode() {
-        for encoder in [Encoder::HevcNvenc, Encoder::HevcVaapi] {
-            let mut calls = Vec::new();
-            assert_eq!(verified_processing(encoder, |software| { calls.push(software); software }), Some(true));
-            assert_eq!(calls, vec![false, true]);
-            assert_eq!(verified_processing(encoder, |_| false), None);
-            let mut calls = Vec::new();
-            assert_eq!(verified_processing(encoder, |software| { calls.push(software); true }), Some(false));
-            assert_eq!(calls, vec![false]);
-        }
-        for encoder in [Encoder::HevcAmf, Encoder::HevcQsv] {
-            assert_eq!(verified_processing(encoder, |software| { assert!(!software); false }), None);
+    fn processing_failure_retries_same_encoder_and_persists_for_batch() {
+        let cancel = crate::timelapse::worker::new_cancel_flag();
+        let failed = std::sync::atomic::AtomicBool::new(false);
+        let preferred = ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false };
+        let mut calls = Vec::new();
+        let result = with_processing_fallback(preferred, &cancel, &failed, |profile| {
+            calls.push(profile);
+            if profile == preferred { Err(AppError::Internal("unsupported source profile".into())) }
+            else { Ok(PathBuf::from("output.mp4")) }
+        });
+        assert!(result.is_ok());
+        assert_eq!(calls, vec![preferred, ProcessingProfile::SOFTWARE]);
+        let later = with_processing_fallback(preferred, &cancel, &failed, |profile| {
+            assert_eq!(profile, ProcessingProfile::SOFTWARE);
+            Ok(PathBuf::from("later.mp4"))
+        });
+        assert!(later.is_ok());
+    }
+
+    #[test]
+    fn processing_cancellation_does_not_retry_and_failures_preserve_diagnostics() {
+        let cancel = crate::timelapse::worker::new_cancel_flag();
+        let failed = std::sync::atomic::AtomicBool::new(false);
+        let profile = ProcessingProfile { decoder: Decoder::D3d11, software_scale: true };
+        let mut calls = 0;
+        let result = with_processing_fallback(profile, &cancel, &failed, |_| {
+            calls += 1;
+            cancel.store(true, Ordering::Relaxed);
+            Err(AppError::Internal("cancelled".into()))
+        });
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+        assert!(!failed.load(Ordering::Relaxed));
+        cancel.store(false, Ordering::Relaxed);
+        let result = with_processing_fallback(profile, &cancel, &failed, |p| {
+            Err(AppError::Internal(if p == profile { "decoder failed" } else { "encoder failed" }.into()))
+        });
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("decoder failed") && message.contains("encoder failed"));
+    }
+
+    #[test]
+    fn processing_profiles_follow_available_apis_not_models() {
+        let linux = processing_profiles(Encoder::HevcVaapi, "vaapi", false, true, false);
+        assert_eq!(linux[0], ProcessingProfile { decoder: Decoder::Vaapi, software_scale: false });
+        assert_eq!(*linux.last().unwrap(), ProcessingProfile::SOFTWARE);
+        let windows = processing_profiles(Encoder::HevcAmf, "d3d11va", true, false, false);
+        assert_eq!(windows[0], ProcessingProfile { decoder: Decoder::D3d11, software_scale: true });
+        assert_eq!(processing_profiles(Encoder::LibX265, "", true, false, false), vec![ProcessingProfile::SOFTWARE]);
+    }
+
+    #[test]
+    fn decoder_verification_rejects_silent_software_fallback() {
+        assert!(decoder_verified("[hevc] Format vaapi chosen by get_format().", Decoder::Vaapi));
+        assert!(decoder_verified("[hevc] Format d3d11 chosen by get_format().", Decoder::D3d11));
+        assert!(!decoder_verified("[hevc] Format vaapi chosen by get_format().\n[hevc] Format yuv420p chosen by get_format().", Decoder::Vaapi));
+        assert!(!decoder_verified("VAAPI compiled in", Decoder::Vaapi));
+    }
+
+    #[test]
+    fn host_processing_keeps_native_hardware_download_format() {
+        for (encoder, decoder, device) in [(Encoder::HevcAmf, Decoder::D3d11, None),
+            (Encoder::HevcVaapi, Decoder::Vaapi, Some("/dev/dri/renderD128"))] {
+            let (_, command) = hardware_probe_commands("ffmpeg", encoder, device, device,
+                ProcessingProfile { decoder, software_scale: true }, Path::new("probe.mp4")).unwrap();
+            let args = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
+            assert!(args.iter().any(|arg| arg == "-hwaccel"));
+            assert!(!args.iter().any(|arg| arg == "-hwaccel_output_format" || arg.contains("hwdownload")));
         }
     }
 
@@ -1172,11 +1455,11 @@ mod tests {
     fn processing_fallback_commands_keep_gpu_encode_and_use_host_processing() {
         for (encoder, device) in [(Encoder::HevcNvenc, None),
             (Encoder::HevcVaapi, Some("/dev/dri/renderD129"))] {
-            let (_, pipeline) = hardware_probe_commands("ffmpeg", encoder, device, true, Path::new("probe.mp4")).unwrap();
+            let (_, pipeline) = hardware_probe_commands("ffmpeg", encoder, device, device, ProcessingProfile::SOFTWARE, Path::new("probe.mp4")).unwrap();
             let args = pipeline.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
             assert!(!args.iter().any(|arg| arg.contains("cuda") || arg.contains("scale_vaapi") || arg == "libx265"));
             assert!(args.windows(2).any(|pair| pair == ["-c:v", encoder.as_str()]));
-            assert!(args.iter().any(|arg| arg.contains("scale=1920:-2")));
+            assert!(args.iter().any(|arg| arg.contains("scale=1280:-2")));
             if matches!(encoder, Encoder::HevcVaapi) {
                 assert!(args.iter().any(|arg| arg.contains("format=nv12,hwupload")));
             }
@@ -1291,7 +1574,7 @@ mod tests {
         let mut command = ffmpeg_command("ffmpeg");
         assert!(apply_device_flags(&mut command, Encoder::HevcVaapi, None).is_err());
         apply_device_flags(&mut command, Encoder::HevcVaapi, Some("/dev/dri/renderD129")).unwrap();
-        assert_eq!(command.get_args().last().unwrap(), "/dev/dri/renderD129");
+        assert_eq!(command.get_args().last().unwrap(), "tripviewer_vaapi");
     }
 
     #[test]
@@ -1317,12 +1600,12 @@ mod tests {
     fn encoder_picks_nvenc_when_available() {
         let caps = FfmpegCapabilities {
             version: "ffmpeg version 7.0".into(),
-            nvenc_hevc: true, amf_hevc: false, qsv_hevc: false, vaapi_device: None, software_processing: false,
+            nvenc_hevc: true, amf_hevc: false, qsv_hevc: false, vaapi_device: None, software_processing: false, decoder: Decoder::Software, decoder_device: None,
         };
         assert!(matches!(Encoder::pick(&caps), Encoder::HevcNvenc));
         let caps = FfmpegCapabilities {
             version: "ffmpeg version 7.0".into(),
-            nvenc_hevc: false, amf_hevc: false, qsv_hevc: false, vaapi_device: None, software_processing: false,
+            nvenc_hevc: false, amf_hevc: false, qsv_hevc: false, vaapi_device: None, software_processing: false, decoder: Decoder::Software, decoder_device: None,
         };
         assert!(matches!(Encoder::pick(&caps), Encoder::LibX265));
     }

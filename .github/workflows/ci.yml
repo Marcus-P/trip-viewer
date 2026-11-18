@@ -57,6 +57,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
+      - name: Stamp an installable prerelease for acceptance builds
+        if: needs.scope.outputs.bundle == 'true'
+        run: node scripts/preview-version.mjs
       - name: Frontend and backend interfaces
         if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true'
         run: node scripts/check-interfaces.mjs

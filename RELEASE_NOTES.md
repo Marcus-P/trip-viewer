@@ -1,3 +1,52 @@
+# Trip Viewer 0.12.0-rc.2
+
+## Hardware decoding for timelapse (acceptance preview)
+
+### Memory-pressure follow-up
+
+- Reserves a finite VA-API scaler pool (20 surfaces) instead of relying on
+  FFmpeg 6.1's ten-surface default, limits VA-API asynchronous encoding depth
+  to one, and bounds hardware decoder/filter threading with eight extra decoder
+  surfaces. Software decoding/encoding thread policies remain unchanged.
+- Keeps the finite Full-HD/NV12 source but tests real resizing to 720p and
+  eight looped seconds accelerated 8x, so equal-size scaler passthrough cannot
+  hide processing-buffer failures. Decoder evidence survives bounded debug logs.
+- Before processing a hardware-decoded channel, checks up to eight seconds of
+  its actual input with the production 1080p scaling profile and a twenty-second
+  deadline. Failure switches to the established fallback before preparing the
+  whole trip. Cancellation remains cancellation; existing output is preserved.
+- Revalidates revision-5 probe caches without losing the FFmpeg path, and logs
+  the encoder/decoder/scaling profile of each real attempt.
+
+The previous Ubuntu preview produced playable 8x outputs only after hardware
+processing ran out of buffers/memory and recovered with software processing.
+The fixed-pool mechanism is evidenced by FFmpeg source; it does not establish
+that the notebook exhausted host RAM. New sustained-GPU acceptance is pending.
+
+- Tests GPU decoding as well as encoding: Windows D3D11VA, Linux VA-API,
+  NVIDIA CUDA and experimental macOS VideoToolbox, according to available APIs.
+- Linux VA-API prefers device-resident decoding/scaling/encoding. Windows AMF
+  and QSV can decode on the GPU while retaining software filters. Hardware
+  decoding does not imply that every filter or transfer runs on the GPU.
+- Verifies finite Full-HD processing and hardware decoder selection, retains the
+  selected device/profile, and rechecks older capability caches. Real-job
+  processing failures retry software processing with the same encoder before
+  falling back to CPU encoding; cancellation does not retry.
+- Shows the verified decode profile and the profile requested by each encoding
+  attempt. These labels are not live hardware-utilization measurements.
+- Acceptance installers receive unique numeric release-candidate versions.
+  Debian packages use equivalent `~rc.N` ordering, and the app recognizes the
+  final stable version as an upgrade from its release candidates. Main rejects
+  unfinalized prerelease metadata.
+
+The owner confirmed all nine 0.11.0 Windows AMF outputs complete and play
+correctly. Intel UHD VA-API encoding/playback on Ubuntu is also established.
+The new decoding paths still need hardware acceptance; cloud tests do not
+certify GPU performance. Original media, playback, GPS and archive schema remain
+unchanged. This preview is not a published stable release.
+
+---
+
 # Trip Viewer 0.11.0
 
 ## AMD, Intel and Linux GPU timelapse encoding

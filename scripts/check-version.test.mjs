@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
-function fixture(run) {
+function fixture(run, baseline = "0.6.0") {
   const root = mkdtempSync(join(tmpdir(), "trip-version-policy-"));
   try {
     mkdirSync(join(root, "scripts"));
@@ -21,15 +21,15 @@ function fixture(run) {
       write("src-tauri/tauri.conf.json", JSON.stringify({ version: "../package.json" }));
       write("RELEASE_VERSION", value + "\n");
     };
-    version("0.6.0");
-    write("RELEASE_NOTES.md", "# Trip Viewer 0.6.0\n\nReleased changes\n");
+    version(baseline);
+    write("RELEASE_NOTES.md", "# Trip Viewer " + baseline + "\n\nReleased changes\n");
     execFileSync("git", ["init", "-q"], { cwd: root });
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["-c", "user.name=Policy test", "-c", "user.email=test@example.invalid",
       "commit", "-qm", "Baseline"], { cwd: root });
     const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-    const check = () => spawnSync(process.execPath, ["scripts/check-version.mjs"], {
-      cwd: root, encoding: "utf8", env: { ...process.env, VERSION_BASE_SHA: base },
+    const check = (env = {}) => spawnSync(process.execPath, ["scripts/check-version.mjs"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, GITHUB_BASE_REF: "", GITHUB_REF: "", REQUIRE_STABLE_VERSION: "", VERSION_BASE_SHA: base, ...env },
     });
     run({ write, version, check });
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -65,3 +65,25 @@ test("skipped version numbers and unsynchronized metadata are rejected", () => f
   write("RELEASE_VERSION", "0.7.0\n");
   assert.match(check().stderr, /differs/);
 }));
+
+
+test("develop accepts the next candidate but main requires finalized stable metadata", () => fixture(({ version, write, check }) => {
+  version("0.7.0-rc.1");
+  write("RELEASE_NOTES.md", "# Trip Viewer 0.7.0-rc.1\n\nGPU preview\n");
+  assert.equal(check({ GITHUB_BASE_REF: "develop" }).status, 0);
+  assert.match(check({ GITHUB_BASE_REF: "main" }).stderr, /Finalize the prerelease/);
+  assert.match(check({ GITHUB_REF: "refs/heads/main" }).stderr, /Finalize the prerelease/);
+  version("0.7.0");
+  write("RELEASE_NOTES.md", "# Trip Viewer 0.7.0\n\nGPU release\n");
+  assert.equal(check({ GITHUB_BASE_REF: "main" }).status, 0);
+}));
+
+
+test("related develop commits and finalization share a candidate core without an extra increment", () => fixture(({ version, write, check }) => {
+  version("0.7.0-rc.2");
+  write("RELEASE_NOTES.md", "# Trip Viewer 0.7.0-rc.2\n\nFollow-up\n");
+  assert.equal(check({ GITHUB_BASE_REF: "develop" }).status, 0);
+  version("0.7.0");
+  write("RELEASE_NOTES.md", "# Trip Viewer 0.7.0\n\nFinalized\n");
+  assert.equal(check({ GITHUB_BASE_REF: "develop" }).status, 0);
+}, "0.7.0-rc.1"));

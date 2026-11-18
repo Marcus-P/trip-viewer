@@ -14,6 +14,8 @@ export interface FfmpegCapabilities {
   qsvHevc?: boolean;
   vaapiDevice?: string | null;
   softwareProcessing?: boolean;
+  decoder?: "software" | "cuda" | "d3d11va" | "vaapi" | "videotoolbox";
+  decoderDevice?: string | null;
 }
 
 export interface TimelapseSettings {
@@ -76,6 +78,7 @@ export interface TimelapseEncodingProgress {
   channel: string;
   phase: "preparing" | "encoding" | "finalizing";
   encoder: string;
+  decoder?: string;
   processedSeconds: number;
   totalSeconds: number;
   elapsedSeconds: number;

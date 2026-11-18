@@ -11,6 +11,12 @@ package = pathlib.Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory(prefix=".trip-viewer-deb-", dir=package.parent) as work:
     root = pathlib.Path(work)
     subprocess.run(["dpkg-deb", "--raw-extract", str(package), str(root)], check=True)
+    # Debian treats '-rc' as a revision newer than the stable upstream version.
+    # A tilde preserves SemVer ordering: 0.12.0~rc.1 < 0.12.0.
+    control = root / "DEBIAN/control"
+    text = control.read_text()
+    text = re.sub(r"(?m)^Version: (\d+\.\d+\.\d+)-rc\.(\d+)$", r"Version: \1~rc.\2", text)
+    control.write_text(text)
     applications = root / "usr/share/applications"
     entries = list(applications.glob("*.desktop"))
     if len(entries) != 1:

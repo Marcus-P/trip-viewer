@@ -4,6 +4,29 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Verified FFmpeg decode API; independent of the GPU model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Decoder {
+    #[default]
+    Software,
+    Cuda,
+    #[serde(rename = "d3d11va")]
+    D3d11,
+    Vaapi,
+    Videotoolbox,
+}
+
+impl Decoder {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Software => "software", Self::Cuda => "cuda", Self::D3d11 => "d3d11va",
+            Self::Vaapi => "vaapi", Self::Videotoolbox => "videotoolbox",
+        }
+    }
+    pub fn is_hardware(self) -> bool { self != Self::Software }
+}
+
 /// Timelapse speed tier. Each tier maps to a base playback rate and,
 /// for variable tiers, a slower "event" rate applied during GPS-detected
 /// interesting moments. Stage 1 only implements the fixed `Tier8x`.
@@ -158,4 +181,8 @@ pub struct FfmpegCapabilities {
     /// Selected hardware encoder needs CPU processing instead of CUDA/GPU scale.
     #[serde(default)]
     pub software_processing: bool,
+    #[serde(default)]
+    pub decoder: Decoder,
+    #[serde(default)]
+    pub decoder_device: Option<String>,
 }
