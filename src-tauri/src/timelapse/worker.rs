@@ -235,10 +235,18 @@ fn run_inner(
         });
         let calibration_started = Instant::now();
         let calibration_deadline = calibration_started + calibration_remaining;
-        let mut choice = representative.as_deref().map(|source| calibration::select(
-            ffmpeg_path, Path::new(source), caps, &settings, cancel, calibration_deadline,
-            chunk.len().min(concurrency), |status| { let _ = app.emit("timelapse:calibration", status); },
-        )).unwrap_or_else(|| Choice::baseline(caps));
+        // A production failure is stronger evidence than another short probe.
+        // Do not re-enter calibration for later trips in this batch after backoff.
+        let backed_off = gpu_failed.encoder_failed.load(Ordering::Relaxed)
+            || gpu_failed.processing_failed.load(Ordering::Relaxed);
+        let mut choice = if backed_off {
+            Choice::baseline(caps)
+        } else {
+            representative.as_deref().map(|source| calibration::select(
+                ffmpeg_path, Path::new(source), caps, &settings, cancel, calibration_deadline,
+                chunk.len().min(concurrency), |status| { let _ = app.emit("timelapse:calibration", status); },
+            )).unwrap_or_else(|| Choice::baseline(caps))
+        };
         calibration_remaining = calibration_remaining.saturating_sub(calibration_started.elapsed());
         if cancel.load(Ordering::Relaxed) { break; }
         // An explicit user ceiling may restrict measured concurrency; it never
