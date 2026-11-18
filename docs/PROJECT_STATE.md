@@ -23,24 +23,39 @@ experimental. No further manual encoding is needed for this published release.
 Old acceptance artifacts from known superseded runs can be removed after the
 verified publication; keep durable release assets and useful check history.
 
-### In progress: 0.13.0 automatic performance calibration
+### 0.13.0 acceptance complete; stable promotion prepared
 
-The owner explicitly authorized implementation on the separate
-`feat/automatic-performance-calibration` branch. Proposed source version is
-0.13.0-rc.1; CI stamps unique RC run IDs. Main/develop and stable 0.12.0 remain
-unchanged. The [implementation and acceptance plan](PERFORMANCE_PLAN.md) records
-bounded real-source comparison, local cache, native GPU-scaling candidates,
-thread/concurrency tuning and live-memory/fallback safeguards. Physical RC
-acceptance is pending; previous accepted tests establish the baseline only.
-Feature PRs target permanent develop, then an owner-controlled stable promotion.
+PR #23 targets permanent develop from `feat/automatic-performance-calibration`.
+Accepted application head is `78e53f0`; CI run 44380011070 passed scope, Linux,
+Windows, universal macOS and the required ubuntu gate. Acceptance packages use
+0.13.0-rc.44380011070. The local AppImage/DEB build also completed and installer
+validation passed. See the [performance plan](PERFORMANCE_PLAN.md) for bounded
+measurement, local cache and conservative memory/backoff limits.
 
-Local validation: 134 frontend tests and the frontend production build pass;
-391 Rust unit tests passed before the additional native-scaling command test,
-which also passes. The explicit real-FFmpeg calibration sample test passed and
-preserved its input bytes. Cache reuse/selection, deadlines/cancellation,
-failed/empty output, required hardware evidence and memory ceilings are covered.
-Interface, version-increment and documentation checks pass. Hosted desktop builds
-and physical calibration acceptance are still pending at this checkpoint.
+The owner accepted Windows 11 x64 / Radeon 780M Front/8x encoding and finished
+playback. The running screenshots show D3D11VA decoding, AMF GPU scaling and
+AMF encoding, about 100% Video Codec utilization and about 3–4% CPU use.
+No exact final Windows elapsed time or controlled same-workload speedup was
+reported. Ubuntu 24.04 LTS / Intel UHD CML GT2 Interior/16x also completed:
+the owner reported about five to six minutes and correct finished playback;
+the running screenshot shows VA-API decoding/encoding. That report does not
+separately establish cache reuse, selected scaler, increased concurrency or
+absence of transient fallback. No additional owner encoding run is required.
+macOS universal packaging and basic launch passed CI; physical Mac/GPU
+acceptance remains unavailable, so macOS remains experimental.
+
+A local, unpublished `release/0.13.0` branch finalizes version metadata and
+these acceptance notes without changing tested application code. First the owner
+merges PR #23 into develop; then bring that integration merge into the release
+branch and prepare its main promotion PR. Only the owner merges to main. Stable
+0.13.0 is not published until the main release workflow succeeds. No extra CI or
+installer builds are needed merely to record this documentation acceptance.
+
+Local validation included 134 frontend tests/build, Rust tests and explicit
+real-FFmpeg sample/all-channel/all-tier integration checks. After the final
+backoff guard, all 139 targeted timelapse tests passed; the final hosted CI also
+passed every platform. Source-version placeholders were restored after unique RC
+packaging. Preserve current test downloads until stable publication is verified.
 
 ## Stable 0.12.0 promotion: Linux and Windows accepted
 

@@ -1,4 +1,4 @@
-# Trip Viewer 0.13.0-rc.1
+# Trip Viewer 0.13.0
 
 ## Automatic local timelapse performance calibration
 
@@ -16,10 +16,14 @@
   playable files and original recordings retain the established protections.
 - Show calibration and selected settings in the English progress panel.
 
-Acceptance builds use unique 0.13.0-rc.<run-id> versions; final 0.13.0 remains a
-later owner-controlled promotion. The accepted 0.12.0 Intel UHD/Ubuntu and Radeon
-780M/Windows results validate the baseline, not these new tuning choices.
-Physical validation of this release is pending. macOS remains experimental.
+The 0.13.0 RC passed Windows, Ubuntu and universal macOS packaging CI.
+The owner confirmed Windows Radeon 780M Front/8x with D3D11VA decoding and AMF
+GPU scaling/encoding, and Ubuntu Intel UHD Interior/16x with VA-API and about
+five to six minutes runtime. Both outputs play correctly. These are focused
+workload acceptances, not a controlled cross-version benchmark or certification
+of every hardware/codec combination. macOS remains physically untested and
+experimental. Original media, logos, provenance and license notices are preserved.
+Stable publication follows the owner-controlled main merge and release workflow.
 
 # Trip Viewer 0.12.0
 

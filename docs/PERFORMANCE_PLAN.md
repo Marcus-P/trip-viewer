@@ -1,4 +1,4 @@
-# Automatic performance calibration — 0.13.0 acceptance preview
+# Automatic performance calibration — 0.13.0
 
 Current evidence: Ubuntu Intel UHD/CML GT2 and Windows 11 Radeon 780M workloads
 and playback are accepted. 0.12.0 detects supported FFmpeg APIs and validates
@@ -75,7 +75,7 @@ predict every variable-speed event mix. Hardware allocation, disk speed and
 thermal conditions can change after calibration; live memory checks and fallback
 still apply. The cache is per-machine; it does not change archive database format.
 
-## Focused acceptance
+## Focused acceptance procedure
 
 Install the unique RC package. Select Front and 16x, then use the row rebuild
 button for one already-tested trip (expect one job, not the whole library).
@@ -86,3 +86,19 @@ On the 8-GB Intel Ubuntu notebook, sequential operation is expected. On Windows
 Radeon 780M, native scaling may be chosen only if that FFmpeg/driver combination
 actually passes and beats the baseline. Neither result is required to show
 100% GPU utilization. No additional long library-wide encode is requested.
+
+## Accepted owner results
+
+The owner accepted Windows 11 x64 / Radeon 780M Front/8x encoding and finished
+playback. The running screenshots show D3D11VA decoding, AMF GPU scaling and
+AMF encoding, about 100% Video Codec utilization and about 3–4% CPU use.
+No exact final Windows elapsed time or controlled same-workload speedup was
+reported. Ubuntu 24.04 LTS / Intel UHD CML GT2 Interior/16x also completed:
+the owner reported about five to six minutes and correct finished playback;
+the running screenshot shows VA-API decoding/encoding. That report does not
+separately establish cache reuse, selected scaler, increased concurrency or
+absence of transient fallback. No additional owner encoding run is required.
+macOS universal packaging and basic launch passed CI; physical Mac/GPU
+acceptance remains unavailable, so macOS remains experimental.
+
+CI run 44380011070 passed all platforms for feature head `78e53f0`.
