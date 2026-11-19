@@ -14,7 +14,7 @@ durable assets. Five package checksums match GitHub's SHA-256 metadata; the
 Ubuntu DEB, Windows setup and experimental universal Mac DMG were downloaded
 and verified. The DEB embeds stable 0.12.0, and the live updater recognizes it as
 newer than the accepted RC on all three targets. Original license/provenance
-notices match the previous release. Main and permanent develop both point to
+notices match the previous release. At that publication checkpoint, main and permanent develop both pointed to
 `6fd867e` on GitHub and were synchronized without a force push.
 
 The owner's Linux VA-API and Windows D3D11VA + AMF Front/16x tests and finished
@@ -25,7 +25,8 @@ verified publication; keep durable release assets and useful check history.
 
 ### 0.13.0 acceptance complete; stable promotion prepared
 
-PR #23 targets permanent develop from `feat/automatic-performance-calibration`.
+The owner merged PR #23 into permanent develop as `ff8f64f` on 2026-11-19,
+from `feat/automatic-performance-calibration`.
 Accepted application head is `78e53f0`; CI run 44380011070 passed scope, Linux,
 Windows, universal macOS and the required ubuntu gate. Acceptance packages use
 0.13.0-rc.44380011070. The local AppImage/DEB build also completed and installer
@@ -44,12 +45,12 @@ absence of transient fallback. No additional owner encoding run is required.
 macOS universal packaging and basic launch passed CI; physical Mac/GPU
 acceptance remains unavailable, so macOS remains experimental.
 
-A local, unpublished `release/0.13.0` branch finalizes version metadata and
-these acceptance notes without changing tested application code. First the owner
-merges PR #23 into develop; then bring that integration merge into the release
-branch and prepare its main promotion PR. Only the owner merges to main. Stable
-0.13.0 is not published until the main release workflow succeeds. No extra CI or
-installer builds are needed merely to record this documentation acceptance.
+The `release/0.13.0` branch includes that develop integration merge and finalizes
+stable version metadata plus these acceptance notes. Application code remains
+identical to accepted head `78e53f0`. Its promotion PR targets main; only the
+owner merges to main. Stable 0.13.0 is not published until the subsequent main
+release workflow succeeds. The protected promotion PR runs its normal required
+CI once; no extra owner encoding or standalone documentation build is needed.
 
 Local validation included 134 frontend tests/build, Rust tests and explicit
 real-FFmpeg sample/all-channel/all-tier integration checks. After the final
