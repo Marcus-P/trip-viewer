@@ -6,7 +6,9 @@ AMF runtimes and VA-API. A compatible HEVC encoder, driver/runtime and FFmpeg
 build are required. All GPU probes use finite Full-HD input and drain to EOF.
 Where CUDA processing or VA-API scaling is unavailable, a second profile checks
 CPU processing while retaining GPU encoding. CPU/libx265 is the final fallback.
-The selected profile is verified again before a batch. No fixed speed gain or
+The selected profile is verified again before a batch. The 0.13.0 preview adds
+[local performance calibration](PERFORMANCE_PLAN.md); its new tuning choices
+are not yet physically accepted on the owner machines. No fixed speed gain or
 support for every GPU/driver/build combination is promised.
 
 ## Owner-reported hardware results

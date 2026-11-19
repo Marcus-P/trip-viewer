@@ -6,6 +6,42 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Published 0.12.0 and the remaining performance scope
+
+The owner merged promotion PR #22 as `6fd867e` on 2026-11-18. Release run
+44365307354 succeeded. Stable v0.12.0 is Latest Release, with thirteen nonempty
+durable assets. Five package checksums match GitHub's SHA-256 metadata; the
+Ubuntu DEB, Windows setup and experimental universal Mac DMG were downloaded
+and verified. The DEB embeds stable 0.12.0, and the live updater recognizes it as
+newer than the accepted RC on all three targets. Original license/provenance
+notices match the previous release. Main and permanent develop both point to
+`6fd867e` on GitHub and were synchronized without a force push.
+
+The owner's Linux VA-API and Windows D3D11VA + AMF Front/16x tests and finished
+playback are accepted. Other hardware remains separately unverified; Mac is
+experimental. No further manual encoding is needed for this published release.
+Old acceptance artifacts from known superseded runs can be removed after the
+verified publication; keep durable release assets and useful check history.
+
+### In progress: 0.13.0 automatic performance calibration
+
+The owner explicitly authorized implementation on the separate
+`feat/automatic-performance-calibration` branch. Proposed source version is
+0.13.0-rc.1; CI stamps unique RC run IDs. Main/develop and stable 0.12.0 remain
+unchanged. The [implementation and acceptance plan](PERFORMANCE_PLAN.md) records
+bounded real-source comparison, local cache, native GPU-scaling candidates,
+thread/concurrency tuning and live-memory/fallback safeguards. Physical RC
+acceptance is pending; previous accepted tests establish the baseline only.
+Feature PRs target permanent develop, then an owner-controlled stable promotion.
+
+Local validation: 134 frontend tests and the frontend production build pass;
+391 Rust unit tests passed before the additional native-scaling command test,
+which also passes. The explicit real-FFmpeg calibration sample test passed and
+preserved its input bytes. Cache reuse/selection, deadlines/cancellation,
+failed/empty output, required hardware evidence and memory ceilings are covered.
+Interface, version-increment and documentation checks pass. Hosted desktop builds
+and physical calibration acceptance are still pending at this checkpoint.
+
 ## Stable 0.12.0 promotion: Linux and Windows accepted
 
 The owner merged feature PR #21 into permanent develop as `9aabc9d` on

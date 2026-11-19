@@ -194,7 +194,11 @@ Open **Timelapse → gear**, select your FFmpeg binary and choose **Test**. The
 verified encoder is shown by name. Automatic selection prefers **NVIDIA / NVENC**,
 then **AMD / AMF**, **Intel / QSV** on Windows, **GPU / VA-API** on Linux,
 and finally **CPU / HEVC**. This chooses one verified backend, not all GPUs
-simultaneously; it does not benchmark which GPU is fastest.
+simultaneously. The Test button verifies compatibility; the 0.13.0 preview
+additionally calibrates short real-source samples when a batch starts. It can
+compare compiled GPU-processing paths, filter threads and safe concurrency,
+then reuse the local result. See [performance calibration](PERFORMANCE_PLAN.md)
+for the 45-second budget, cache and measurement limits.
 
 AMF requires an FFmpeg build with `hevc_amf` and a compatible AMD driver/runtime;
 QSV requires `hevc_qsv`, compatible Intel graphics and working D3D11/Quick Sync
@@ -202,14 +206,16 @@ support in FFmpeg and the driver. Use a current FFmpeg build for Intel-adapter
 selection on mixed-vendor Windows systems. VA-API requires `hevc_vaapi`, a working Linux driver and permission to access a
 render device under `/dev/dri`. Availability is checked by real short encoding
 and processing tests, again before each batch. Installing FFmpeg alone does not
-guarantee GPU support. The NPU is not involved. CPU decoding still contributes
-load even when AMF/QSV/VA-API encoding is active; AMF/QSV also scale on the CPU.
+guarantee GPU support. The NPU is not involved. CPU processing can still contribute
+load even when GPU encoding is active. The preview tests native GPU scaling
+when the installed FFmpeg and driver support it.
 High CPU usage alone does not indicate a CPU-encoding fallback. Compare the
 same source/tier/settings and total elapsed time to measure a speed difference.
 
 Start with one short trip, Front and 8x. Live progress names the encoder actually
 running. A hardware failure retries once on CPU and keeps the rest of that batch
-on CPU. Automatic AMF/QSV/VA-API concurrency is one job. Existing playable outputs are
+on CPU. Calibration raises concurrency only after repeatable measured gains
+and live-memory checks; low-RAM machines remain sequential. Existing playable outputs are
 not rebuilt merely because a new encoder is available; select a rebuild only
 when intended. [The focused test](testing/AMD_TIMELAPSE_0110.md) explains acceptance
 and diagnosis without rechecking already accepted playback features.

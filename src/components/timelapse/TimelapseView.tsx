@@ -202,6 +202,7 @@ export function TimelapseView() {
     if (remaining <= 0) return null;
     return formatDurationShort(avgPer * remaining);
   }, [running, startMs, total, processedCount, now]);
+  const calibration = useStore((s) => s.timelapseCalibration);
   const encodingProgress = useStore((s) => s.timelapseEncodingProgress);
   const encodingEstimate = encodingProgress ? estimateEncodingStep(encodingProgress, now) : null;
 
@@ -487,6 +488,12 @@ export function TimelapseView() {
           </div>
         </section>
 
+        {calibration && (
+          <p role="status" className="mb-4 rounded-md border border-neutral-800 p-3 text-xs text-neutral-400">
+            {calibration.message}
+            {calibration.state === "measuring" && " No media or hardware data leaves this computer. Cancel stops calibration too."}
+          </p>
+        )}
         {(running || progress) && (
           <section className="mb-6">
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-400">
@@ -544,7 +551,7 @@ export function TimelapseView() {
                         <span>
                           {{ preparing: "Preparing source", encoding: "Encoding", finalizing: "Finalizing file" }[encodingProgress.phase]}
                           {" · "}{encoderLabel(encodingProgress.encoder)}
-                          {encodingProgress.phase === "encoding" && <> · Decode profile: {decoderLabel(encodingProgress.decoder)}</>}
+                          {encodingProgress.phase === "encoding" && <> · Decode profile: {decoderLabel(encodingProgress.decoder)}{encodingProgress.scaler && <> · Scale: {encodingProgress.scaler} ({encodingProgress.filterThreads} threads)</>}</>}
                           {" · "}{encodingProgress.tier} / {encodingProgress.channel}
                           {" · trip "}{encodingProgress.tripId.slice(0, 8)}…
                         </span>

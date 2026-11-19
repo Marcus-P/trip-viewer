@@ -12,6 +12,7 @@ import type {
  * shape of `ScanSlice` so the patterns are interchangeable.
  */
 export interface TimelapseSlice {
+  timelapseCalibration: import("../ipc/timelapse").CalibrationStatus | null;
   /** Whether a background encode is currently running. */
   timelapseRunning: boolean;
   /** True while the implicit pre-encode scan is in progress. Drives a
