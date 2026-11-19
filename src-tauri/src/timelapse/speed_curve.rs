@@ -398,7 +398,13 @@ pub fn compose_probe_filter(scale_filter: &str) -> String {
 }
 
 fn compose_sized_window_filter(scale_filter: &str, rate: u32, width: u32) -> String {
-    if scale_filter == "scale_cuda" {
+    if scale_filter == "scale_d3d11_native" {
+        format!("[0:v]scale_d3d11=width={width}:height=-2:format=nv12,setpts=PTS/{rate}[out]")
+    } else if scale_filter == "vpp_amf_native" {
+        format!("[0:v]vpp_amf=w={width}:h=-2:format=nv12,setpts=PTS/{rate}[out]")
+    } else if scale_filter == "scale_qsv_native" {
+        format!("[0:v]hwmap=derive_device=qsv,scale_qsv=w={width}:h=-2:format=nv12,setpts=PTS/{rate}[out]")
+    } else if scale_filter == "scale_cuda" {
         format!("[0:v]scale_cuda={width}:-2:format=yuv420p,setpts=PTS/{rate}[out]")
     } else if scale_filter == "scale_vaapi" {
         format!("[0:v]format=nv12,hwupload,scale_vaapi={width}:-2:extra_hw_frames=16,setpts=PTS/{rate}[out]")

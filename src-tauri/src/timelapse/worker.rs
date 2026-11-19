@@ -18,7 +18,9 @@ use std::time::{Duration, Instant};
 
 use rusqlite::{params, Connection};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+use super::calibration::{self, Choice};
+use crate::app_settings::AppSettingsHandle;
 
 use crate::db::{self, DbHandle};
 use crate::error::AppError;
@@ -26,7 +28,9 @@ use crate::gps;
 use crate::model::GpsPoint;
 use crate::scan::naming::CameraKind;
 use crate::timelapse::events;
-use crate::timelapse::ffmpeg::{self, EncodeArgs, Encoder, FallbackState, ProcessingProfile};
+use crate::timelapse::ffmpeg::{self, EncodeArgs, Encoder, FallbackState};
+#[cfg(test)]
+use crate::timelapse::ffmpeg::ProcessingProfile;
 use crate::timelapse::types::{Channel, EventWindow, FfmpegCapabilities, JobScope, Tier};
 use crate::timelapse::CancelFlag;
 use crate::timelapse::progress::{EncodingProgress, ProgressCallback};
@@ -147,7 +151,6 @@ fn run_inner(
     caps: &FfmpegCapabilities,
     concurrency: usize,
 ) -> Result<(), AppError> {
-    let encoder = Encoder::pick(caps);
     let output_root = resolve_output_root(db)?;
 
     let work = build_work_list(db, trip_ids.as_deref(), tiers, channels, scope)?;
@@ -160,21 +163,6 @@ fn run_inner(
             tiers: tiers.iter().map(|t| t.as_str().to_string()).collect(),
         },
     );
-
-    // libx265 needs its internal thread pool sized to a fair share of
-    // CPU when N>1 ffmpegs run in parallel; otherwise each x265
-    // invocation spawns all-cores and N of them thrash the OS
-    // scheduler. NVENC's encode threads live on the GPU, so the cap
-    // doesn't apply there.
-    let cpu_pool_threads: Option<usize> = if matches!(encoder, Encoder::LibX265) && concurrency > 1
-    {
-        let cores = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-        Some((cores / concurrency).max(1))
-    } else {
-        None
-    };
 
     // Cross-worker progress state. `last_emit` gates the 250 ms
     // throttle that keeps IPC traffic down when many workers report
@@ -189,7 +177,8 @@ fn run_inner(
     // already trip-grouped (build_work_list's outer loop is trips),
     // so we walk it once and slice on trip_id boundaries.
     let chunks = group_work_by_trip(&work);
-    let pool_size = concurrency.max(1);
+    let mut calibration_remaining = calibration::BATCH_BUDGET;
+    let settings = app.state::<AppSettingsHandle>();
     let gpu_failed = FallbackState::default();
 
     for chunk in &chunks {
@@ -240,6 +229,37 @@ fn run_inner(
             continue;
         }
 
+        let representative = chunk.iter().find_map(|item| {
+            resolve_channel_sources(&ctx.front_sources, &ctx.front_durations, item.channel)
+                .ok().and_then(|r| r.sources.into_iter().next())
+        });
+        let calibration_started = Instant::now();
+        let calibration_deadline = calibration_started + calibration_remaining;
+        // A production failure is stronger evidence than another short probe.
+        // Do not re-enter calibration for later trips in this batch after backoff.
+        let backed_off = gpu_failed.encoder_failed.load(Ordering::Relaxed)
+            || gpu_failed.processing_failed.load(Ordering::Relaxed);
+        let mut choice = if backed_off {
+            Choice::baseline(caps)
+        } else {
+            representative.as_deref().map(|source| calibration::select(
+                ffmpeg_path, Path::new(source), caps, &settings, cancel, calibration_deadline,
+                chunk.len().min(concurrency), |status| { let _ = app.emit("timelapse:calibration", status); },
+            )).unwrap_or_else(|| Choice::baseline(caps))
+        };
+        calibration_remaining = calibration_remaining.saturating_sub(calibration_started.elapsed());
+        if cancel.load(Ordering::Relaxed) { break; }
+        // An explicit user ceiling may restrict measured concurrency; it never
+        // bypasses the current live-memory ceiling.
+        if settings.read().timelapse_max_concurrent_jobs.is_some() {
+            choice.concurrency = choice.concurrency.min(concurrency.max(1));
+        }
+        if gpu_failed.encoder_failed.load(Ordering::Relaxed) || gpu_failed.processing_failed.load(Ordering::Relaxed) {
+            choice = Choice::baseline(caps);
+        }
+        let pool_size = calibration::safe_parallelism(choice.concurrency).min(chunk.len()).max(1);
+        let cpu_pool_threads = Some((std::thread::available_parallelism().map(|n|n.get()).unwrap_or(2) / pool_size).clamp(1,8));
+
         // Worker pool for this trip's (tier × channel) jobs. Every
         // worker pulls the next index off `next_index` until the
         // chunk drains or cancel fires. `thread::scope` joins all
@@ -248,10 +268,16 @@ fn run_inner(
         let next_index = AtomicUsize::new(0);
         let ctx_ref: &TripEncodeContext = &ctx;
         thread::scope(|s| {
-            for _ in 0..pool_size {
-                s.spawn(|| {
+            for worker_id in 0..pool_size {
+                let choice = &choice;
+                let gpu_failed = &gpu_failed;
+                let done = &done; let failed = &failed; let last_emit = &last_emit; let next_index = &next_index;
+                let output_root = &output_root;
+                s.spawn(move || {
                     loop {
-                        if cancel.load(Ordering::Relaxed) {
+                        if cancel.load(Ordering::Relaxed) || (worker_id > 0 &&
+                            (gpu_failed.encoder_failed.load(Ordering::Relaxed) || gpu_failed.processing_failed.load(Ordering::Relaxed)
+                            || calibration::safe_parallelism(pool_size) <= worker_id)) {
                             break;
                         }
                         let i = next_index.fetch_add(1, Ordering::Relaxed);
@@ -280,9 +306,10 @@ fn run_inner(
                             cancel,
                             item,
                             ctx_ref,
-                            encoder,
-                            ffmpeg_path,
+                            choice.encoder,
                             caps,
+                            choice,
+                            ffmpeg_path,
                             &output_root,
                             cpu_pool_threads,
                             &gpu_failed,
@@ -304,6 +331,10 @@ fn run_inner(
                 });
             }
         });
+        if gpu_failed.encoder_failed.load(Ordering::Relaxed) || gpu_failed.processing_failed.load(Ordering::Relaxed) {
+            let _ = settings.update(|s| s.timelapse_calibration.clear());
+            let _ = app.emit("timelapse:calibration", calibration::Status { state: "safe", message: "Hardware fallback occurred; calibration cleared and new work is sequential.".into() });
+        }
     }
 
     // Sweep .tmp/ if every per-job dir cleaned up. `remove_dir` is
@@ -420,8 +451,9 @@ fn process_item(
     item: &WorkItem,
     ctx: &TripEncodeContext,
     encoder: Encoder,
-    ffmpeg_path: &str,
     caps: &FfmpegCapabilities,
+    choice: &Choice,
+    ffmpeg_path: &str,
     output_root: &Path,
     cpu_pool_threads: Option<usize>,
     gpu_failed: &FallbackState,
@@ -551,9 +583,10 @@ fn process_item(
 
     let args = EncodeArgs {
         ffmpeg_path,
-        vaapi_device: caps.vaapi_device.as_deref(),
-        decoder_device: caps.decoder_device.as_deref(),
-        processing: ProcessingProfile { decoder: caps.decoder, software_scale: caps.software_processing },
+        vaapi_device: choice.device.as_deref(),
+        decoder_device: choice.decoder_device.as_deref(),
+        filter_threads: choice.filter_threads,
+        processing: choice.profile,
         source_paths: &sources,
         output_path: &output_path,
         tier: item.tier,
@@ -1528,7 +1561,8 @@ mod tests {
                 let args = EncodeArgs {
                     ffmpeg_path: &binary, vaapi_device: caps.vaapi_device.as_deref(),
                     decoder_device: caps.decoder_device.as_deref(),
-                    processing: ProcessingProfile { decoder: caps.decoder, software_scale: caps.software_processing },
+                    filter_threads: 2,
+                    processing: ProcessingProfile { decoder: caps.decoder, software_scale: caps.software_processing, gpu_scale: None },
                     source_paths: &resolved.sources, output_path: &output,
                     tier, channel, encoder: Encoder::pick(&caps), curve: &curve,
                     scratch_dir: &scratch, cpu_pool_threads: Some(1), software_input: false, progress: Some(callback),

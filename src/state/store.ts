@@ -364,6 +364,7 @@ export const useStore = create<AppState>((set) => ({
   timelapseScanning: false,
   timelapseProgress: null,
   timelapseEncodingProgress: null,
+  timelapseCalibration: null,
   timelapseLastResult: null,
   timelapseStartMs: null,
   timelapseJobs: [],
@@ -1114,6 +1115,7 @@ export const useStore = create<AppState>((set) => ({
       timelapseScanning: true,
       timelapseProgress: null,
       timelapseEncodingProgress: null,
+  timelapseCalibration: null,
       timelapseLastResult: null,
     });
     try {

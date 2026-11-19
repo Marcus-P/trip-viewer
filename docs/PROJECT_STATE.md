@@ -6,6 +6,58 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Published 0.12.0 and the remaining performance scope
+
+The owner merged promotion PR #22 as `6fd867e` on 2026-11-18. Release run
+44365307354 succeeded. Stable v0.12.0 is Latest Release, with thirteen nonempty
+durable assets. Five package checksums match GitHub's SHA-256 metadata; the
+Ubuntu DEB, Windows setup and experimental universal Mac DMG were downloaded
+and verified. The DEB embeds stable 0.12.0, and the live updater recognizes it as
+newer than the accepted RC on all three targets. Original license/provenance
+notices match the previous release. At that publication checkpoint, main and permanent develop both pointed to
+`6fd867e` on GitHub and were synchronized without a force push.
+
+The owner's Linux VA-API and Windows D3D11VA + AMF Front/16x tests and finished
+playback are accepted. Other hardware remains separately unverified; Mac is
+experimental. No further manual encoding is needed for this published release.
+Old acceptance artifacts from known superseded runs can be removed after the
+verified publication; keep durable release assets and useful check history.
+
+### 0.13.0 acceptance complete; stable promotion prepared
+
+The owner merged PR #23 into permanent develop as `ff8f64f` on 2026-11-19,
+from `feat/automatic-performance-calibration`.
+Accepted application head is `78e53f0`; CI run 44380011070 passed scope, Linux,
+Windows, universal macOS and the required ubuntu gate. Acceptance packages use
+0.13.0-rc.44380011070. The local AppImage/DEB build also completed and installer
+validation passed. See the [performance plan](PERFORMANCE_PLAN.md) for bounded
+measurement, local cache and conservative memory/backoff limits.
+
+The owner accepted Windows 11 x64 / Radeon 780M Front/8x encoding and finished
+playback. The running screenshots show D3D11VA decoding, AMF GPU scaling and
+AMF encoding, about 100% Video Codec utilization and about 3–4% CPU use.
+No exact final Windows elapsed time or controlled same-workload speedup was
+reported. Ubuntu 24.04 LTS / Intel UHD CML GT2 Interior/16x also completed:
+the owner reported about five to six minutes and correct finished playback;
+the running screenshot shows VA-API decoding/encoding. That report does not
+separately establish cache reuse, selected scaler, increased concurrency or
+absence of transient fallback. No additional owner encoding run is required.
+macOS universal packaging and basic launch passed CI; physical Mac/GPU
+acceptance remains unavailable, so macOS remains experimental.
+
+The `release/0.13.0` branch includes that develop integration merge and finalizes
+stable version metadata plus these acceptance notes. Application code remains
+identical to accepted head `78e53f0`. Its promotion PR targets main; only the
+owner merges to main. Stable 0.13.0 is not published until the subsequent main
+release workflow succeeds. The protected promotion PR runs its normal required
+CI once; no extra owner encoding or standalone documentation build is needed.
+
+Local validation included 134 frontend tests/build, Rust tests and explicit
+real-FFmpeg sample/all-channel/all-tier integration checks. After the final
+backoff guard, all 139 targeted timelapse tests passed; the final hosted CI also
+passed every platform. Source-version placeholders were restored after unique RC
+packaging. Preserve current test downloads until stable publication is verified.
+
 ## Stable 0.12.0 promotion: Linux and Windows accepted
 
 The owner merged feature PR #21 into permanent develop as `9aabc9d` on

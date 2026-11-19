@@ -79,6 +79,8 @@ export interface TimelapseEncodingProgress {
   phase: "preparing" | "encoding" | "finalizing";
   encoder: string;
   decoder?: string;
+  scaler?: string;
+  filterThreads?: number;
   processedSeconds: number;
   totalSeconds: number;
   elapsedSeconds: number;
@@ -218,4 +220,9 @@ export function onTimelapseScanning(
   cb: (active: boolean) => void,
 ): Promise<UnlistenFn> {
   return listen<boolean>("timelapse:scanning", (e) => cb(e.payload));
+}
+
+export interface CalibrationStatus { state: "measuring" | "cached" | "selected" | "safe"; message: string }
+export function onTimelapseCalibration(cb: (status: CalibrationStatus) => void): Promise<UnlistenFn> {
+  return listen<CalibrationStatus>("timelapse:calibration", (e) => cb(e.payload));
 }

@@ -1,3 +1,30 @@
+# Trip Viewer 0.13.0
+
+## Automatic local timelapse performance calibration
+
+- Compare short equivalent real-input samples before production encoding. Select
+  GPU processing, filter threads and batch concurrency only after a repeated
+  measured improvement of at least 15%; retain verified safe settings otherwise.
+- Discover compiled FFmpeg APIs/filters instead of adding GPU-model rules.
+  Windows can test device-resident D3D11/AMF/QSV scaling when available;
+  CUDA and Linux VA-API keep their existing bounded hardware pipelines.
+- Limit calibration to 45 seconds per batch, allow cancellation, and cache up to
+  eight local results for seven days. Runtime/driver, source format, FFmpeg and
+  workload-size changes invalidate reuse. No diagnostic upload or telemetry.
+- Check live RAM before parallel work, preserve finite GPU buffers, clear tuning
+  after hardware fallback and reduce subsequent work to one process. Existing
+  playable files and original recordings retain the established protections.
+- Show calibration and selected settings in the English progress panel.
+
+The 0.13.0 RC passed Windows, Ubuntu and universal macOS packaging CI.
+The owner confirmed Windows Radeon 780M Front/8x with D3D11VA decoding and AMF
+GPU scaling/encoding, and Ubuntu Intel UHD Interior/16x with VA-API and about
+five to six minutes runtime. Both outputs play correctly. These are focused
+workload acceptances, not a controlled cross-version benchmark or certification
+of every hardware/codec combination. macOS remains physically untested and
+experimental. Original media, logos, provenance and license notices are preserved.
+Stable publication follows the owner-controlled main merge and release workflow.
+
 # Trip Viewer 0.12.0
 
 ## Hardware decoding and reliable timelapse processing

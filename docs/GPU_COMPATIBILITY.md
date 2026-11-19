@@ -6,7 +6,9 @@ AMF runtimes and VA-API. A compatible HEVC encoder, driver/runtime and FFmpeg
 build are required. All GPU probes use finite Full-HD input and drain to EOF.
 Where CUDA processing or VA-API scaling is unavailable, a second profile checks
 CPU processing while retaining GPU encoding. CPU/libx265 is the final fallback.
-The selected profile is verified again before a batch. No fixed speed gain or
+The selected profile is verified again before a batch. Version 0.13.0 adds
+[local performance calibration](PERFORMANCE_PLAN.md); the focused owner results
+below record the accepted workloads and their evidence limits. No fixed speed gain or
 support for every GPU/driver/build combination is promised.
 
 ## Owner-reported hardware results
@@ -78,3 +80,17 @@ benchmark or verified Front-only byte count. There is no saved Windows run log
 for a stronger claim about every phase or transient fallback. Previous 0.11.0
 AMF encoding acceptance remains valid. No additional owner run is required for
 version finalization. Other GPU/driver setups and Mac hardware remain unverified.
+
+## 0.13.0 owner acceptance
+
+The owner accepted Windows 11 x64 / Radeon 780M Front/8x encoding and finished
+playback. The running screenshots show D3D11VA decoding, AMF GPU scaling and
+AMF encoding, about 100% Video Codec utilization and about 3–4% CPU use.
+No exact final Windows elapsed time or controlled same-workload speedup was
+reported. Ubuntu 24.04 LTS / Intel UHD CML GT2 Interior/16x also completed:
+the owner reported about five to six minutes and correct finished playback;
+the running screenshot shows VA-API decoding/encoding. That report does not
+separately establish cache reuse, selected scaler, increased concurrency or
+absence of transient fallback. No additional owner encoding run is required.
+macOS universal packaging and basic launch passed CI; physical Mac/GPU
+acceptance remains unavailable, so macOS remains experimental.

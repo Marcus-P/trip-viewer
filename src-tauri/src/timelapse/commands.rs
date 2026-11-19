@@ -11,7 +11,7 @@ use crate::app_settings::{AppSettings, AppSettingsHandle};
 use crate::archive::{require_db, ArchiveSlot};
 use crate::db;
 use crate::error::AppError;
-use crate::timelapse::concurrency::{detect_recommended_concurrency, MAX_CONCURRENCY};
+use crate::timelapse::concurrency::MAX_CONCURRENCY;
 use crate::timelapse::ffmpeg::{self, Encoder};
 use crate::timelapse::types::{Channel, FfmpegCapabilities, JobScope, Tier};
 use crate::timelapse::worker::{new_cancel_flag, run_timelapse_loop, SharedWorkerState};
@@ -225,16 +225,14 @@ pub async fn start_timelapse(
     })?;
     let concurrency_override = s.timelapse_max_concurrent_jobs.map(|n| n as usize);
 
-    // Concurrency: explicit override wins, otherwise auto-detect from
-    // hardware. Both paths get clamped to `1..=MAX_CONCURRENCY` so a
-    // garbage setting can't crash the worker pool or exhaust GPU
-    // sessions.
+    // This is a ceiling, not a GPU-model heuristic. The worker measures
+    // aggregate throughput and checks live RAM before selecting actual jobs.
     let encoder = Encoder::pick(&caps);
     let concurrency = concurrency_override
-        .unwrap_or_else(|| detect_recommended_concurrency(encoder))
+        .unwrap_or(MAX_CONCURRENCY)
         .clamp(1, MAX_CONCURRENCY);
     eprintln!(
-        "[timelapse] starting: encoder={} concurrency={}",
+        "[timelapse] starting: encoder={} concurrency-ceiling={} (local calibration selects actual jobs)",
         encoder.as_str(),
         concurrency
     );

@@ -29,6 +29,7 @@ import {
 } from "./ipc/scanner";
 import {
   onTimelapseStart,
+  onTimelapseCalibration,
   onTimelapseProgress,
   onTimelapseEncodingProgress,
   onTimelapseDone,
@@ -213,6 +214,7 @@ function App() {
             currentChannel: null,
           },
           timelapseLastResult: null,
+          timelapseCalibration: null,
           timelapseEncodingProgress: null,
         });
       }),
@@ -222,6 +224,9 @@ function App() {
         useStore.setState({ timelapseProgress: p });
       }),
     );
+    unlisteners.push(onTimelapseCalibration((status) => {
+      useStore.setState({ timelapseCalibration: status, ...(status.state === "measuring" ? { timelapseEncodingProgress: null } : {}) });
+    }));
     unlisteners.push(
       onTimelapseEncodingProgress((p) => {
         useStore.setState({ timelapseEncodingProgress: { ...p, receivedAtMs: Date.now() } });
