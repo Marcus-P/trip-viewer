@@ -11,8 +11,10 @@
   Separate reusable project safeguards from owner-specific work preferences;
   retain the existing MIT license and contributor notices. Extend the same
   provenance rule to owner-derived prompts, custom instructions, Skills,
-  templates, retrieval/RAG source documents and related reusable guidance
-  without exposing private sources.
+  templates and related reusable instructions without exposing private sources.
+  Exclude knowledge documents and retrieval/RAG sources from owner attribution;
+  preserve their actual authorship/rights and require explicit authorization
+  before disclosing private content or identifying source metadata.
 - Add risk-based verification goals and stopping conditions. Reuse valid prior
   evidence, avoid unsupported full-test repetition, and minimize both compute
   and owner coordination effort without bypassing required checks.

@@ -23,10 +23,9 @@ license or existing copyright/license notices.
 ### Owner-derived prompts, instructions and reusable AI material
 
 The same provenance requirement covers prompts, custom instructions, rules,
-Skills/reusable instruction packages, templates, checklists, workflow guidance,
-knowledge documents used as retrieval/RAG sources and other written material
-actually derived from @Marcus-P's supplied concepts
-or requirements. It applies to reuse, extraction, summaries, translations,
+Skills/reusable instruction packages, templates, checklists and workflow
+instructions actually derived from @Marcus-P's supplied concepts or
+requirements. It applies to reuse, extraction, summaries, translations,
 reformulations and adaptations, including outside this file or repository.
 Attribute the original concepts/requirements to @Marcus-P and distinguish
 wording/implementation assistance from Codex and contributions from others.
@@ -41,6 +40,24 @@ without disclosing that material; use a public reference only when one exists
 and is authorized for the purpose. Do not invent a public source link or copy
 private chat into this repository to demonstrate provenance. Existing licenses
 and other contributors' notices remain unchanged.
+
+### Knowledge documents and retrieval/RAG sources
+
+Knowledge documents and retrieval/RAG source material are excluded from the
+owner-attribution requirement above. Supplying, selecting, possessing, uploading
+or using a document does not establish that @Marcus-P authored or owns it.
+Preserve the actual source, verified authorship, license and usage permissions;
+if authorship is unknown, keep it unknown rather than assigning it to the
+owner. Where a prompt or Skill includes third-party knowledge, distinguish any
+confirmed owner-derived instructions from that enclosed material.
+
+Treat non-public knowledge inputs as private. Permission to use a document for
+an authorized task is not permission to publish its content, identifying source
+metadata, names or private paths, expose it through a public index, or upload
+it to another service. Such disclosure requires explicit authorization and
+appropriate source rights; respect applicable data-protection/confidentiality
+requirements. Preserve privacy when documenting provenance and share only the
+minimum information authorized for the actual purpose.
 
 General project safeguards below apply to work in this repository. The separate
 owner-specific preferences describe work performed for @Marcus-P; they do not
