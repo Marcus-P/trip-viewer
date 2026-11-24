@@ -102,3 +102,12 @@ test("desktop matrix policy tests need tooling checks, not dependency audits", (
   assert.equal(scope.tooling, true);
   for (const key of ["frontend", "backend", "bundle", "audit"]) assert.equal(scope[key], false);
 });
+
+test("commit privacy guards need tooling checks without application builds", () => {
+  const scope = classifyChanges([
+    { path: "scripts/commit-privacy.mjs" },
+    { path: "scripts/commit-privacy.test.mjs" },
+  ]);
+  assert.equal(scope.tooling, true);
+  for (const key of ["frontend", "backend", "bundle", "audit"]) assert.equal(scope[key], false);
+});

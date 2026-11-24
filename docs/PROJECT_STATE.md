@@ -6,6 +6,90 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Commit privacy safeguards
+
+Owner development sessions use `node scripts/commit-privacy.mjs setup` to set a
+repository-local verified no-reply identity and install shared local commit,
+message and push guards. Private-address markers stay in local Git configuration.
+Other contributors' author identities are retained; existing unrelated hooks are
+not overwritten. New clones need setup. This is a prevention measure with a
+scoped check of new material, not a full historical-data removal or anonymity
+guarantee. AGENTS.md remains the binding entry point. Tooling checks cover this
+change without rebuilding the unchanged application or producing installers.
+
+## Current checkpoint: stable 0.13.0 and communication-policy maintenance
+
+Stable v0.13.0 was published after the owner merged promotion PR #24 on
+2026-11-19. At this review, main and permanent develop both point to `b7d5fd6`.
+Older publication/pending-work entries below are historical checkpoints, not
+claims that 0.12.0 is still Latest or 0.13.0 remains unpublished.
+
+Branch `docs/contributor-communication` prepares documentation-only 0.13.1-rc.1
+for integration into develop. AGENTS.md remains the single binding policy entry
+point, now covering current external context, verified references, roles and
+upstream decision authority, voluntary cooperation, complete actionable Markdown
+handoffs, contributor credit and mandatory draft review. Existing media/privacy,
+Codex attribution, author/license, cost cadence, authorization and protected
+branch/release safeguards remain in force. CLAUDE.md already directs agents to
+AGENTS.md; no parallel communication rulebook is introduced.
+
+The owner's follow-up explicitly adds origin/reuse attribution and efficiency
+rules to this same PR/version. AGENTS.md labels @Marcus-P's original basis,
+permits adaptations with retained source/revision attribution and identifiable
+changes, and separates owner-specific preferences from general project rules.
+The same source-credit requirement covers prompts, custom instructions, Skills,
+templates and reusable instructions actually derived from the owner's
+requirements or concepts, including reuse outside this file. Knowledge
+documents and retrieval/RAG sources are expressly excluded from that owner
+attribution rule. Supplying a document is not authorship; preserve actual
+source rights and verified authorship, and keep unknown authorship unknown.
+Non-public knowledge content and identifying metadata stay private; task-use
+permission does not authorize publication, public indexing or third-party upload. Private-source attribution does
+not authorize publishing private prompts/chat or inventing public source links.
+Inherited/independent contributions remain distinct. The MIT license and other
+contributors' notices are unchanged. Verification
+must have a risk/question, minimum useful evidence and stopping condition;
+mandatory checks remain required. Reuse valid evidence and known owner context,
+and optimize machine time together with owner effort. No personality profile
+or private discussion is copied into the policy.
+
+Privacy clarification: the owner permits relevant media basenames, but technical
+findings must not add real-world identification, location/routine links or
+private device/account metadata, including through combined disclosures.
+Review/minimize result fields and new-commit author/committer metadata. Use the
+verified public handle/no-reply identity for new owner commits unless otherwise
+authorized, retain contributor/license attribution, and never rewrite published
+history without explicit approval. A marker-based review of this PR's current
+13 changed files and local diagnostic-package copies found no known private
+coordinate/path/host markers; it is not a full-history or reidentification audit.
+
+Public upstream PR12/17/20/21 descriptions, discussion/review channels and the
+owner's two referenced coordination comments were checked on 2026-11-24. Those
+comments demonstrate optional coordination/support and recognition of the
+upstream maintainer's choice. General rules retain those principles without
+copying discussion or private chat content. Preparing this policy is not
+permission to post or edit upstream comments or to merge either project.
+
+Windows 10 evidence is also updated: the owner installed the required HEVC
+codec, encoded Front-only 8x for all segments of two recognized trips in the
+full fork, and confirmed finished-output playback. The screenshot shows Intel/
+QSV encoding, D3D11VA decoding and CPU scaling with two threads; completion is
+confirmed by the owner's report, not inferred from the in-progress image. Exact
+GPU model and codec edition/purchase route are unknown. Do not generalize to
+all channels, tiers or Windows 10 devices. This does not validate isolated
+upstream PR21 or the standalone VIOFO diagnostic on Windows 10. The owner can
+test Windows 10, Windows 11 and Ubuntu 24.04 LTS; physical macOS testing remains
+unavailable. Historical untested-at-the-time notes below are superseded for
+this specific workload, not rewritten as broader acceptance.
+
+Only documentation/link/format, version consistency and CI scope checks apply.
+No runtime code, dependencies, schema, workflows or architecture change; no
+frontend/Rust suites, installer builds or new acceptance tests are needed.
+The owner retains merge authority. After integration acceptance, prepare a
+separate stable 0.13.1 promotion under VERSIONING.md; a main merge triggers the
+existing installer publication workflow. No release or merge is authorized by
+this documentation request alone.
+
 ## Published 0.12.0 and the remaining performance scope
 
 The owner merged promotion PR #22 as `6fd867e` on 2026-11-18. Release run

@@ -18,10 +18,15 @@ support for every GPU/driver/build combination is promised.
 | Intel UHD Graphics, Comet Lake / CML GT2 (Core i5-10210U) | Ubuntu 24.04 LTS | VA-API | Owner confirmed app encoding completion and playable 8x output. FFmpeg 6.1.1; the complete Intel media driver resolved an initial scaling failure. |
 | AMD Radeon 780M (Ryzen 9 8945HS) | Windows 11 x64 | AMF | Standalone 30-frame Full-HD NV12 test and updated in-app AMF probe pass. The owner confirmed all nine 0.11.0 jobs completed and play correctly. In the revised 0.12.0 RC, D3D11VA decoding + AMF encoding were observed in the Front/16x run, which completed with correct playback. Driver 32.0.12033.1030. |
 
-These reports were supplied on 2026-11-17. They do not certify every recording,
-driver or OS update. NVIDIA/NVENC and Windows Intel/QSV are implemented and
-covered by automated selection/command tests; no owner hardware acceptance has
-yet been reported for those paths. Other compatible models may work and reports
+The first two reports were supplied on 2026-11-17. On 2026-11-24 the owner
+also confirmed Front-only 8x encoding for all segments of two recognized trips
+and finished-output playback on Windows 10 after installing the required HEVC
+codec. The running screenshot shows Intel/QSV encoding, D3D11VA decoding and
+CPU scaling with two threads; the exact Intel GPU model and codec edition or
+purchase route were not supplied. This validates that full-fork workload, not
+an isolated upstream PR or standalone diagnostic package. These reports do not
+certify every channel, tier, recording, driver or OS update. NVIDIA/NVENC still
+has automated checks without owner hardware acceptance. Other compatible models may work and reports
 are welcome. Do not turn a synthetic probe result into a real-footage claim.
 
 In stable 0.11.0 the Intel Linux notebook uses its GPU for scaling and encoding,
