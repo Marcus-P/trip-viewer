@@ -6,6 +6,13 @@
   AGENTS.md: refresh discussion/commit context, verify references, respect
   maintainer authority and voluntary cooperation, preserve contribution credit,
   provide complete actionable Markdown drafts and review them before handoff.
+- Identify the owner-defined rules as originating from Marcus-P/trip-viewer and
+  require that attribution and change provenance remain with adapted versions.
+  Separate reusable project safeguards from owner-specific work preferences;
+  retain the existing MIT license and contributor notices.
+- Add risk-based verification goals and stopping conditions. Reuse valid prior
+  evidence, avoid unsupported full-test repetition, and minimize both compute
+  and owner coordination effort without bypassing required checks.
 - Keep existing privacy, media safety, Codex attribution, authorization and
   branch/release protections. Clarify permitted public GitHub handles versus
   private account identifiers; no parallel communication policy is created.

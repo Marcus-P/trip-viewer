@@ -2,6 +2,31 @@
 
 These instructions apply to the whole repository.
 
+## Origin, scope and adaptation
+
+The owner-defined working and communication rules in this file were specified
+by **@Marcus-P** for [Marcus-P/trip-viewer](https://github.com/Marcus-P/trip-viewer).
+Their source is that repository's **AGENTS.md**; retain the copied revision's
+commit or tag when reusing them. Codex helped organize the wording. This
+attribution does not claim ownership of upstream code or other contributors'
+work, whose authorship and license notices must also remain intact.
+
+Copies, translations and adaptations of these rules must retain attribution to
+@Marcus-P's original basis, the source repository/path and the source revision
+when available. Changes are permitted: identify the adapting project/maintainer
+and distinguish their changes from the original rules. Do not attribute changed
+preferences to @Marcus-P or imply endorsement without confirmation. Keep this
+provenance with the reused rules rather than relying on an unrelated mention.
+This working-rule requirement does not replace or amend the repository's MIT
+license or existing copyright/license notices.
+
+General project safeguards below apply to work in this repository. The separate
+owner-specific preferences describe work performed for @Marcus-P; they do not
+assign personal schedules, devices or commitments to other contributors. When
+adopting this basis elsewhere, explicitly choose the applicable local preferences
+and roles while preserving the original source attribution. In this fork, do
+not silently change the owner's preferences without authorization.
+
 ## Start here
 
 Before changing code, read `docs/PROJECT_STATE.md`. It is the durable hand-off for the current development state, validated behavior, open work, and intentionally deferred ideas. Update it whenever a change materially alters those facts.
@@ -30,16 +55,42 @@ Before preparing external communication, follow the **External collaboration and
 - Keep current download/install instructions version-neutral and point to Latest Release. Put release/merge history in release notes and project records; do not insert old release or PR narratives into current installation guidance.
 - If a Linux/WebKit media workaround is already validated by the user, do not remove it merely to simplify the code. Regression evidence is required.
 
-## Communication and testing
+## Owner-specific working preferences (@Marcus-P)
+
+These are @Marcus-P's collaboration preferences, not universal requirements for
+other contributors' personal workflows. Apply them when acting for this owner.
 
 - Cost/work cadence: work for at most two hours at a time. If unfinished, checkpoint progress and pause for five hours before the next work block; repeat as needed. Finish immediately if the task completes earlier. Do not start builds, CI or background work during a pause. Prefer targeted checks and reuse existing dependencies/build output rather than redundant builds or artifacts.
 - End each final response with concrete next steps for the user. If progress requires missing information or a decision, end with a focused question that makes the blocker clear. Continue independently whenever the existing authorization and available information suffice.
 - When a new desktop build needs user testing, finish with actionable update/install instructions and a small, specific test; account for the fact that repository or cloud updates do not update the locally installed app.
-- Work in concise, concrete steps. When user-side testing is needed, request the smallest reproducible test rather than a long diagnostic session.
+- Work in concise, concrete steps. Reuse recorded preferences, decisions, environment details and accepted results when they still apply; refresh only what may have changed. Resolve missing context through available project evidence before asking the owner to repeat it. Ask only questions that materially affect the outcome, and continue independent authorized work where possible.
+- Optimize the owner’s effort as well as machine time. Lead with the outcome, explain its significance and give the next concrete action. For any action the owner must perform, provide the complete current text or command block, prerequisites, paths/placeholders and the exact destination, as required for external handoffs below. Do not hand over replacement fragments or raw tool dumps that require the owner to reconstruct the task.
+- Continue necessary reversible work already authorized by the task without redundant confirmation. Reuse permission within its granted scope; this does not authorize unapproved merges, external messages, releases or destructive actions.
+
+## Communication and testing
+
 - State uncertainty explicitly. Distinguish investigations performed, confirmed results, code-derived conclusions, hypotheses, proposals, offers, agreed actions and open decisions. Separate build success, automated/synthetic checks, real hardware tests and validated packages. Name the tested OS, artifact and commit where known; keep full-fork, isolated upstream-PR and standalone-diagnostic evidence separate. Do not generalize from limited samples or infer a package test from a source test. State unavailable information rather than inventing it.
 - When a user reports that a test succeeded, treat that result as established until a later regression disproves it.
 - For media failures, prefer channel-local degradation over stopping the entire trip whenever at least one healthy camera can continue.
 - A recovered camera should rejoin as a slave during the current source. Do not switch the promoted sync master back mid-segment unless there is a strong reason.
+
+### Verification goals and stopping rules
+
+- Before an expensive check, identify the changed behavior, relevant risk or
+  unresolved question, the smallest representative check that can answer it,
+  and the stopping condition. Required CI, safety checks and explicit owner
+  requirements still apply; resource preferences do not bypass them.
+- Reuse valid evidence for unchanged relevant code, configuration and test scope.
+  Once the relevant checks and mandatory gates pass, stop. Repeating an accepted
+  test or expanding to a full suite needs a concrete reason: a relevant change,
+  a failure, unresolved risk, missing evidence or an explicit requirement.
+  Test counts, coverage percentages and broad suites are not proof of complete
+  correctness or universal compatibility.
+- Minimize combined compute and coordination cost. A small targeted check may
+  be worthwhile when it prevents several clarification rounds or owner tests.
+  Keep a compact evidence/decision handoff so future sessions can reuse what is
+  still valid, while refreshing external context when needed. Use the existing
+  project-state and scope rules, not another parallel tracking system.
 
 ## External collaboration and communication
 

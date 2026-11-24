@@ -22,6 +22,16 @@ Codex attribution, author/license, cost cadence, authorization and protected
 branch/release safeguards remain in force. CLAUDE.md already directs agents to
 AGENTS.md; no parallel communication rulebook is introduced.
 
+The owner's follow-up explicitly adds origin/reuse attribution and efficiency
+rules to this same PR/version. AGENTS.md labels @Marcus-P's original basis,
+permits adaptations with retained source/revision attribution and identifiable
+changes, and separates owner-specific preferences from general project rules.
+The MIT license and other contributors' notices are unchanged. Verification
+must have a risk/question, minimum useful evidence and stopping condition;
+mandatory checks remain required. Reuse valid evidence and known owner context,
+and optimize machine time together with owner effort. No personality profile
+or private discussion is copied into the policy.
+
 Public upstream PR12/17/20/21 descriptions, discussion/review channels and the
 owner's two referenced coordination comments were checked on 2026-11-24. Those
 comments demonstrate optional coordination/support and recognition of the
