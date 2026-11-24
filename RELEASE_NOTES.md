@@ -1,3 +1,22 @@
+# Trip Viewer 0.13.1-rc.1
+
+## Contributor communication rules and scoped Windows 10 evidence
+
+- Consolidate binding external collaboration and communication requirements in
+  AGENTS.md: refresh discussion/commit context, verify references, respect
+  maintainer authority and voluntary cooperation, preserve contribution credit,
+  provide complete actionable Markdown drafts and review them before handoff.
+- Keep existing privacy, media safety, Codex attribution, authorization and
+  branch/release protections. Clarify permitted public GitHub handles versus
+  private account identifiers; no parallel communication policy is created.
+- Record owner-confirmed Windows 10 Front-only 8x timelapse encoding and output
+  playback after installation of the required HEVC codec, for all segments of
+  two recognized trips in the full fork. Isolated upstream PRs and diagnostic
+  packages are not covered by that hardware result.
+- Documentation and synchronized version metadata only. Application behavior,
+  dependencies, schema and packaging remain unchanged. No new installer is
+  published until an owner-approved stable promotion is merged to main.
+
 # Trip Viewer 0.13.0
 
 ## Automatic local timelapse performance calibration

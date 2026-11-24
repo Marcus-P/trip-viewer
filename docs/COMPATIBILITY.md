@@ -3,7 +3,8 @@
 ## What the maintainer has actually tested
 
 **The Marcus-P fork maintainer’s hands-on camera testing covers VIOFO A229 Pro
-3CH on Ubuntu 24.04 LTS and Windows 11 x64.** The Ubuntu acceptance includes playback,
+3CH on Ubuntu 24.04 LTS, Windows 11 x64 and Windows 10 with the required HEVC
+codec installed.** The Ubuntu acceptance includes playback,
 GPS preparation/resume, map seeking, fullscreen timeline, paused zoom, persistent
 bookmarks and channel-checkbox checks. On 2026-10-23, the owner reported that
 Trip Viewer works on Windows 11 without installing another codec or plugin; no
@@ -19,7 +20,7 @@ Their continued operation cannot be fully certified from filenames or source alo
 
 | Format | Implemented naming/channels | GPS implementation | Evidence in this fork |
 | --- | --- | --- | --- |
-| VIOFO A229 Pro 3CH | F/I/R normal and parking names; dedicated recognition | Novatek/VIOFO descriptors, timing and validity/boundary checks | Maintainer real-footage checks on Ubuntu 24.04 LTS; successful Windows 11 report without additional codecs; parser/validation tests |
+| VIOFO A229 Pro 3CH | F/I/R normal and parking names; dedicated recognition | Novatek/VIOFO descriptors, timing and validity/boundary checks | Maintainer real-footage checks on Ubuntu 24.04 LTS; successful Windows 11 report without additional codecs; Windows 10 Front/8x encoding and output playback after codec installation; parser/validation tests |
 | Wolf Box | Existing F/I/R names and grouping | Existing ShenShu metadata decoder retained | Naming/grouping regression tests; native 3-channel synthetic playback; no new real-camera GPS certification |
 | Thinkware | Existing front/rear names and grouping | **No Thinkware GPS decoder implemented**, as before | Naming/prefix/grouping tests; native 2-channel synthetic playback; no new hardware test |
 | Miltona MNCD60 | Existing single-channel `.MOV` naming | Existing Novatek `gps0` decoder retained | Naming tests and sample-derived record/timestamp/coordinate tests; native 1-channel synthetic playback; no new full-recording hardware test |
@@ -80,8 +81,14 @@ between computers.
 On the tested Windows 10 computer, the device-manufacturer HEVC Store package
 linked by the app was unavailable. Microsoft’s general **HEVC Video Extensions**
 was offered for €0.99. If HEVC support is missing, purchasing that extension at
-the Store’s current displayed price is a possible route, **not a validated fix**:
-Windows 10 playback after purchase has not been tested. Installing VLC alone
+the Store’s current displayed price is one possible route. On 2026-11-24 the
+owner confirmed installing the required HEVC codec, then successfully encoding
+Front/8x for all segments of two recognized trips and playing the finished
+output on Windows 10. The current report does not establish which Store edition
+or purchase route was used. The running screenshot shows Intel/QSV encoding,
+D3D11VA decoding and CPU scaling with two threads; the exact GPU model was not
+provided. This is scoped acceptance, not certification of every channel, tier
+or Windows 10 system. Installing VLC alone
 does not supply WebView2 with VLC’s HEVC decoder.
 
 No Mac real-footage acceptance is available. Mac SD-card auto-discovery remains
@@ -106,5 +113,6 @@ The 0.11.0 candidate's real Intel UHD (Comet Lake) VA-API test passed on Ubuntu
 The owner confirmed completion and playable 8x output. CPU load remained 75–85%;
 a speed gain was not measured. This confirms that specific encoding path, not all
 Intel GPUs or all video acceleration. The owner confirmed the AMD Radeon 780M AMF app probe and a progressing real
-Windows 11 encoding job. Windows output completion/playback and Intel QSV
-hardware acceptance remain open. See the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
+Windows 11 encoding job; completion/playback was subsequently owner-confirmed.
+A later Windows 10 Front/8x test also completed and played correctly after codec
+installation, with Intel/QSV shown during the run; the exact Intel GPU is unknown. See the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
