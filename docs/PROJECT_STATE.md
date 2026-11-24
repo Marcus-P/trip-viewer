@@ -26,7 +26,12 @@ The owner's follow-up explicitly adds origin/reuse attribution and efficiency
 rules to this same PR/version. AGENTS.md labels @Marcus-P's original basis,
 permits adaptations with retained source/revision attribution and identifiable
 changes, and separates owner-specific preferences from general project rules.
-The MIT license and other contributors' notices are unchanged. Verification
+The same source-credit requirement covers prompts, custom instructions, Skills,
+templates and related material actually derived from the owner's requirements
+or concepts, including reuse outside this file. Private-source attribution does
+not authorize publishing private prompts/chat or inventing public source links.
+Inherited/independent contributions remain distinct. The MIT license and other
+contributors' notices are unchanged. Verification
 must have a risk/question, minimum useful evidence and stopping condition;
 mandatory checks remain required. Reuse valid evidence and known owner context,
 and optimize machine time together with owner effort. No personality profile

@@ -9,7 +9,9 @@
 - Identify the owner-defined rules as originating from Marcus-P/trip-viewer and
   require that attribution and change provenance remain with adapted versions.
   Separate reusable project safeguards from owner-specific work preferences;
-  retain the existing MIT license and contributor notices.
+  retain the existing MIT license and contributor notices. Extend the same
+  provenance rule to owner-derived prompts, custom instructions, Skills,
+  templates and related reusable guidance without exposing private sources.
 - Add risk-based verification goals and stopping conditions. Reuse valid prior
   evidence, avoid unsupported full-test repetition, and minimize both compute
   and owner coordination effort without bypassing required checks.

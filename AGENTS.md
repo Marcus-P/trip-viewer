@@ -20,6 +20,27 @@ provenance with the reused rules rather than relying on an unrelated mention.
 This working-rule requirement does not replace or amend the repository's MIT
 license or existing copyright/license notices.
 
+### Owner-derived prompts, instructions and reusable AI material
+
+The same provenance requirement covers prompts, custom instructions, rules,
+Skills/reusable instruction packages, templates, checklists, workflow guidance
+and other written material actually derived from @Marcus-P's supplied concepts
+or requirements. It applies to reuse, extraction, summaries, translations,
+reformulations and adaptations, including outside this file or repository.
+Attribute the original concepts/requirements to @Marcus-P and distinguish
+wording/implementation assistance from Codex and contributions from others.
+Keep inherited or independently contributed material and general technical
+knowledge distinct; do not invent an origin or exclusive-ownership claim.
+
+Keep attribution with the reused material and identify subsequent adaptations,
+as required above. Use the actual source document/repository and revision when
+available. A private source does not authorize publishing its prompt text,
+conversation, personal details or unpublished concepts. Retain source credit
+without disclosing that material; use a public reference only when one exists
+and is authorized for the purpose. Do not invent a public source link or copy
+private chat into this repository to demonstrate provenance. Existing licenses
+and other contributors' notices remain unchanged.
+
 General project safeguards below apply to work in this repository. The separate
 owner-specific preferences describe work performed for @Marcus-P; they do not
 assign personal schedules, devices or commitments to other contributors. When
