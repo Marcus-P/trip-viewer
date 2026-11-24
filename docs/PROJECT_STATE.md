@@ -42,6 +42,16 @@ mandatory checks remain required. Reuse valid evidence and known owner context,
 and optimize machine time together with owner effort. No personality profile
 or private discussion is copied into the policy.
 
+Privacy clarification: the owner permits relevant media basenames, but technical
+findings must not add real-world identification, location/routine links or
+private device/account metadata, including through combined disclosures.
+Review/minimize result fields and new-commit author/committer metadata. Use the
+verified public handle/no-reply identity for new owner commits unless otherwise
+authorized, retain contributor/license attribution, and never rewrite published
+history without explicit approval. A marker-based review of this PR's current
+13 changed files and local diagnostic-package copies found no known private
+coordinate/path/host markers; it is not a full-history or reidentification audit.
+
 Public upstream PR12/17/20/21 descriptions, discussion/review channels and the
 owner's two referenced coordination comments were checked on 2026-11-24. Those
 comments demonstrate optional coordination/support and recognition of the

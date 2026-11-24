@@ -250,7 +250,8 @@ within the authorized position and scope:
    credit is appropriate, and wording adds no unnecessary pressure or
    paternalism.
 6. Tone, length, Markdown and practical instructions fit the actual purpose.
-   Publishing/editing has the required authorization.
+   Technical findings and combined metadata do not expose the owner's real-world
+   identity or private activity; publication has the required authorization.
 
 If a necessary substantive correction would change an explicitly specified
 position or exceed authorization, flag that proposed change clearly instead of
@@ -263,6 +264,8 @@ This repository is public-facing project state. Do not commit secrets or persona
 - Never commit passwords, tokens, private account identifiers, personal addresses, private messages, family details, or unrelated user profile information.
 - Avoid committing machine-specific absolute paths, local OS usernames, mount points, or home-directory names. Use generic examples such as `/path/to/archive`. Public, verified GitHub handles and public project URLs may be used when relevant to project attribution or coordination.
 - Media sample notes should describe only the technical properties needed to reproduce a bug. Use a basename only when necessary and avoid unrelated location/time context.
+- The owner permits relevant media basenames to be shared. This is not consent to disclose locations, routes, exact GPS positions, faces/voices, vehicle identifiers, private host/account/device/network identifiers, home/work links or movement patterns. Technical findings must not introduce information that identifies the owner in the real world. Assess both individual fields and combinations with other public information; aggregate, redact or omit unnecessary identifying/quasi-identifying details. If the remaining disclosure risk is unclear, withhold the detail and clarify authorization rather than claiming anonymity. Public handle/source attribution does not authorize enriching it with a real-world identity.
+- Before publishing new commits on the owner's behalf, inspect the author/committer identity as well as file contents. Prefer the verified public GitHub handle and its verified GitHub no-reply address over a configured real name or personal/custom email unless the owner explicitly chooses otherwise. Preserve other contributors' actual authorship and license notices. Do not rewrite published history without explicit authorization, and do not claim that a history rewrite erases prior public copies.
 - Do not copy private conversation text into the repository. Summarize only project-relevant technical decisions and working agreements.
 
 ## Branch / PR discipline

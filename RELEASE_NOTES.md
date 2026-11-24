@@ -15,6 +15,10 @@
   Exclude knowledge documents and retrieval/RAG sources from owner attribution;
   preserve their actual authorship/rights and require explicit authorization
   before disclosing private content or identifying source metadata.
+- Clarify that relevant media filenames are permitted, while technical results
+  must be checked for direct or combined real-world identification risk. Apply
+  data minimization and privacy-aware new-commit metadata without rewriting
+  existing contributor history or changing license notices.
 - Add risk-based verification goals and stopping conditions. Reuse valid prior
   evidence, avoid unsupported full-test repetition, and minimize both compute
   and owner coordination effort without bypassing required checks.
