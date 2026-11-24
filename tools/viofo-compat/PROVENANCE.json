@@ -6,10 +6,28 @@
     "ours/validation.rs": "b54ed0bb548221b3b9482fd8772ad72e637122f2a818d1fc5c279afeee978710",
     "ours/viofo_timing.rs": "0995f67f53e31bd97bc213936641fb22449f21a90cc69e4306bbaac6c6d4d656",
     "ours/filename.rs": "1d7b0bfe1dd1a6680ab3f007644463e14acb950ed184d1090b8eca51e8335dc9",
-    "mp4_probe.rs": "178388a9d81fa86bdede96e48135c9dfe05bff780d4429e398eb13cde0b7c995"
+    "mp4_probe.rs": "178388a9d81fa86bdede96e48135c9dfe05bff780d4429e398eb13cde0b7c995",
+    "app013/viofo.rs": "2a92a30cecda4aba6b1c48769ea5c7e16b00bf6744bcc45df62daebdd5152064",
+    "app013/validation.rs": "01ba641814a90563bf84d699e26cb92926f0775f4e87107e8d0147f66c6c6188",
+    "app013/viofo_timing.rs": "f10abad805621699756bf912da4eb6f1ccf8c02a0ec6e7a8bf7781e032c49dae",
+    "app013/pipeline_functions.rs": "d69d7977d886294e1c12cc96b021b81168ced261f35649dbb45656c91fe9694b"
   },
   "original_sources": {
     "src-tauri/src/gps/novatek.rs": "a2114db7303bc3623cdbf181b0a6c03d8a1810e1d470298eca7e24dc529b7fb4",
     "src-tauri/src/scan/naming.rs": "f3338bb0ccdf57ca3b7376f919d867e634e4170b286ffef0f1bf6963137a93e7"
+  },
+  "app_pipeline_commit": "b7d5fd643e39ba48d916b7ceedc69f06f7fefadd",
+  "app_pipeline_functions": {
+    "batch_quality": "c367661c8f1e76aa4280777b52baa4f007092979bd87093405f47ad388b981cb",
+    "best_segment_gps": "04f868eaf6e732d1284cd7f995fa786909527d4e2b74ea06ce5bce2aa3c9ca06",
+    "trip_segment_points": "d2ce22a12e777175ad56a813d383fd4ecf5c84117cfc2b0416a92b0a69471dd5",
+    "extract_trip_gps_segments": "c796672ab449760b42fc451074f7ee1214a079246d84ece5ad6008ef2ddd6314",
+    "extract_viofo_timed": "038d091e69f28bc17a9a837a9255cda9a9a7091bf088b266366a820a81f1ad9d",
+    "validate_viofo_batch_boundaries": "c5ff56d03afb728f8d21748e6c0e47507b6e1f6253049bbb755d8ef966df0aa8",
+    "validate_viofo_boundary": "f6f282dd8b75c07c53ac5a8cf8a1943a841c929aac6d495ccda050f8d53ae4bd",
+    "boundary_observation": "fca6c00621824911ca17dd720e065f2bcbb46f7679868e02fdf038c661797249",
+    "boundary_has_local_utc_continuity": "c88a72e8ec65624f86e10123b1fef117c1a7e1b8f19531526ba46fa270f17be6",
+    "boundary_times_are_locally_continuous": "b7dafa5fcad04a5ad34acc8399943d86a4b6f73f23645fb3bff4b2b82045b906",
+    "positive_time_gap": "f83c0410224706bb8c02e63e8ef47a39166d050f064958a2087a32e7aeedca11"
   }
 }

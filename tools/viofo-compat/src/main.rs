@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::path::Path;
+mod focus;
 
 mod error {
     #[derive(Debug, thiserror::Error)]
@@ -39,6 +40,7 @@ mod scan { pub(crate) use crate::original_naming as naming; pub(crate) use crate
 mod original_probe;
 mod metadata { pub(crate) use crate::original_probe as mp4_probe; }
 mod gps {
+    pub(crate) use crate::focus::validation;
     #[path = "../../vendor/ours/viofo.rs"] pub mod viofo;
     #[path = "../../vendor/ours/viofo_timing.rs"] pub mod viofo_timing;
 }
@@ -58,6 +60,8 @@ fn main() {
     }
     let path = Path::new(&args[2]);
     let result = match args[1].to_str().unwrap_or("") {
+        "catalog" => focus::catalog(path),
+        "focus" => focus::run(path),
         "names" => {
             let name = path.file_name().unwrap_or_default().to_string_lossy();
             Ok(serde_json::json!({"original":name_json(original_naming::parse(&name).ok()),

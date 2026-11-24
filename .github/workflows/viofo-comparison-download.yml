@@ -27,9 +27,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create test-viofo-compat-20261124 \
+          gh release create test-viofo-focus-20261124 \
             --target "$GITHUB_SHA" --prerelease --latest=false \
-            --title 'VIOFO compatibility diagnostic — Ubuntu test' \
-            --notes 'Read-only comparison of @alinnastac PR12 (919abfd) and isolated PR21 (eb0a5a3). This is a diagnostic CLI, not an application update. Stable v0.13.0 remains unchanged. Extract the bundle and follow README.md. Python 3 required. No media upload or archive writes. Actual A229 media validation is pending.' \
+            --title 'VIOFO focused GPS investigation — Ubuntu test' \
+            --notes 'Read-only focused GPS investigation. Includes original PR12 decoder and fresh replay of the 0.13.0 channel-selection, cross-file boundary and stitching rules. Locates the maximum jump, compares all channels and reports removed points. No app installation, media changes, archive writes or uploads. Exact coordinates excluded by default. Python 3 required on Ubuntu 24.04 x64. This is a diagnostic prerelease; stable v0.13.0 and earlier test downloads remain unchanged. Focused real-camera report pending.' \
             tools/viofo-compat/package/*.tar.gz \
-            tools/viofo-compat/package/SHA256SUMS-viofo-compare.txt
+            tools/viofo-compat/package/SHA256SUMS-viofo-focus.txt

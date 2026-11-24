@@ -9,11 +9,12 @@ import tarfile
 
 root = Path(__file__).resolve().parent
 out = root / 'package'
-name = 'VIOFO-Compare-Ubuntu-24.04-x64-20261124'
+name = 'VIOFO-GPS-Focus-Ubuntu-24.04-x64-20261124'
 bundle = out / name
 bundle.mkdir(parents=True, exist_ok=False)
-for source in ['run-compare.py', 'README.md', 'LICENSE', 'PROVENANCE.json']:
+for source in ['run-compare.py', 'diagnose-gps.py', 'LICENSE', 'PROVENANCE.json']:
     shutil.copyfile(root / source, bundle / source)
+shutil.copyfile(root / 'FOCUS_README.md', bundle / 'README.md')
 shutil.copyfile(root / 'target/release/viofo-compare', bundle / 'viofo-compare')
 (bundle / 'viofo-compare').chmod(0o755)
 metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1'], cwd=root))
@@ -34,4 +35,4 @@ checks = [hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.relative_to(bund
 archive = out / (name + '.tar.gz')
 with tarfile.open(archive, 'w:gz') as tar:
     tar.add(bundle, arcname=name)
-(out / 'SHA256SUMS-viofo-compare.txt').write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+(out / 'SHA256SUMS-viofo-focus.txt').write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')

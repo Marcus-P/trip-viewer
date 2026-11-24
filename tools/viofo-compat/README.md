@@ -1,3 +1,9 @@
+# Focused GPS investigation added
+
+The newer focus download and `diagnose-gps.py` replay the 0.13.0 source-selection
+and cross-file checks. See [FOCUS_README.md](FOCUS_README.md) for scope and commands.
+The per-file comparison documented below remains available and unchanged.
+
 # Read-only VIOFO comparison test
 
 This independent command-line tool compares @alinnastac's PR #12 decoder and
