@@ -25,12 +25,14 @@ by the stable in-app update hint.
    installing any additional codec or plugin. This does not guarantee HEVC
    availability on every Windows 11 computer; decoding also depends on the
    existing system codecs and graphics drivers.
-5. **Windows 10 x64: HEVC playback after purchasing a decoder is untested.** If
+5. **Windows 10: Front/8x timelapse encoding and finished-output playback were
+   owner-confirmed after installing the required HEVC codec.** This covered all
+   segments of two recognized trips on the tested computer. If
    HEVC/H.265 support is missing, search Microsoft Store for **HEVC Video
    Extensions** from Microsoft and, if desired, purchase it at the price shown
    there (€0.99 was reported during testing; price and availability can vary).
-   Restart Trip Viewer afterwards. Playback is expected to be possible with a
-   compatible decoder/driver combination, but has not been verified in this fork.
+   Restart Trip Viewer afterwards. Availability on other computers still depends
+   on their codec/driver combination.
    The app’s existing Store button targets the device-manufacturer edition, which
    was unavailable on the tested Windows 10 computer; it is not a reliable free
    option for all devices. WebView2 and the HEVC decoder are separate requirements;
@@ -40,7 +42,7 @@ For updates, **Settings → Application updates → Download Windows installer**
 opens the matching published `.exe`. Close Trip Viewer and run it to update in
 place; the installer rejects older versions. Windows ARM-native packages are
 not offered by this release. See the [compatibility record](COMPATIBILITY.md) for
-the confirmed Windows 11 result and the untested Windows 10 paid-codec path.
+the confirmed Windows 11 result and the scoped Windows 10 codec-assisted test.
 
 ## macOS: experimental Intel and Apple Silicon package
 

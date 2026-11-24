@@ -36,7 +36,9 @@ Windows 11 playback was confirmed without an additional codec installation on
 the tested computer; other systems can have different codec/driver requirements.
 On Windows 10, if HEVC support is missing, Microsoft’s **HEVC Video Extensions**
 may need to be purchased from the Store at the displayed price (reported as
-€0.99 during testing). **Windows 10 playback after that purchase is untested.**
+€0.99 during earlier testing). **The owner confirmed Front/8x timelapse encoding
+and output playback on Windows 10 after installing the required HEVC codec.**
+This result covers the tested computer, not all Windows 10 configurations.
 
 Windows installers are not publisher-signed. Mac packages are ad-hoc signed,
 not Apple-notarized, and **experimental until real-device testing**. Native
@@ -156,7 +158,7 @@ is included. VIOFO/A229 Pro are descriptive compatibility names, with no affilia
 or endorsement implied.
 
 VIOFO-specific and related changes in this fork were developed with assistance
-from [Codex](https://openai.com/codex/), OpenAI's coding agent. Marcus P. supplied
+from [Codex](https://openai.com/codex/), OpenAI's coding agent. @Marcus-P supplied
 the requirements, sample footage, hands-on testing and final acceptance.
 Upstream and third-party authorship, copyright and license notices remain intact.
 

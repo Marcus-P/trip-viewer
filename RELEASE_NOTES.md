@@ -1,3 +1,41 @@
+# Trip Viewer 0.13.1-rc.1
+
+## Contributor communication rules and scoped Windows 10 evidence
+
+- Consolidate binding external collaboration and communication requirements in
+  AGENTS.md: refresh discussion/commit context, verify references, respect
+  maintainer authority and voluntary cooperation, preserve contribution credit,
+  provide complete actionable Markdown drafts and review them before handoff.
+- Identify the owner-defined rules as originating from Marcus-P/trip-viewer and
+  require that attribution and change provenance remain with adapted versions.
+  Separate reusable project safeguards from owner-specific work preferences;
+  retain the existing MIT license and contributor notices. Extend the same
+  provenance rule to owner-derived prompts, custom instructions, Skills,
+  templates and related reusable instructions without exposing private sources.
+  Exclude knowledge documents and retrieval/RAG sources from owner attribution;
+  preserve their actual authorship/rights and require explicit authorization
+  before disclosing private content or identifying source metadata.
+- Clarify that relevant media filenames are permitted, while technical results
+  must be checked for direct or combined real-world identification risk. Apply
+  data minimization and privacy-aware new-commit metadata without rewriting
+  existing contributor history or changing license notices.
+- Add risk-based verification goals and stopping conditions. Reuse valid prior
+  evidence, avoid unsupported full-test repetition, and minimize both compute
+  and owner coordination effort without bypassing required checks.
+- Keep existing privacy, media safety, Codex attribution, authorization and
+  branch/release protections. Clarify permitted public GitHub handles versus
+  private account identifiers; no parallel communication policy is created.
+- Record owner-confirmed Windows 10 Front-only 8x timelapse encoding and output
+  playback after installation of the required HEVC codec, for all segments of
+  two recognized trips in the full fork. Isolated upstream PRs and diagnostic
+  packages are not covered by that hardware result.
+- Add opt-in owner commit/push privacy guards with repository-local no-reply
+  configuration and private marker settings; preserve unrelated existing hooks
+  and other contributors' author identities. Keep the checks limited to tooling.
+- Documentation, development safeguards and synchronized version metadata. Application behavior,
+  dependencies, schema and packaging remain unchanged. No new installer is
+  published until an owner-approved stable promotion is merged to main.
+
 # Trip Viewer 0.13.0
 
 ## Automatic local timelapse performance calibration

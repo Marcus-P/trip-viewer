@@ -25,7 +25,7 @@ The existing logos/icons and source/dependency license notices are retained.
 | [Timelapse acceptance](testing/TIMELAPSE_0102.md) | Focused VIOFO/encoder checks for the 0.10.2 candidate |
 | [Release notes](../RELEASE_NOTES.md) | Changes and compatibility implications; published assets are on Latest Release |
 | [Project state](PROJECT_STATE.md) | Current hand-off, accepted tests and remaining work |
-| [Agent instructions](../AGENTS.md) / [Claude entry point](../CLAUDE.md) | Contributor working rules |
+| [Agent instructions](../AGENTS.md) / [Claude entry point](../CLAUDE.md) | Binding agent entry point, external collaboration/communication policy and contributor working rules |
 | [Third-party notices](../THIRD_PARTY_NOTICES.md) / [MIT license](../LICENSE) | Source, dependency and asset notices |
 
 ## Historical material
