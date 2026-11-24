@@ -29,7 +29,10 @@
   playback after installation of the required HEVC codec, for all segments of
   two recognized trips in the full fork. Isolated upstream PRs and diagnostic
   packages are not covered by that hardware result.
-- Documentation and synchronized version metadata only. Application behavior,
+- Add opt-in owner commit/push privacy guards with repository-local no-reply
+  configuration and private marker settings; preserve unrelated existing hooks
+  and other contributors' author identities. Keep the checks limited to tooling.
+- Documentation, development safeguards and synchronized version metadata. Application behavior,
   dependencies, schema and packaging remain unchanged. No new installer is
   published until an owner-approved stable promotion is merged to main.
 

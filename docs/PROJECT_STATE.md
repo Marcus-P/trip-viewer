@@ -6,6 +6,17 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Commit privacy safeguards
+
+Owner development sessions use `node scripts/commit-privacy.mjs setup` to set a
+repository-local verified no-reply identity and install shared local commit,
+message and push guards. Private-address markers stay in local Git configuration.
+Other contributors' author identities are retained; existing unrelated hooks are
+not overwritten. New clones need setup. This is a prevention measure with a
+scoped check of new material, not a full historical-data removal or anonymity
+guarantee. AGENTS.md remains the binding entry point. Tooling checks cover this
+change without rebuilding the unchanged application or producing installers.
+
 ## Current checkpoint: stable 0.13.0 and communication-policy maintenance
 
 Stable v0.13.0 was published after the owner merged promotion PR #24 on
