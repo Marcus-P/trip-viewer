@@ -1,5 +1,17 @@
 # Trip Viewer 0.13.1-rc.1
 
+## Upstream-first development and reliability priorities
+
+- Check current upstream ancestry before code work and in a bounded, read-only
+  PR workflow. Application/package changes fail the check when behind; policy
+  and documentation maintenance report drift without forcing application builds.
+- Keep VIOFO PR #21 first, then offer an updated feature menu for the upstream
+  maintainer to choose or combine. Prioritize synchronized playback, recovery,
+  archive isolation and GPS consistency before optional interface features.
+- Preserve original contributor authorship and supported cameras. No upstream
+  integration, application behavior change, release or PR closure is performed
+  by this policy update.
+
 ## Contributor communication rules and scoped Windows 10 evidence
 
 - Consolidate binding external collaboration and communication requirements in

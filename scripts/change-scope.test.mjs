@@ -111,3 +111,13 @@ test("commit privacy guards need tooling checks without application builds", () 
   assert.equal(scope.tooling, true);
   for (const key of ["frontend", "backend", "bundle", "audit"]) assert.equal(scope[key], false);
 });
+
+test("upstream comparison policy needs only tooling checks", () => {
+  const scope = classifyChanges([
+    { path: "scripts/check-upstream.mjs" },
+    { path: "scripts/check-upstream.test.mjs" },
+    { path: ".github/workflows/upstream-sync.yml" },
+  ]);
+  assert.equal(scope.tooling, true);
+  for (const key of ["frontend", "backend", "bundle", "audit"]) assert.equal(scope[key], false);
+});
