@@ -25,6 +25,10 @@ AGENTS.md is binding; `scripts/check-upstream.mjs` and the `Upstream freshness`
 PR workflow compare the source head with freshly fetched upstream main. Code
 changes require current ancestry; documentation/policy maintenance reports drift
 without forcing an application integration. No automatic merge is performed.
+For upstream-targeted PRs, the fork workflow needs a manual `source_ref` check of
+the contribution branch; their upstream PR event does not run fork CI. Dispatch
+availability depends on ordinary default-branch policy promotion. Until then,
+use strict local comparison and report the missing CI handoff explicitly.
 This policy-only change uses that explicit exception: upstream main01e20d6a
 includes70mai support absent from stable fork0.13.0/mainb7d5fd6. A separate
 reviewed integration is needed before the next application change. Do not
