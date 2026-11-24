@@ -27,7 +27,7 @@ rules to this same PR/version. AGENTS.md labels @Marcus-P's original basis,
 permits adaptations with retained source/revision attribution and identifiable
 changes, and separates owner-specific preferences from general project rules.
 The same source-credit requirement covers prompts, custom instructions, Skills,
-templates and related material actually derived from the owner's requirements
+templates, owner-derived retrieval/RAG source documents and related material actually derived from the owner's requirements
 or concepts, including reuse outside this file. Private-source attribution does
 not authorize publishing private prompts/chat or inventing public source links.
 Inherited/independent contributions remain distinct. The MIT license and other

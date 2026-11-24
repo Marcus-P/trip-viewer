@@ -23,8 +23,9 @@ license or existing copyright/license notices.
 ### Owner-derived prompts, instructions and reusable AI material
 
 The same provenance requirement covers prompts, custom instructions, rules,
-Skills/reusable instruction packages, templates, checklists, workflow guidance
-and other written material actually derived from @Marcus-P's supplied concepts
+Skills/reusable instruction packages, templates, checklists, workflow guidance,
+knowledge documents used as retrieval/RAG sources and other written material
+actually derived from @Marcus-P's supplied concepts
 or requirements. It applies to reuse, extraction, summaries, translations,
 reformulations and adaptations, including outside this file or repository.
 Attribute the original concepts/requirements to @Marcus-P and distinguish
