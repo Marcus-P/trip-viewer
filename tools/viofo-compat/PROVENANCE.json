@@ -1,0 +1,15 @@
+{
+  "alinnastac_commit": "919abfd44d6009e2cc9d218709bdcfa06265e8b1",
+  "our_pr21_commit": "eb0a5a3f22bd2f89581c7ec3e54c461e78c4c6a5",
+  "copies": {
+    "ours/viofo.rs": "c371fdaa900841cdfcfb6eda2e8bf20c77da77fa37f8bb2efb24f003c9c20dcf",
+    "ours/validation.rs": "b54ed0bb548221b3b9482fd8772ad72e637122f2a818d1fc5c279afeee978710",
+    "ours/viofo_timing.rs": "0995f67f53e31bd97bc213936641fb22449f21a90cc69e4306bbaac6c6d4d656",
+    "ours/filename.rs": "1d7b0bfe1dd1a6680ab3f007644463e14acb950ed184d1090b8eca51e8335dc9",
+    "mp4_probe.rs": "178388a9d81fa86bdede96e48135c9dfe05bff780d4429e398eb13cde0b7c995"
+  },
+  "original_sources": {
+    "src-tauri/src/gps/novatek.rs": "a2114db7303bc3623cdbf181b0a6c03d8a1810e1d470298eca7e24dc529b7fb4",
+    "src-tauri/src/scan/naming.rs": "f3338bb0ccdf57ca3b7376f919d867e634e4170b286ffef0f1bf6963137a93e7"
+  }
+}

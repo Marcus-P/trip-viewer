@@ -1,0 +1,5 @@
+/target/
+/viofo-compare
+/viofo-compare.exe
+/__pycache__/
+/*.json.tmp

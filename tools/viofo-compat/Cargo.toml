@@ -1,0 +1,22 @@
+[package]
+name = "viofo-compare"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Independent headless tool: no GTK/WebKit, archive DB or app installation.
+[workspace]
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+num-traits = "0.2.19"
+mp4 = "0.14.0"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+strip = true
