@@ -33,18 +33,42 @@ for f in Path("/usr/share/doc").glob("*/copyright"):
  if f.is_file():
   dest=p/"native-license-notices"/f.parent.name/"copyright";dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(f,dest)
 env=os.environ.copy();scratch=out/"startup-check"
-env.update(TRIPVIEWER_PR21_HOME=str(scratch/"settings"),TRIPVIEWER_PR21_ARCHIVE=str(scratch/"archive"),APPIMAGE_EXTRACT_AND_RUN="1")
-# Timeout only bounds this smoke check; grouping uses no runtime waits.
-check=subprocess.run(["timeout","--signal=TERM","12s","xvfb-run","-a","dbus-run-session","--",str(p/"start-test.sh")],env=env,capture_output=True,text=True)
+# Only the virtual CI display uses software compositing. The shipped launcher
+# preserves the real computer's normal graphics/media configuration.
+env.update(TRIPVIEWER_PR21_HOME=str(scratch/"settings"),TRIPVIEWER_PR21_ARCHIVE=str(scratch/"archive"),APPIMAGE_EXTRACT_AND_RUN="1",
+ LIBGL_ALWAYS_SOFTWARE="1",WEBKIT_DISABLE_COMPOSITING_MODE="1")
+import signal,threading
+from types import SimpleNamespace
+process=subprocess.Popen(["xvfb-run","-a","dbus-run-session","--",str(p/"start-test.sh")],
+ env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
+output=[]; changed=threading.Event()
+def collect_output():
+ for line in process.stdout:
+  output.append(line)
+  if "scan_folder: found 0 video files" in line: changed.set()
+ changed.set()  # Unexpected exit is also terminal; do not wait out the bound.
+reader=threading.Thread(target=collect_output,daemon=True);reader.start()
+try:
+ signalled=changed.wait(90)  # Failure deadline, never evidence of success.
+ live=process.poll() is None
+finally:
+ try: os.killpg(process.pid,signal.SIGTERM)
+ except ProcessLookupError: pass
+ try: process.wait(timeout=10)
+ except subprocess.TimeoutExpired:
+  os.killpg(process.pid,signal.SIGKILL);process.wait()
+ reader.join(timeout=2)
+check=SimpleNamespace(stdout="".join(output),stderr="",returncode=process.returncode)
 logpath=scratch/"settings/last-run.log"
 log=logpath.read_text() if logpath.exists() else "<no app log>"
 def startup_check(condition, reason):
  if condition:return
- detail=(reason+"\n"+check.stdout+"\n"+check.stderr+"\n"+log)[-12000:]
+ detail=(reason+"\n"+check.stdout+"\n"+log)[-12000:]
  escaped=detail.replace("%","%25").replace("\r","%0D").replace("\n","%0A")
  print("::error title=Isolated package startup::"+escaped, flush=True)
  raise RuntimeError(reason)
-startup_check(check.returncode==124, "Unexpected packaged application exit: "+str(check.returncode))
+startup_check(signalled and live and "scan_folder: found 0 video files" in check.stdout,
+ "Packaged frontend did not reach its scan event before exit/deadline")
 settings=scratch/"settings/data/com.tripviewer.pr21test/settings.json"
 assert json.loads(settings.read_text())["last_archive"]==str(scratch/"archive")
 dbfile=scratch/"archive/.tripviewer/tripviewer.db"
@@ -55,9 +79,9 @@ with sqlite3.connect(dbfile) as db:
 info["archive_schema_version"]=13
 info["analysis_storage"]="separate disposable analysis-cache-v1.sqlite"
 log=(scratch/"settings/last-run.log").read_text()
-startup_check("scan_folder: found 0 video files" in log, "Packaged frontend did not scan the empty scratch archive")
+startup_check("scan_folder: found 0 video files" in check.stdout, "Packaged frontend did not scan the empty scratch archive")
 startup_check("Unable to spawn" not in log and "appsink not found" not in log, "Packaged media runtime dependency failure")
-info["isolated_packaged_startup"]="passed on Ubuntu 24.04; no owner media loaded"
+info["isolated_packaged_startup"]="passed on Ubuntu 24.04 virtual display with software compositing; no owner media loaded"
 (p/"BUILD-INFO.json").write_text(json.dumps(info,indent=2)+"\n")
 files=sorted(f for f in p.rglob("*") if f.is_file())
 (p/"SHA256SUMS.txt").write_text("".join(hashlib.file_digest(f.open("rb"),"sha256").hexdigest()+"  "+str(f.relative_to(p))+"\n" for f in files))
