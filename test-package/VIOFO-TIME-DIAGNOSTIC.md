@@ -2,6 +2,10 @@
 
 This is an optional standalone check for the temporal-ambiguity messages in
 PR #21. It does not change Trip Viewer, its database, the validator or recordings.
+**Revision 2** adds a standard MP4 timing-reference check. If you already
+provided a revision-1 report, one previously checked parking clip is enough.
+Use a new output name such as `viofo-time-structure-report.json`.
+
 Python 3.9 or newer is required; no third-party Python packages, FFmpeg or Rust
 build is needed. If Python is not available, there is no need to install it
 just for this check: report that limitation instead.
@@ -30,11 +34,38 @@ exist yet. The tool refuses to overwrite an existing report or input.
 
 The script creates the report locally and uploads nothing. It contains ordinal
 IDs such as `file-001`, counts, video duration and relative GPS elapsed spans.
+Track IDs and handler categories in revision 2 are anonymous ordinals/technical
+categories, not MP4 creation times, custom metadata strings or device identifiers.
 No filenames, paths, hashes, coordinates, absolute recording timestamps,
 computer/user details or raw GPS records are written to the report. Input order
 is the only local correspondence to those IDs. Timing statistics remain
 characteristics of recordings, so inspect the JSON before choosing to share it;
 this is data minimization, not a guarantee of mathematical anonymity.
+
+## MP4 timing-reference check (revision 2)
+
+`container_time_links` examines standard track sample tables: chunk positions
+(`stco`/`co64`), sample sizes (`stsz`), samples per chunk (`stsc`), decoding
+durations (`stts`) and composition offsets (`ctts`, including signed version 1).
+It counts samples whose **offset and size both exactly equal** a GPS block
+listed by the Novatek descriptor table. No nearest-chunk or record-index timing
+assumption is made.
+
+- `status: complete` means the supported tables for that track were checked.
+- `exact_gps_sample_matches` counts distinct whole GPS blocks directly referenced
+  by those samples; only a relative media-PTS span is reported.
+- `status: unavailable` includes a fixed reason code. It is not a negative result.
+- `edit_list_present` flags an additional movie/media time transform which this
+  diagnostic detects but does not apply.
+- Zero exact whole-block matches does **not** rule out a different vendor timing
+  mechanism, references to only part of a block, or a separate metadata layout.
+- A positive match is evidence of a container timing reference, not a complete
+  proof of GPS/video content synchronization or a ready application fix.
+- Fragmented MP4 and compact sample-size tables (`stz2`) are not supported here.
+  Timed-table parsing is bounded to 16 MiB per table and one million samples.
+
+The existing temporal counts remain unchanged. A track check can be unavailable
+while the independent time-field analysis is complete; inspect each status.
 
 ## Interpretation and limits
 

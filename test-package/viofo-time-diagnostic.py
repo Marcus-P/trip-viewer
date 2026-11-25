@@ -132,6 +132,136 @@ def classify(values, limit, deadline):
     return {name: states.count(name) for name in ('missing','contradictory','ambiguous','consistent')}
 
 
+def container_time_links(f, children, references, deadline):
+    """Check exact whole-GPS-block references in standard timed MP4 samples.
+
+    Byte proximity to video samples is not accepted as a timing link. Output
+    contains counts and elapsed spans only. Edit-list application and metadata
+    formats referencing only part of a GPS block require separate analysis.
+    """
+    maximum = 1_000_000
+    f.seek(0, 2)
+    file_length = f.tell()
+
+    def body(start, end):
+        if end - start > 16 * 1024 * 1024:
+            raise DiagnosticError('timing_table_limit')
+        return read_at(f, start, end - start)
+
+    def table(start, end, width):
+        data = body(start, end)
+        if len(data) < 8:
+            raise DiagnosticError('invalid_timing_table')
+        count = struct.unpack_from('>I', data, 4)[0]
+        if count > maximum or 8 + count * width > len(data):
+            raise DiagnosticError('invalid_timing_table')
+        return data, count
+
+    def expand(data, count, signed=False):
+        out = []
+        for i in range(count):
+            if time.monotonic() > deadline:
+                raise DiagnosticError('analysis_time_limit')
+            n, value = struct.unpack_from('>Ii' if signed else '>II', data, 8 + i * 8)
+            if len(out) + n > maximum:
+                raise DiagnosticError('sample_limit')
+            out.extend([value] * n)
+        return out
+
+    result = []
+    for kind, start, end in children:
+        if kind != b'trak':
+            continue
+        info = {
+            'track_id': f'track-{len(result) + 1:03}',
+            'status': 'unavailable',
+        }
+        result.append(info)
+        try:
+            track = {k: (a, b) for k, a, b in boxes(f, start, end)}
+            edits = track.get(b'edts')
+            info['edit_list_present'] = bool(
+                edits and any(k == b'elst' for k, _, _ in boxes(f, *edits))
+            )
+            media = {k: (a, b) for k, a, b in boxes(f, *track[b'mdia'])}
+            handler = body(*media[b'hdlr'])[8:12]
+            known = (b'vide', b'soun', b'meta', b'gps ', b'text', b'sbtl')
+            info['handler'] = handler.decode('ascii') if handler in known else 'other'
+            mdhd = body(*media[b'mdhd'])
+            if not mdhd or mdhd[0] not in (0, 1):
+                raise DiagnosticError('unsupported_media_duration')
+            scale = struct.unpack_from('>I', mdhd, 12 if mdhd[0] == 0 else 20)[0]
+            if not scale:
+                raise DiagnosticError('invalid_timescale')
+            minf = {k: (a, b) for k, a, b in boxes(f, *media[b'minf'])}
+            tables = {k: (a, b) for k, a, b in boxes(f, *minf[b'stbl'])}
+            sizes_data = body(*tables[b'stsz'])
+            fixed, count = struct.unpack_from('>II', sizes_data, 4)
+            if count > maximum or (not fixed and len(sizes_data) < 12 + 4 * count):
+                raise DiagnosticError('sample_limit')
+            sizes = [fixed] * count if fixed else list(
+                struct.unpack_from(f'>{count}I', sizes_data, 12)
+            )
+            offsets_kind = b'stco' if b'stco' in tables else b'co64'
+            width = 4 if offsets_kind == b'stco' else 8
+            data, n = table(*tables[offsets_kind], width)
+            offsets = struct.unpack_from(f'>{n}{"I" if width == 4 else "Q"}', data, 8)
+            data, n = table(*tables[b'stsc'], 12)
+            chunks = [struct.unpack_from('>III', data, 8 + i * 12) for i in range(n)]
+            if not chunks or chunks[0][0] != 1 or any(
+                b[0] <= a[0] for a, b in zip(chunks, chunks[1:])
+            ):
+                raise DiagnosticError('invalid_sample_chunks')
+            if any(not per_chunk or not description for _, per_chunk, description in chunks):
+                raise DiagnosticError('invalid_sample_chunks')
+            if chunks[-1][0] > len(offsets):
+                raise DiagnosticError('sample_chunk_count_mismatch')
+            data, n = table(*tables[b'stts'], 8)
+            durations = expand(data, n)
+            composition = [0] * count
+            if b'ctts' in tables:
+                data, n = table(*tables[b'ctts'], 8)
+                if data[0] not in (0, 1):
+                    raise DiagnosticError('unsupported_composition_times')
+                composition = expand(data, n, signed=data[0] == 1)
+            if len(durations) != count or len(composition) != count:
+                raise DiagnosticError('sample_time_count_mismatch')
+            sample = run = dts = 0
+            matched = set()
+            pts = []
+            for chunk_index, offset in enumerate(offsets, 1):
+                if time.monotonic() > deadline:
+                    raise DiagnosticError('analysis_time_limit')
+                while run + 1 < len(chunks) and chunks[run + 1][0] <= chunk_index:
+                    run += 1
+                per_chunk = chunks[run][1]
+                if sample + per_chunk > count:
+                    raise DiagnosticError('sample_chunk_count_mismatch')
+                for _ in range(per_chunk):
+                    if offset + sizes[sample] > file_length:
+                        raise DiagnosticError('sample_outside_file')
+                    key = (offset, sizes[sample])
+                    if key in references:
+                        matched.add(key)
+                        pts.append((dts + composition[sample]) / scale)
+                    offset += sizes[sample]
+                    dts += durations[sample]
+                    sample += 1
+            if sample != count:
+                raise DiagnosticError('sample_chunk_count_mismatch')
+            info.update(
+                status='complete', sample_count=count,
+                exact_gps_sample_matches=len(matched),
+                matched_media_pts_span_seconds=round(max(pts) - min(pts), 6) if pts else None,
+                matched_media_pts_backwards=sum(b < a for a, b in zip(pts, pts[1:])),
+            )
+        except DiagnosticError as error:
+            info['reason'] = str(error)
+        except (KeyError, struct.error):
+            info['reason'] = 'missing_or_unsupported_sample_tables'
+    return result
+
+
 def analyse(path):
     deadline = time.monotonic() + 60
     with path.open('rb') as f:
@@ -146,6 +276,7 @@ def analyse(path):
         if gps is None:
             raise DiagnosticError('no_gps_descriptor_box')
         values = []
+        references = set()
         descriptors = skipped = undecodable = 0
         for pos in range(gps[0]+8, gps[1]-7, 8):
             if time.monotonic() > deadline:
@@ -157,11 +288,13 @@ def analyse(path):
             if not offset or size < 12 or offset+size > length:
                 skipped += 1
                 continue
+            references.add((offset, size))
             decoded, stamp = record_time(f, offset, size, deadline)
             if decoded:
                 values.append(stamp)
             else:
                 undecodable += 1
+        timing_links = container_time_links(f, children, references, deadline)
     valid = [x for x in values if x is not None]
     adjacent = [(a,b) for a,b in zip(values,values[1:]) if a is not None and b is not None]
     limit = math.ceil(duration)
@@ -169,6 +302,7 @@ def analyse(path):
         'status': 'complete',
         'video_media_duration_seconds': round(duration,3),
         'duration_source': 'first_video_track_mdhd',
+        'container_time_links': timing_links,
         'descriptors': descriptors, 'invalid_descriptors': skipped,
         'undecodable_records': undecodable, 'decoded_records': len(values),
         'valid_timestamp_records': len(valid),
@@ -199,7 +333,7 @@ def main():
         result['file_id'] = f'file-{i:03}'
         results.append(result)
         print(result['file_id'] + ': ' + result['status'])
-    report = {'format':'viofo-time-diagnostic-v1',
+    report = {'format':'viofo-time-diagnostic-v2',
               'scope':'time fields only; independent Python reproduction, no spatial validation',
               'files':results}
     # Exclusive create avoids overwriting any input or pre-existing report.
