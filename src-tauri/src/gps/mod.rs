@@ -7,7 +7,7 @@ pub mod shenshu;
 pub mod viofo;
 pub mod viofo_timing;
 
-use crate::archive::{require_db, ArchiveSlot};
+use crate::archive::{ArchiveSlot, require_db};
 use crate::error::AppError;
 use crate::model::{GpsBatchItem, GpsPoint};
 use crate::scan::naming::CameraKind;
@@ -36,7 +36,9 @@ use tauri::State;
 ///     segment when the embedded UTC cadence itself proves local continuity.
 /// v8: caches trip GPS for ordinary playback and can choose a healthy sibling
 ///     camera as the GPS source for each segment instead of assuming Front.
-pub const GPS_PARSER_VERSION: i32 = 8;
+/// v9: bounded reading accepts padded GPS boxes; reader failures no longer
+///     become persisted empty tracks. Revalidate the prior empty cache once.
+pub const GPS_PARSER_VERSION: i32 = 9;
 
 /// A single path plus the camera brand the scanner identified for it. The
 /// frontend builds one of these per segment (by pairing each master channel's
@@ -89,21 +91,29 @@ enum BatchGps {
     },
 }
 
-fn extract_batch_item(path: &str, camera_kind: CameraKind) -> BatchGps {
+fn try_extract_batch_item(path: &str, camera_kind: CameraKind) -> Result<BatchGps, AppError> {
     let path_obj = Path::new(path);
     if camera_kind == CameraKind::Viofo {
-        let timed = viofo::extract_video_timed(path_obj).unwrap_or_default();
-        BatchGps::Viofo {
+        Ok(BatchGps::Viofo {
             file_path: path.to_string(),
-            timed,
-        }
+            timed: viofo::extract_video_timed(path_obj)?,
+        })
     } else {
-        let points = extract_for_kind(path_obj, camera_kind).unwrap_or_default();
+        Ok(BatchGps::Plain(GpsBatchItem {
+            file_path: path.to_string(),
+            points: extract_for_kind(path_obj, camera_kind)?,
+        }))
+    }
+}
+
+fn extract_batch_item(path: &str, camera_kind: CameraKind) -> BatchGps {
+    try_extract_batch_item(path, camera_kind).unwrap_or_else(|error| {
+        eprintln!("[gps] candidate read failed: {error}");
         BatchGps::Plain(GpsBatchItem {
             file_path: path.to_string(),
-            points,
+            points: vec![],
         })
-    }
+    })
 }
 
 fn batch_quality(item: &BatchGps, duration_s: f64) -> (usize, i64) {
@@ -261,6 +271,7 @@ fn bounded_gps_map<T: Sync, R: Send>(items: &[T], read: impl Fn(&T) -> R + Sync 
     }
 }
 
+#[cfg(test)]
 fn select_segment_gps_parallel(
     segment: &TripGpsSegmentSource,
     extract: impl Fn(&str, CameraKind) -> BatchGps + Sync + Send,
@@ -272,6 +283,40 @@ fn select_segment_gps_parallel(
         gps_timing(Path::new(path), "segment_candidates", started.elapsed(), 0);
     }
     result
+}
+
+/// A failed read is not evidence that a file contains no GPS. A healthy sibling
+/// may still supply the track, but an all-empty selection with reader failures
+/// must not be checkpointed as a successful extraction.
+fn select_segment_gps_checked(
+    segment: &TripGpsSegmentSource,
+    extract: impl Fn(&str, CameraKind) -> Result<BatchGps, AppError> + Sync + Send,
+) -> Result<BatchGps, AppError> {
+    let started = Instant::now();
+    let items = bounded_gps_map(&segment.paths, |path| extract(path, segment.camera_kind));
+    if let Some(path) = segment.paths.first() {
+        gps_timing(Path::new(path), "segment_candidates", started.elapsed(), 0);
+    }
+    let mut first_error = None;
+    let mut successes = Vec::new();
+    for item in items {
+        match item {
+            Ok(item) => successes.push(item),
+            Err(error) => {
+                eprintln!("[gps] candidate read failed: {error}");
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+        }
+    }
+    let result = best_segment_gps(successes, segment.duration_s);
+    if batch_quality(&result, segment.duration_s).0 == 0 {
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+    }
+    Ok(result)
 }
 
 fn gps_timing(path: &Path, phase: &str, elapsed: Duration, records: usize) {
@@ -370,7 +415,8 @@ pub async fn ensure_trip_gps(
     let source_db = require_db(&slot)?;
     let on_progress: Option<tauri::ipc::Channel<TripGpsProgress>> =
         on_progress.map(|id| id.channel_on(webview));
-    tauri::async_runtime::spawn_blocking(move || {
+    eprintln!("[gps] preparation requested: segments={}", segments.len());
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let db = crate::db::gps_cache::open(source_db.archive_root())?;
         crate::db::gps_cache::seed_legacy_trip(&source_db, &db, &trip_id)?;
         let mut attempt = 0;
@@ -385,8 +431,9 @@ pub async fn ensure_trip_gps(
                 &trip_id,
                 &segments,
                 work,
-                |segment| select_segment_gps_parallel(segment, extract_batch_item),
+                |segment| select_segment_gps_checked(segment, try_extract_batch_item),
                 |completed, mut updates| {
+                    eprintln!("[gps] segments completed: {completed}/{total}");
                     restore_archived_progress(work, &mut updates);
                     if let Some(channel) = &on_progress {
                         let _ = channel.send(TripGpsProgress::Segment {
@@ -401,7 +448,12 @@ pub async fn ensure_trip_gps(
         })
     })
     .await
-    .map_err(|e| AppError::Internal(format!("GPS worker failed: {e}")))?
+    .map_err(|e| AppError::Internal(format!("GPS worker failed: {e}")))?;
+    match &result {
+        Ok(points) => eprintln!("[gps] preparation completed: points={}", points.len()),
+        Err(error) => eprintln!("[gps] preparation failed: {error}"),
+    }
+    result
 }
 
 struct GpsWork {
@@ -429,7 +481,7 @@ fn extract_trip_gps_checkpointed(
         trip_id,
         requests,
         work,
-        |segment| select_segment_gps(segment, &mut extract),
+        |segment| Ok(select_segment_gps(segment, &mut extract)),
         progress,
     )
 }
@@ -439,7 +491,7 @@ fn extract_trip_gps_checkpointed_using(
     trip_id: &str,
     requests: &[TripGpsSegmentRequest],
     work: &GpsWork,
-    mut select: impl FnMut(&TripGpsSegmentSource) -> BatchGps,
+    mut select: impl FnMut(&TripGpsSegmentSource) -> Result<BatchGps, AppError>,
     progress: impl FnMut(usize, Vec<TripGpsSegmentUpdate>),
 ) -> Result<Vec<GpsPoint>, AppError> {
     use crate::db::gps_segment_checkpoints as checkpoints;
@@ -476,7 +528,7 @@ fn extract_trip_gps_checkpointed_using(
                     Err(e) => eprintln!("GPS checkpoint invalid; re-extracting segment: {e}"),
                 }
             }
-            let item = select(segment);
+            let item = select(segment)?;
             let mut stored = item.clone();
             let path = batch_path_mut(&mut stored);
             *path = crate::media_health::stored_path(Path::new(path), db.archive_root());
@@ -1482,6 +1534,74 @@ mod tests {
     }
 
     #[test]
+    fn reader_failure_does_not_create_an_empty_checkpoint_or_track() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, requests) = checkpoint_fixture(root.path());
+        let work = pending_work(&db, &requests);
+        let result = extract_trip_gps_checkpointed_using(
+            &db,
+            "trip",
+            &requests,
+            &work,
+            |source| {
+                select_segment_gps_checked(source, |_, _| {
+                    Err(AppError::Parse("synthetic reader failure".into()))
+                })
+            },
+            |_, _| {},
+        );
+        assert!(result.is_err());
+        let conn = db.lock().unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM gps_segment_checkpoints", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0);
+        assert!(
+            crate::db::gps_cache::trip_gps::load(&conn, "trip")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn healthy_sibling_still_supplies_gps_after_another_reader_fails() {
+        let source = TripGpsSegmentSource {
+            duration_s: 10.0,
+            camera_kind: CameraKind::Generic,
+            paths: vec!["broken".into(), "healthy".into()],
+        };
+        let result = select_segment_gps_checked(&source, |path, _| {
+            if path == "broken" {
+                Err(AppError::Parse("synthetic failure".into()))
+            } else {
+                Ok(fake_batch(path, 1.0))
+            }
+        })
+        .unwrap();
+        assert_eq!(batch_quality(&result, 10.0).0, 1);
+    }
+
+    #[test]
+    fn a_successful_empty_read_is_distinct_from_a_reader_failure() {
+        let source = TripGpsSegmentSource {
+            duration_s: 10.0,
+            camera_kind: CameraKind::Generic,
+            paths: vec!["no-gps".into()],
+        };
+        assert!(
+            select_segment_gps_checked(&source, |path, _| {
+                Ok(BatchGps::Plain(GpsBatchItem {
+                    file_path: path.into(),
+                    points: vec![],
+                }))
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
     fn checkpoint_hit_does_not_submit_candidate_read_jobs() {
         let root = tempfile::tempdir().unwrap();
         let (db, requests) = checkpoint_fixture(root.path());
@@ -1491,7 +1611,11 @@ mod tests {
             "trip",
             &requests,
             &work,
-            |source| select_segment_gps_parallel(source, |path, _| fake_batch(path, 1.0)),
+            |source| {
+                Ok(select_segment_gps_parallel(source, |path, _| {
+                    fake_batch(path, 1.0)
+                }))
+            },
             |_, _| {},
         )
         .unwrap();

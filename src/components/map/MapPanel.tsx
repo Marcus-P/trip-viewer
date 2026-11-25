@@ -178,6 +178,8 @@ function GpsMissingRibbon({
 export function MapPanel({ activeSegment }: Props) {
   const gpsByFile = useStore((s) => s.gpsByFile);
   const tripGpsByTrip = useStore((s) => s.tripGpsByTrip);
+  const gpsPreparation = useStore((s) => s.gpsPreparationByTrip);
+  const gpsProgress = useStore((s) => s.gpsProgressByTrip);
   const loadedTripId = useStore((s) => s.loadedTripId);
   const trips = useStore((s) => s.trips);
   const currentTime = useStore((s) => s.currentTime);
@@ -337,7 +339,15 @@ export function MapPanel({ activeSegment }: Props) {
 
       {!hasTripGps && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center bg-neutral-900/70 text-xs text-neutral-400">
-          Loading GPS…
+          {loadedTripId && gpsPreparation[loadedTripId] === "error"
+            ? "GPS loading failed. Select the trip again to retry."
+            : loadedTripId && gpsPreparation[loadedTripId] === "ready"
+              ? "No usable GPS points found."
+              : loadedTripId && gpsPreparation[loadedTripId] === "loading"
+                ? gpsProgress[loadedTripId]
+                  ? `Loading GPS… ${gpsProgress[loadedTripId].completed}/${gpsProgress[loadedTripId].total} segments`
+                  : "Loading GPS…"
+                : "GPS has not been loaded."}
         </div>
       )}
 
