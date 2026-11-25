@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 bundle_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-test_root="${TRIPVIEWER_PR21_HOME:-$HOME/.local/share/tripviewer-pr21-test/6fb9480}"
+test_root="${TRIPVIEWER_PR21_HOME:-$HOME/.local/share/tripviewer-pr21-test/3381609}"
 export XDG_DATA_HOME="$test_root/data"
 export XDG_CONFIG_HOME="$test_root/config"
 export XDG_CACHE_HOME="$test_root/cache"

@@ -10,9 +10,9 @@ Nach dem Entpacken im Paketordner:
   ./start-test.sh
 
 Eigenes Einstellungsverzeichnis:
-  ~/.local/share/tripviewer-pr21-test/6fb9480
-Fenstertitel: Trip Viewer PR21 Test — 6fb9480
-Native Testversion: 0.3.4-rc.2026112502. Die unveränderte Oberfläche kann
+  ~/.local/share/tripviewer-pr21-test/3381609
+Fenstertitel: Trip Viewer PR21 Test — 3381609
+Native Testversion: 0.3.4-rc.2026112503. Die unveränderte Oberfläche kann
 weiterhin die Upstream-Paketversion 0.3.3 anzeigen.
 
 Die Hauptdatenbank bleibt auf Upstream-Schema 13. Zwischenergebnisse und

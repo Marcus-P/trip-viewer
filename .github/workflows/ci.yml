@@ -41,7 +41,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          save-if: 'false'
+          shared-key: pr21-ubuntu-acceptance
+          save-if: 'true'
+          cache-on-failure: true
       - name: Install Ubuntu native packaging dependencies
         run: |
           sudo apt-get update -qq
@@ -57,6 +59,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload pr21-test-6fb9480 test-package/out/TripViewer-PR21-Test-6fb9480-Ubuntu-x86_64.tar.gz test-package/out/TEST-PACKAGE-SHA256SUMS.txt test-package/tauri.test.conf.json
-          gh release edit pr21-test-6fb9480 --draft=false --prerelease --latest=false --notes-file test-package/release-notes.md
+          gh release upload pr21-test-3381609 test-package/out/TripViewer-PR21-Test-3381609-Ubuntu-x86_64.tar.gz test-package/out/TEST-PACKAGE-SHA256SUMS.txt test-package/tauri.test.conf.json
+          gh release edit pr21-test-3381609 --draft=false --prerelease --latest=false --notes-file test-package/release-notes.md
           test "$(gh api repos/Marcus-P/trip-viewer/releases/latest --jq .tag_name)" = v0.13.0
