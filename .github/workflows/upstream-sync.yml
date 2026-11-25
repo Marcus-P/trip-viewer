@@ -1,0 +1,36 @@
+name: Upstream freshness
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Optional fork contribution ref, e.g. origin/contrib/viofo-camera-only"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-freshness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upstream:
+    if: github.repository == 'Marcus-P/trip-viewer'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Compare source branch with current upstream main
+        env:
+          UPSTREAM_HEAD_SHA: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          UPSTREAM_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: node scripts/check-upstream.mjs

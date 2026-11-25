@@ -17,6 +17,45 @@ scoped check of new material, not a full historical-data removal or anonymity
 guarantee. AGENTS.md remains the binding entry point. Tooling checks cover this
 change without rebuilding the unchanged application or producing installers.
 
+## Upstream-first contribution policy and stability sequence
+
+The owner wants upstream changes incorporated before further application work,
+with small contributions eventually making continued fork maintenance optional.
+AGENTS.md is binding; `scripts/check-upstream.mjs` and the `Upstream freshness`
+PR workflow compare the source head with freshly fetched upstream main. Code
+changes require current ancestry; documentation/policy maintenance reports drift
+without forcing an application integration. No automatic merge is performed.
+For upstream-targeted PRs, the fork workflow needs a manual `source_ref` check of
+the contribution branch; their upstream PR event does not run fork CI. Dispatch
+availability depends on ordinary default-branch policy promotion. Until then,
+use strict local comparison and report the missing CI handoff explicitly.
+This policy-only change uses that explicit exception: upstream main01e20d6a
+includes70mai support absent from stable fork0.13.0/mainb7d5fd6. A separate
+reviewed integration is needed before the next application change. Do not
+overwrite newer upstream camera support when extracting fork patches.
+
+VIOFO remains in upstream PR #21 first. Once merged, refresh the remaining
+inventory and prepare a short functionality menu for @chrisl8 to select, reorder
+or combine. A full-fork demo can be offered optionally, not as a required test.
+Do not publish messages or close PR20/21 under this policy-change task.
+
+Reliability follow-ups should come before optional bookmarks/overlays. The
+recorded owner acceptance sequence was Linux libva/DMABuf playback workarounds,
+then0.5.0 channel-local recovery, stable synchronization during analysis,
+health-aware GPS caching and progressive/restartable GPS preparation. Navigation,
+bookmarks and layout features were accepted later. Candidate slices are:
+archive-switch/session isolation; synchronization/audio/recovery and Linux
+compatibility; GPS preparation/invalidation/checkpoints with separately reviewed
+migrations. These are source/history-supported priorities, not proof every
+VIOFO user suffers the same faults or a new full-app certification.
+
+PR21 adds decoder/timing/validation and map continuity, but does not include the
+fork's broader SyncEngine/channel-recovery implementation. Explain that scope
+before a merge recommendation. The A129 comparison proves matching reported
+positions at common offsets in12 files;15 omitted points remain unexplained,
+and full application synchronization was not tested by that diagnostic. Do not
+declare the whole camera integration safe solely from the diagnostic result.
+
 ## Current checkpoint: stable 0.13.0 and communication-policy maintenance
 
 Stable v0.13.0 was published after the owner merged promotion PR #24 on
