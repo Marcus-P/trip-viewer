@@ -294,9 +294,6 @@ fn select_segment_gps_checked(
 ) -> Result<BatchGps, AppError> {
     let started = Instant::now();
     let items = bounded_gps_map(&segment.paths, |path| extract(path, segment.camera_kind));
-    if let Some(path) = segment.paths.first() {
-        gps_timing(Path::new(path), "segment_candidates", started.elapsed(), 0);
-    }
     let mut first_error = None;
     let mut successes = Vec::new();
     for item in items {
@@ -311,6 +308,14 @@ fn select_segment_gps_checked(
         }
     }
     let result = best_segment_gps(successes, segment.duration_s);
+    if let Some(path) = segment.paths.first() {
+        gps_timing(
+            Path::new(path),
+            "segment_candidates",
+            started.elapsed(),
+            batch_quality(&result, segment.duration_s).0,
+        );
+    }
     if batch_quality(&result, segment.duration_s).0 == 0 {
         if let Some(error) = first_error {
             return Err(error);

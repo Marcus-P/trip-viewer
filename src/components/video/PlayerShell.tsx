@@ -28,6 +28,7 @@ import { WelcomePanel } from "../welcome/WelcomePanel";
 import { decideShowMap } from "./decideShowMap";
 import { VideoGrid } from "./VideoGrid";
 import { healthyLineup } from "./channelHealth";
+import { toggleViewerFullscreen } from "./viewerFullscreen";
 import { prepareTripGps } from "../../state/gpsPreparation";
 
 /** Map the backend's F/I/R channel code to the frontend's canonical
@@ -51,6 +52,39 @@ export function PlayerShell() {
   // VideoGrid. Stable across renders so useSyncEngine's deps array doesn't
   // churn. Keyed by channel label so it works for any channel count.
   const channelRefs = useRef<Map<string, HTMLVideoElement | null>>(new Map());
+  const viewerRef = useRef<HTMLDivElement | null>(null);
+  const [fullscreenLabel, setFullscreenLabel] = useState<string | null>(null);
+  const fullscreenLabelRef = useRef<string | null>(null);
+  const fullscreenTransition = useRef(false);
+  const commitFullscreen = useCallback((label: string | null) => {
+    fullscreenLabelRef.current = label;
+    setFullscreenLabel(label);
+  }, []);
+  const resyncViewer = useCallback(() => {
+    window.dispatchEvent(new Event("tripviewer:resync-playback"));
+  }, []);
+  const onToggleFullscreen = useCallback(async (label: string) => {
+    if (fullscreenTransition.current) return;
+    fullscreenTransition.current = true;
+    try {
+      await toggleViewerFullscreen(viewerRef.current, label,
+        fullscreenLabelRef.current, commitFullscreen, resyncViewer);
+    } catch (error) {
+      console.warn("[viewer] fullscreen request failed", error);
+    } finally {
+      fullscreenTransition.current = false;
+    }
+  }, [commitFullscreen, resyncViewer]);
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (viewerRef.current && document.fullscreenElement === viewerRef.current) return;
+      if (fullscreenLabelRef.current === null) return;
+      commitFullscreen(null);
+      resyncViewer();
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, [commitFullscreen, resyncViewer]);
   const shouldAutoPlay = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
   // Media failures are scoped to the current source/segment. A failed camera
@@ -163,6 +197,15 @@ export function PlayerShell() {
       sizeBytes: null,
     };
   }, [sourceMode, activeSegmentForUi, trip, timelapseJobs]);
+
+  useEffect(() => {
+    const label = fullscreenLabelRef.current;
+    if (label && activeSegmentForVideo &&
+        !activeSegmentForVideo.channels.some(channel => channel.label === label)) {
+      commitFullscreen(null);
+      resyncViewer();
+    }
+  }, [activeSegmentForVideo, commitFullscreen, resyncViewer]);
 
   // Ordered list of channel labels for the current engine lineup.
   const channelLabels = useMemo(
@@ -715,19 +758,25 @@ export function PlayerShell() {
     archiveOnly,
     archivedGpsPointCount: tripGpsByTrip[trip.id]?.length ?? 0,
   });
-  const gridCols = showMap ? "grid-cols-[2fr_1fr_1fr]" : "grid-cols-[3fr_1fr]";
+  const gridCols = fullscreenLabel ? "grid-cols-1" : showMap ? "grid-cols-[2fr_1fr_1fr]" : "grid-cols-[3fr_1fr]";
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={viewerRef} className="flex h-full w-full flex-col bg-neutral-950">
       <div className={`relative grid min-h-0 flex-1 ${gridCols} gap-2 p-2`}>
         <VideoGrid
           channelRefs={channelRefs}
+          fullscreenLabel={fullscreenLabel}
+          onToggleFullscreen={onToggleFullscreen}
           activeSegment={activeSegmentForVideo}
           syncMasterLabel={syncMasterLabel}
           onMediaError={handleChannelMediaError}
           onMediaRecovered={handleChannelMediaRecovered}
         />
-        {showMap && <MapPanel activeSegment={activeSegmentForUi} />}
+        {showMap && (
+          <div className={fullscreenLabel ? "hidden" : "relative min-h-0"}>
+            <MapPanel activeSegment={activeSegmentForUi} />
+          </div>
+        )}
         <DriftHud />
       </div>
       {!gpsSupported && activeSegmentForUi && (
