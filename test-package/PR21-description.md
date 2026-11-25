@@ -24,6 +24,24 @@ This adds dedicated VIOFO camera recognition and GPS support, plus the related r
 
 The new commits separate review corrections, recording-mode/RO fixes, the original Linux media contribution, the related runtime reliability changes and build/test guidance. There is no intermediate schema upgrade in these new commits. Final scope and merge decisions remain with the upstream maintainer.
 
+### Response to the maintainer's review
+
+This addresses the numbered requests in [@chrisl8's review comment](https://github.com/chrisl8/trip-viewer/pull/21#issuecomment-7149083524), with one explicit alternative to the optional suggestion:
+
+| Review request | Implementation and evidence |
+| --- | --- |
+| 1. Redundant iterator / zero-warning Clippy | The decoder now uses `.zip(validated)`. The recorded final Clippy run passed with warnings denied. |
+| 2. Corrupt-year overflow | The year offset uses `checked_add`; `corrupt_years_do_not_overflow_or_invent_a_timestamp` covers values near `i32::MAX` and `u32::MAX`. Invalid dates remain unavailable rather than being invented. |
+| 3. Rust formatting and parser/test placement | Changed Rust modules were formatted using the repository edition. `ViofoParser` and `viofo_integration_tests` precede the existing `mod tests` in `scan/naming.rs`. Unrelated inherited formatting differences were kept out; this is not a claim that every untouched upstream file was reformatted. |
+| 4. Non-VIOFO shared dispatch | `non_viofo_points_and_request_order_pass_through_unchanged` checks 70mai, Wolf Box and Generic requests, preserving their output values and order through the shared batch path. This is an automated dispatch regression, not a new real-footage test of those cameras. |
+| 5. Parser collisions | `viofo_does_not_collide_with_other_parsers` covers Wolf Box, Thinkware, Miltona, 70mai and Generic filenames. |
+| 6. Parking versus normal and `is_event` | Parking/normal and protected/unprotected modes remain distinct during grouping and sibling lookup. Only protected modes set `is_event`; parking alone does not. Import retains `RO` path context. Regressions cover normal/parking and protected variants, timestamp skew across minute boundaries and interleaved modes. These are synthetic checks; I have no parking recordings for a hands-on test. |
+| 7. Optional small-payload rejection | **Alternative implementation:** a hard 4-KB limit rejected valid padded GPS containers in my recordings. The reader instead uses a fixed 4-KB buffer with overlapping reverse windows, checks file/container bounds and terminates as the read position decreases. Memory does not grow with the declared payload size; work remains bounded by the container size. This preserves valid records, including those crossing window boundaries. |
+
+The A129 layout regression is adapted from @alinnastac's published test, with source credit and synthetic telemetry in place of the original recording's time/location. Existing incorporated contributor commits retain their authorship. PR #20 remains open as requested; this update neither closes nor replaces it.
+
+**Remaining review and validation boundaries:** the related playback/GPS reliability work makes this PR broader than its original camera-decoder scope. I included it because the camera-only candidate was not usable on my tested setup, while leaving unrelated features separate. The expanded scope and the alternative to request 7 still need the maintainer's review; the original review is not approval of these later changes. A current A129 full-application check is also still outstanding, and the earlier 15-point diagnostic difference remains unexplained. I am not presenting that difference as evidence of better filtering or claiming that the pending A129 check is a new maintainer-imposed merge condition.
+
 ### Validation and limits
 
 - Rust library tests: **386 passed, 2 ignored in the default run** (one existing ignored test plus the opt-in FFmpeg test; the latter was run explicitly and passed), no failures.
