@@ -1,7 +1,7 @@
 from pathlib import Path
 import hashlib, json, os, shutil, subprocess, tarfile
 root=Path.cwd()
-name="TripViewer-PR21-Test-a61c7e7"
+name="TripViewer-PR21-Test-17f6f97"
 out=root/"test-package/out"; out.mkdir()
 p=out/name;p.mkdir()
 # The prior published candidate omitted this plugin. File presence plus
@@ -26,7 +26,7 @@ for f in ["start-test.sh","README-DE.txt","THIRD_PARTY_NOTICES.md"]:
  shutil.copyfile(root/"test-package"/f,p/f)
 shutil.copyfile(root/"LICENSE",p/"LICENSE")
 for f in ["start-test.sh","TripViewer-PR21-Test.AppImage"]:(p/f).chmod(0o755)
-info={"source_commit":"a61c7e78cfdb9fca0050574b5072856cfd0d1c61","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending","upstream_pr_candidate":"35c8c886598e1433e8da305f005556ad89cb84e6","bundled_gl_factories_checked":True}
+info={"source_commit":"17f6f97b1bb1c35a82a885fdc1bfa13c7dca404c","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending","upstream_pr_candidate":"f7bb990be22ae117fe99cfb263b29294d225c070","bundled_gl_factories_checked":True}
 (p/"BUILD-INFO.json").write_text(json.dumps(info,indent=2)+"\n")
 # Retain available native redistribution notices from the packaging host.
 for f in Path("/usr/share/doc").glob("*/copyright"):

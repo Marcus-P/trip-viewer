@@ -1,6 +1,6 @@
 ## VIOFO support with schema-13 playback and GPS reliability fixes
 
-This adds dedicated VIOFO camera recognition and GPS support, plus the related reliability changes reused from my full fork. Camera recognition alone did not provide usable playback on my A229 Pro 3CH setup, so this contribution now keeps the necessary playback/GPS work together. Optional fork settings, km/h preferences, map-follow behavior, overlays, bookmarks and hardware encoder/calibration features remain separate.
+This adds dedicated VIOFO camera recognition and GPS support, plus the related reliability changes reused from my full fork. Camera recognition alone did not provide usable playback on my A229 Pro 3CH setup, so this contribution now keeps the necessary playback/GPS work together. Optional fork settings, km/h preferences, map-follow behavior, overlays, bookmarks and additional AMD/Intel/VA-API encoders and calibration features remain separate.
 
 ### Camera recognition and GPS
 
@@ -8,6 +8,12 @@ This adds dedicated VIOFO camera recognition and GPS support, plus the related r
 - Decode Novatek descriptors in physical record order. Bound reads by file/container size, check corrupt years without overflow and validate GPS using neighboring observations and independent telemetry fields. Preserve the existing continuity safeguards and non-VIOFO dispatch.
 - Read padded GPS containers with a fixed-size buffer rather than rejecting the entire container above 4 KB. Regression tests cover records crossing read-window boundaries and preserve the original last-marker selection.
 - Prepare GPS progressively with a shared bounded read pool, reusable segment checkpoints and source/health provenance. Failed reads cannot be recorded as successful empty tracks; healthy sibling cameras can still supply GPS. Empty results, errors and active preparation have distinct UI states.
+
+### Existing timelapse behavior
+
+- A compiled-in `hevc_nvenc` entry is no longer accepted as proof of usable hardware. The full fork's finite synthetic encode/decode/scaling verification is adapted to the existing NVENC/CPU capability API. Unsupported NVENC uses the existing CPU/libx265 path.
+- Batch start revalidates old capability settings, so a previously cached false positive cannot keep failing all selected camera jobs. The probe runs outside the async command executor and has a bounded failure deadline. No archive or settings schema fields are added.
+- A real, opt-in FFmpeg integration test creates two synthetic HEVC clips, runs the actual 8x generation path and decodes the finished output. This passed locally without owner footage. It does not certify the owner's previously failed real three-channel batch or NVIDIA hardware support.
 
 ### Playback and archive compatibility
 
@@ -20,7 +26,7 @@ The new commits separate review corrections, recording-mode/RO fixes, the origin
 
 ### Validation and limits
 
-- Rust library tests: **384 passed, 1 existing ignored**, no failures.
+- Rust library tests: **386 passed, 2 ignored in the default run** (one existing ignored test plus the opt-in FFmpeg test; the latter was run explicitly and passed), no failures.
 - Frontend: **78 tests passed**; TypeScript and zero-warning Clippy pass. Changed Rust modules are formatted for the repository's edition.
 - Main-schema compatibility and checkpoint/recovery regression tests pass. Current upstream main is included; freshness is checked again at handoff.
 - I tested the isolated Ubuntu GPS candidate on the same A229 Pro 3CH recordings: all 39 segments completed, producing 6,450 points, and I confirmed visible tracks, the manually merged track and the moving marker. This is GPS/map acceptance, not playback acceptance of this subsequent fullscreen/media-package revision.

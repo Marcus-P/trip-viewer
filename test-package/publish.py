@@ -6,11 +6,11 @@ import tarfile
 
 repo = "Marcus-P/trip-viewer"
 release_id = "458179709"
-tag = "pr21-test-a61c7e7"
+tag = "pr21-test-17f6f97"
 root = Path("test-package")
-archive = root / "out/TripViewer-PR21-Test-a61c7e7-Ubuntu-x86_64.tar.gz"
+archive = root / "out/TripViewer-PR21-Test-17f6f97-Ubuntu-x86_64.tar.gz"
 with tarfile.open(archive) as bundle:
-    info = json.load(bundle.extractfile("TripViewer-PR21-Test-a61c7e7/BUILD-INFO.json"))
+    info = json.load(bundle.extractfile("TripViewer-PR21-Test-17f6f97/BUILD-INFO.json"))
 assert info["archive_schema_version"] == 13
 assert info["bundled_gl_factories_checked"] is True
 assert info["updater_endpoints"] == []
@@ -25,7 +25,7 @@ assert release["draft"], "Refuse to modify an already-published test release"
 payload = {
     "tag_name": tag,
     "target_commitish": info["packaging_commit"],
-    "name": "PR21 isolated Ubuntu playback test — a61c7e7",
+    "name": "PR21 isolated Ubuntu playback test — 17f6f97",
     "draft": True,
     "prerelease": True,
     "make_latest": "false",

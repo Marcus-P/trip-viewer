@@ -9,16 +9,16 @@ Nach dem Entpacken im Paketordner:
   sha256sum -c SHA256SUMS.txt
   TRIPVIEWER_GPS_TIMING=1 bash ./start-test.sh
 
-Fenstertitel: Trip Viewer PR21 Test — a61c7e7
-Testversion: 0.3.4-rc.2026112506
+Fenstertitel: Trip Viewer PR21 Test — 17f6f97
+Testversion: 0.3.4-rc.2026112507
 Separate Einstellungen und Log:
-  ~/.local/share/tripviewer-pr21-test/a61c7e7/last-run.log
+  ~/.local/share/tripviewer-pr21-test/17f6f97/last-run.log
 Die Ausgaben erscheinen auch direkt im Terminal.
 
 Die Hauptdatenbank bleibt bei Schema13. Analyse- und Medienfehlerdaten stehen
 separat in .tripviewer/analysis-cache-v1.sqlite. GPS-Reader-Version9 bleibt
 unverändert; gültige bisherige Ergebnisse können wiederverwendet werden.
-Keine neue Timelapse-Codierung und kein Kopieren oder Löschen nötig.
+Kein Kopieren oder Löschen nötig. GPS muss nicht erneut vollständig geprüft werden.
 
 Kleiner Wiedergabetest mit einer vorhandenen Fahrt:
 1. Original und Geschwindigkeit x1. Kurz mit drei Kameras abspielen.
@@ -45,3 +45,15 @@ Lizenz- und Herkunftshinweise bleiben erhalten, einschließlich @gubiqs
 Linux-Korrektur und der synthetischen A129-Layoutregression nach @alinnastac.
 Codex unterstützt die Umsetzung; Hardwaretests sind davon getrennte Befunde.
 Logs können private Pfade enthalten; nicht ungeprüft öffentlich posten.
+
+Timelapse-Korrektur:
+Die vorhandene NVIDIA/CPU-Auswahl prüft nun den tatsächlichen NVENC-Pfad.
+Bei fehlender nutzbarer NVIDIA-Hardware wird libx265 verwendet. Alte falsch
+positive Fähigkeiten werden vor einem Batch neu geprüft. Zusätzliche AMD-,
+Intel- und VA-API-Encoder/Kalibrierung des vollständigen Forks bleiben separat.
+Ein kurzer synthetischer 8x-HEVC-Erzeugungs-/Decodiertest ist bestanden; das
+ersetzt nicht die Abnahme echter Kamerajobs. Bei Bedarf kann nach dem kleinen
+Wiedergabetest ein einzelner Front/8x-Job geprüft werden. In dieser separaten
+Testinstanz muss FFmpeg einmal konfiguriert werden: typischer Pfad unter Ubuntu
+/usr/bin/ffmpeg. Den Test-Knopf verwenden, bevor eine neue Berechnung startet.
+Die CPU-Ausgabe kann langsamer als im vollständigen GPU-Fork sein.
