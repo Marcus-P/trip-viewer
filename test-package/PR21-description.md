@@ -13,7 +13,7 @@ This adds dedicated VIOFO camera recognition and GPS support, plus the related r
 
 - A compiled-in `hevc_nvenc` entry is no longer accepted as proof of usable hardware. The full fork's finite synthetic encode/decode/scaling verification is adapted to the existing NVENC/CPU capability API. Unsupported NVENC uses the existing CPU/libx265 path.
 - Batch start revalidates old capability settings, so a previously cached false positive cannot keep failing all selected camera jobs. The probe runs outside the async command executor and has a bounded failure deadline. No archive or settings schema fields are added.
-- A real, opt-in FFmpeg integration test creates two synthetic HEVC clips, runs the actual 8x generation path and decodes the finished output. This passed locally without owner footage. It does not certify the owner's previously failed real three-channel batch or NVIDIA hardware support.
+- A real, opt-in FFmpeg integration test creates two synthetic HEVC clips, runs the actual 8x generation path and decodes the finished output. This passed locally without owner footage. It does not certify a complete real three-channel batch or NVIDIA hardware support.
 
 ### Playback and archive compatibility
 
@@ -29,11 +29,51 @@ The new commits separate review corrections, recording-mode/RO fixes, the origin
 - Rust library tests: **386 passed, 2 ignored in the default run** (one existing ignored test plus the opt-in FFmpeg test; the latter was run explicitly and passed), no failures.
 - Frontend: **78 tests passed**; TypeScript and zero-warning Clippy pass. Changed Rust modules are formatted for the repository's edition.
 - Main-schema compatibility and checkpoint/recovery regression tests pass. Current upstream main is included; freshness is checked again at handoff.
-- I tested the isolated Ubuntu GPS candidate on the same A229 Pro 3CH recordings: all 39 segments completed, producing 6,450 points, and I confirmed visible tracks, the manually merged track and the moving marker. This is GPS/map acceptance, not playback acceptance of this subsequent fullscreen/media-package revision.
+- I tested the isolated Ubuntu GPS candidate on the same A229 Pro 3CH recordings: all 39 segments completed, producing 6,450 points, and I confirmed visible tracks, the manually merged track and the moving marker. That initial GPS check preceded the playback checks below.
 - The subsequent Ubuntu AppImage build/startup and bundled GL-factory checks passed. I have now also tested that isolated revision on my Ubuntu 24.04 notebook with my A229 Pro 3CH recordings: Original at x1, Play/Pause, seeking and fullscreen transitions worked. GPS tracks, merged-trip tracks and the moving marker are visible. I did not observe the previous large route jumps at the locations I checked. This is acceptance of those checks on that setup, not universal camera, GPU, driver or long-duration validation.
-- My real Front/8x CPU timelapse job is currently running. Its finished output has not yet been validated. The present progress bar counts completed jobs, not live FFmpeg frame progress, so it can remain unchanged during a long first encode. Additional live progress and GPU-performance work from the full fork remains separate.
+- My real Front/8x CPU timelapse finished successfully. I watched the entire generated video and confirmed clean playback. This validates that output on my Ubuntu setup, not the remaining camera jobs, other tiers, A129 recordings or other operating systems. The present progress bar counts completed jobs, not live FFmpeg frames: after the first of three jobs it shows one third while the next encode runs. Additional live progress and GPU-performance work from the full fork remains separate.
 - The earlier A129 diagnostic comparison had 15 fewer output points. Those exclusions remain an open validation question; I am not claiming that fewer points prove better filtering. A decoder diagnostic does not validate complete application playback. The credited synthetic A129 record layout test is separate evidence.
 - Channel association still uses the existing nearby-timestamp heuristic. It is not a GPS-proven recording identity or a universal synchronization guarantee. No parking footage is required for the available playback check.
+
+### Existing full-fork additions outside this PR
+
+The following additions and refinements already exist in my released v0.13.0 fork but are **not included in this PR**. This is an overview for possible later contributions, not an agreed roadmap or a promise to submit every item. The basic player, map, import, timelapse generation and updater already existed upstream. Necessary playback/GPS reliability and the runtime NVENC/CPU verification described above are already included here.
+
+**Playback, map and timeline tools**
+
+- Route-click seeking across segments, with handling for GPS gaps and repeated route positions.
+- Refined map following and resize behavior, including initial zoom handling to reduce unnecessary rendering work.
+- Persistent numbered bookmarks, previous/next navigation and position adjustment when trips are merged.
+- Zoom, pan and reset while video is paused; an extended fullscreen dashboard with map/timeline controls and a collapsible timeline. Basic shared fullscreen is already in this PR.
+
+**Preferences and everyday usability**
+
+- General settings, km/h or mph selection and an optional manual camera preference alongside automatic detection.
+- Saved camera visibility, map-only viewing and responsive layouts for one, two or three visible cameras.
+- Resizable camera/map areas and timeline height, saved layout and sidebar collapse.
+- Separately remembered archive and import-source picker locations.
+
+**Optional display composition**
+
+- Optional overlay layouts with cabin/rear-camera layers, mirror-style frames and masks.
+- Crop, move and resize controls with a saved layout editor. These compose the application display, not an exported composite video; the classic layout remains available.
+
+**Timelapse performance, feedback and robustness**
+
+- Additional AMD AMF, Intel QSV and Linux VA-API encoding paths with runtime capability/device checks and fallback.
+- Hardware decoding/scaling profiles and device-resident paths where supported, with bounded buffers and fallback; experimental VideoToolbox work does not have hands-on macOS validation.
+- Short representative performance calibration, cached local profiles, and thread/concurrency/memory tuning. The aim is useful throughput, not a guaranteed GPU-utilization percentage.
+- Live per-phase/output progress and more informative time estimates, beyond the current completed-job counter.
+- Additional cancellation/retry, source-probe and memory-budget handling, including retaining a previous successful output until its replacement succeeds.
+
+**Updates, installation and help**
+
+- Extended release information and platform-matched download handling, installation/help/report links and release-asset download counts. Download counts are not unique users or application telemetry.
+- Additional Ubuntu package dependencies/desktop integration and Windows installer upgrade/recovery handling. Experimental universal macOS packaging is distinct from hands-on media validation.
+
+Some features have storage or design implications, notably persistent bookmarks; they would need their own compatibility review. The full fork's newer archive schema is not part of this PR. Fork branding, signing/release configuration and owner-specific agent rules are not proposed for upstream adoption.
+
+Consolidating general settings and the timelapse FFmpeg gear into one consistent settings flow is a **proposed refinement**, not an existing v0.13.0 feature. Once this foundation is accepted, @chrisl8 can choose, reorder or combine useful follow-ups.
 
 ### Building and testing
 
