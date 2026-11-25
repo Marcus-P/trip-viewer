@@ -630,8 +630,10 @@ export const useStore = create<AppState>((set) => ({
     return report;
   },
   mergeArchiveOnlyTrips: async () => {
+    const current = useStore.getState().currentArchive;
     try {
       const archive = await listArchiveOnlyTrips();
+      if (useStore.getState().currentArchive !== current) return;
       if (archive.length === 0) {
         // Still drop any stale archive-only entries that are no longer
         // backed by a row in the DB (e.g. after Delete trip…).
