@@ -1,13 +1,13 @@
-Isolated Ubuntu 24.04 x86_64 GPS diagnostic candidate for PR21 follow-up.
+Isolated Ubuntu 24.04 x86_64 playback candidate for PR21.
 
-**Manual prerelease only: not Latest, no stable updater metadata, no change to stable v0.13.0 or upstream PR21.**
+**Manual prerelease only. Not Latest, no stable updater metadata, separate settings/app identity. Stable v0.13.0 is unchanged.**
 
-The prior candidate stored empty GPS checkpoints for all tested segments. This revision replaces a whole-box size rejection with bounded-memory reading of padded VIOFO GPS boxes. Synthetic regression tests preserve the original last-marker selection across read-window boundaries. This is a plausible regression fix, not yet a confirmed diagnosis on owner recordings.
+Double-click fullscreen now enlarges the shared viewer, including transport. Camera elements remain mounted and transitions use browser completion events followed by the existing SyncEngine re-anchor. Native video controls cannot independently pause a camera or bypass the shared viewer. Optional overlays, layout editors, settings and bookmarks remain excluded.
 
-Reader failures now propagate instead of being cached as successful empty GPS. Healthy sibling-camera fallback remains available. Map status distinguishes active preparation, failure and completed empty results. Native diagnostics report request, progress, completion and errors. Reader version9 revalidates old version8 analysis once; the main archive schema and migration head remain13.
+The preceding published package lacked libgstopengl.so, matching WebKit's missing-GL-sink warning. This package explicitly includes the GL component; packaging verifies the bundled glupload, glcolorconvert, gldownload and appsink factories before publication. GPU/codec/driver compatibility and real 4K smoothness still require hands-on validation.
 
-Close the old PR21 test, extract this package and run `TRIPVIEWER_GPS_TIMING=1 ./start-test.sh`. Select one existing scratch-archive trip with videos paused. No new footage copy, timelapse encode or manual cache deletion is needed. Output appears in the terminal and local last-run.log. Do not publish raw logs containing private paths or location data.
+The main archive schema remains13, with no new main-database migrations. Persistent analysis stays in the separate sidecar. The previously owner-confirmed GPS reader/version9 is retained. This package reuses the existing scratch archive and manual trip merges; no cache deletion, footage copy or timelapse encode is required.
 
-This targets GPS only. Previously reported playback stutter, high CPU and fullscreen transport drift remain unresolved. Successful packaging/startup and automated tests do not certify real hardware behavior.
+Close the previous PR21 test, extract this package, run `TRIPVIEWER_GPS_TIMING=1 bash ./start-test.sh`, then follow the small playback test in README-DE.txt. The source includes docs/VIOFO_TESTING.md with isolated Windows and Ubuntu build instructions; no OS is inferred for another contributor. This build's physical playback acceptance remains pending.
 
-Upstream/contributor authorship and license notices remain intact, including @gubiq's Linux media preparation and the synthetic A129 layout fixture adapted from @alinnastac's contribution. Codex assists with implementation; owner hardware acceptance remains pending.
+Contributor authorship and licensing remain intact, including @gubiq's Linux media change and the credited synthetic A129 layout regression adapted from @alinnastac. Codex assists with implementation; owner and contributor hardware results remain separate evidence. Upstream PR scope and merge decisions remain with @chrisl8.

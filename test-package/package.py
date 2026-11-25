@@ -1,9 +1,24 @@
 from pathlib import Path
 import hashlib, json, os, shutil, subprocess, tarfile
 root=Path.cwd()
-name="TripViewer-PR21-Test-680a9b2"
+name="TripViewer-PR21-Test-a61c7e7"
 out=root/"test-package/out"; out.mkdir()
 p=out/name;p.mkdir()
+# The prior published candidate omitted this plugin. File presence plus
+# factory loading is checked before publishing, without requiring a CI GPU.
+appdirs=list((root/"src-tauri/target/release/bundle/appimage").glob("*.AppDir"))
+assert len(appdirs)==1, appdirs
+appdir=appdirs[0]
+assert (appdir/"usr/lib/gstreamer-1.0/libgstopengl.so").is_file(), "GL media plugin missing from AppImage source"
+media_env=os.environ.copy()
+media_env.update(GST_PLUGIN_SYSTEM_PATH_1_0=str(appdir/"usr/lib/gstreamer-1.0"),
+ GST_PLUGIN_PATH_1_0=str(appdir/"usr/lib/gstreamer-1.0"),
+ GST_PLUGIN_SCANNER_1_0=str(appdir/"usr/lib/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner"),
+ GST_REGISTRY=str(out/"gst-registry-check.bin"),
+ LD_LIBRARY_PATH=str(appdir/"usr/lib")+":"+os.environ.get("LD_LIBRARY_PATH",""))
+for factory in ["glupload","glcolorconvert","gldownload","appsink"]:
+ check=subprocess.run(["gst-inspect-1.0",factory],env=media_env,capture_output=True,text=True,timeout=30)
+ assert check.returncode==0, "Bundled GStreamer factory unavailable: "+factory+"\n"+check.stderr
 images=list((root/"src-tauri/target/release/bundle/appimage").glob("*.AppImage"))
 assert len(images)==1, images
 shutil.copyfile(images[0],p/"TripViewer-PR21-Test.AppImage")
@@ -11,7 +26,7 @@ for f in ["start-test.sh","README-DE.txt","THIRD_PARTY_NOTICES.md"]:
  shutil.copyfile(root/"test-package"/f,p/f)
 shutil.copyfile(root/"LICENSE",p/"LICENSE")
 for f in ["start-test.sh","TripViewer-PR21-Test.AppImage"]:(p/f).chmod(0o755)
-info={"source_commit":"680a9b2ec3838daddb55cb865d83b09fc917f277","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending"}
+info={"source_commit":"a61c7e78cfdb9fca0050574b5072856cfd0d1c61","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending","upstream_pr_candidate":"35c8c886598e1433e8da305f005556ad89cb84e6","bundled_gl_factories_checked":True}
 (p/"BUILD-INFO.json").write_text(json.dumps(info,indent=2)+"\n")
 # Retain available native redistribution notices from the packaging host.
 for f in Path("/usr/share/doc").glob("*/copyright"):

@@ -1,11 +1,11 @@
 {
   "productName": "Trip Viewer PR21 Test",
-  "version": "0.3.4-rc.2026112504",
+  "version": "0.3.4-rc.2026112506",
   "identifier": "com.tripviewer.pr21test",
   "app": {
     "windows": [
       {
-        "title": "Trip Viewer PR21 Test \u2014 680a9b2",
+        "title": "Trip Viewer PR21 Test \u2014 a61c7e7",
         "width": 1280,
         "height": 760,
         "minWidth": 720,
