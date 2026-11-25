@@ -1,17 +1,15 @@
-Isolated Ubuntu 24.04 x86_64 acceptance build for upstream VIOFO PR #21 with follow-up fixes, source `5dbdaf9c998df63385c979e7cb72e38bdbeb8d36`.
+Isolated Ubuntu 24.04 x86_64 acceptance package for the PR21 reliability follow-up.
 
-**Manual test only. This is not a v0.13.0 update.**
+**Manual prerelease only. Not an update for stable v0.13.0, not Latest, no updater manifest or signatures.**
 
-- Marked as a prerelease and explicitly excluded from Latest. No updater manifest or update signature is published.
-- Separate application identifier `com.tripviewer.pr21test`, isolated settings and a dedicated scratch archive. Run `start-test.sh`; do not install over the stable app or open a production archive.
-- Upstream-based test native version: `0.3.4-rc.20261125`. The unchanged frontend may display `0.3.3`. This is not a stable fork version.
-- Includes the local GPS review fixes and preservation of VIOFO RO/protected-recording context through import and grouping. The existing three-second timestamp association remains heuristic; GPS-based association is not implemented in this build.
-- No parking footage is needed for the requested owner test. No timelapse encoding is required initially.
+This revision reuses the already implemented full-fork solutions for Linux media preparation, stable playback intent, canonical audio, channel-local failure/recovery and persistent segment-level GPS preparation. Optional overlay, zoom, layout and bookmark features are excluded. The existing three-second filename association remains heuristic.
 
-Download the `.tar.gz`, extract it, run `sha256sum -c SHA256SUMS.txt`, then follow `README-DE.txt`. Use copied video files only.
+The previous isolated package produced owner-reported severe Front-video stutter, no audible sound, intermittent Play/Pause/synchronization problems and very slow GPS loading. CPU usage reached 100% during playback and dropped after pausing. These are observed symptoms, not proof of a particular decoder or CPU cause. This corrected package still needs owner hardware acceptance.
 
-Built on the Ubuntu 24.04 GitHub runner. Publication requires packaged startup with isolated settings/database to pass on that runner. Playback of this exact package with owner footage is pending. This is not universal hardware certification.
+**Upstream archive schema remains 13.** Existing migration files and the main trip_gps table are unchanged. Disposable GPS checkpoints, provenance and media-health state live separately in `.tripviewer/analysis-cache-v1.sqlite`. Tests verify cache writes do not change the main database schema/version and that archived legacy GPS remains available. Completed segments are published progressively, including timeline speed data, instead of waiting for the whole trip; merged/reordered trips invalidate the completed-track cache.
 
-Upstream authorship and license notices are retained. The A129 regression fixture acknowledges the earlier work of @alinnastac and uses synthetic telemetry. Codex prepared the follow-up fixes and test packaging from @Marcus-P's requirements; hands-on acceptance is separate.
+Close the previous PR21 test before launching. Run `start-test.sh` from the extracted package; it reuses the existing scratch archive `~/Downloads/TripViewer-PR21-Testarchiv-5dbdaf9` and uses fresh isolated app settings. Do not open a production archive. Start with Original at x1, where audio is enabled; other playback rates and timelapse modes intentionally remain muted. No parking footage or timelapse encode is required.
 
-The release tag contains a standalone source snapshot with the same tree as the build source and safe owner commit metadata, without copying the older PR ancestry into this release tag. Existing contributor notices remain intact. Neither PR #21's branch nor the fork's main/develop branches are updated by this publication.
+Focused playback/audio/recovery, progressive GPS, cache and archive-schema tests pass locally. Publication requires the Ubuntu24.04 AppImage build and isolated packaged startup/schema check. No universal camera/hardware certification is claimed.
+
+The Linux media preparation commit retains @gubiq's authorship. Earlier A129 contributions from @alinnastac remain acknowledged in the synthetic regression fixture; contributor and upstream license notices remain intact. Codex assisted with the targeted backport and packaging from @Marcus-P's requirements. Neither upstream PR21 nor stable main/develop are updated by this test publication.

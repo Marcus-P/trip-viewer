@@ -1,43 +1,43 @@
-Isolierter PR21-Test für Ubuntu 24.04 x86_64
+PR21-Wiedergabe/GPS-Test für Ubuntu 24.04 x86_64
 
-Quelle: work/viofo-pr21-reliability, Commit 5dbdaf9.
-PR21 plus lokale GPS-, Gruppierungs- und RO/Import-Korrekturen.
-Kein Update des installierten Forks v0.13.0. Keine Installation notwendig.
-Codex hat Build und Testpaket vorbereitet. Noch kein Test mit deinen Videos.
+Zuerst die vorige PR21-Testversion schließen. Die vorhandenen Videokopien in
+~/Downloads/TripViewer-PR21-Testarchiv-5dbdaf9 werden weiterverwendet.
+Es ist kein erneutes Kopieren des Archivs notwendig. Kein produktives Archiv
+öffnen. Deine installierte 0.13.0 bleibt unverändert.
 
-Voraussetzung: Ubuntu 24.04 x86_64, grafische Sitzung, bash und python3.
-Nach dem Entpacken:
+Nach dem Entpacken im Paketordner:
   sha256sum -c SHA256SUMS.txt
   ./start-test.sh
 
-Eigenes Testarchiv:
-  ~/Downloads/TripViewer-PR21-Testarchiv-5dbdaf9
-Eigene Einstellungen und lokales Startlog:
-  ~/.local/share/tripviewer-pr21-test/5dbdaf9
+Eigenes Einstellungsverzeichnis:
+  ~/.local/share/tripviewer-pr21-test/6fb9480
+Fenstertitel: Trip Viewer PR21 Test — 6fb9480
+Native Testversion: 0.3.4-rc.2026112502. Die unveränderte Oberfläche kann
+weiterhin die Upstream-Paketversion 0.3.3 anzeigen.
 
-Kopiere vor dem Start wenige vollständige Kanalsets zweier aufeinanderfolgender
-Segmente nach Videos im Testarchiv. Nur Kopien verwenden. Geschützte Aufnahmen
-gehören in Videos/RO; vorhandene Dateinamen unverändert lassen. Falls verfügbar,
-kannst du zusätzlich ein vollständiges Parkmodus-Kanalset verwenden.
-Öffne in dieser Testversion kein produktives Archiv. Der Starthelfer setzt bei
-jedem Start das eigene Testarchiv. Die App erlaubt dennoch manuelle Archivwechsel.
+Die Hauptdatenbank bleibt auf Upstream-Schema 13. Zwischenergebnisse und
+Medienfehler werden separat in .tripviewer/analysis-cache-v1.sqlite gespeichert.
+Es gibt keine zusätzlichen Upstream-Migrationen. Dieser Cache ist aus den
+Quelldateien wiederherstellbar und liegt beim Testarchiv, nicht bei 0.13.0.
 
-Kleiner Test: Kanalzuordnung, Wiedergabe/Pause, Springen und Segmentübergang.
-Bleiben die Kanäle synchron? Werden RO-Clips als Ereignis erkannt? Parkmodus und
-Normalmodus sollen separate Segmente bleiben, dürfen aber derselben Fahrt
-angehören. Es ist keine neue Timelapse-Codierung erforderlich.
+Kleiner Test: eine Fahrt auswählen, Original und Geschwindigkeit x1 einstellen.
+Ton prüfen; andere Geschwindigkeiten und Timelapse-Modi sind absichtlich stumm.
+Frontvideo und weitere Kanäle kurz zusammen abspielen, pausieren und springen.
+GPS-Fortschritt erscheint als abgeschlossene Segmente; Karte und Geschwindigkeit
+sollen bereits während der Hintergrundverarbeitung sichtbar werden.
+Eine vollständige Neuberechnung aller Fahrten ist für diese erste Prüfung nicht
+nötig. Keine Parkaufnahmen oder neue Timelapse-Codierung erforderlich.
 
-Der Fenstertitel enthält PR21 Test und 5dbdaf9. Die Oberfläche kann weiterhin
-0.3.3 anzeigen, weil sie die unveränderte Upstream-Paketversion verwendet.
-Das native Testpaket hat Version 0.3.4-rc.20261125 und eine eigene App-Kennung.
-Der Test enthält nur den PR21-Umfang samt Korrekturen, nicht alle Funktionen
-von Fork v0.13.0. Automatische Update-Endpunkte sind im Testpaket deaktiviert.
-Es gibt keinen automatischen Upload des Startlogs.
+Die vorhandenen Linux-Medienkorrekturen, stabile Synchronisation, kanalweise
+Fehlerbehandlung und segmentweise GPS-Zwischenergebnisse stammen aus dem
+vollständigen Fork. Linux libva/DMABuf-Arbeit von @gubiq bleibt gewürdigt;
+ursprüngliche Commit-Autorschaft und Lizenzhinweise bleiben erhalten.
+Codex hat die gezielte Übernahme und Paketierung vorbereitet. Der Build- und
+Starttest ersetzt keinen Hardwaretest mit deinen Aufnahmen. Eine Behebung der
+beobachteten Symptome ist erst nach diesem Test bestätigt.
 
-Die Drei-Sekunden-Toleranz vergleicht Aufnahmezeitstempel vorhandener Dateien.
-Es gibt hierfür kein Warten auf weitere Dateien. Die Zuordnung bleibt eine
-begrenzte Heuristik und beweist kein gemeinsames physisches Aufnahmeereignis.
-
-Eine kurze Rückmeldung reicht. Keine Videos, GPS-Rohdaten oder vollständigen
-Logs veröffentlichen. Falls ein Fehler auftritt, zuerst die sichtbare Meldung
-und den betroffenen Testschritt mitteilen.
+Eigene App-Kennung com.tripviewer.pr21test, deaktivierte Update-Endpunkte.
+Die Drei-Sekunden-Dateizuordnung bleibt eine Heuristik; in diesem Paket wurde
+keine GPS-basierte Kanalzuordnung eingeführt. Keine automatischen Log-Uploads.
+Bei Fehlern reicht zunächst eine kurze Beschreibung; keine Rohvideos oder
+GPS-Rohdaten veröffentlichen.

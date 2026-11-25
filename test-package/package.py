@@ -1,7 +1,7 @@
 from pathlib import Path
 import hashlib, json, os, shutil, subprocess, tarfile
 root=Path.cwd()
-name="TripViewer-PR21-Test-5dbdaf9"
+name="TripViewer-PR21-Test-6fb9480"
 out=root/"test-package/out"; out.mkdir()
 p=out/name;p.mkdir()
 images=list((root/"src-tauri/target/release/bundle/appimage").glob("*.AppImage"))
@@ -11,7 +11,7 @@ for f in ["start-test.sh","README-DE.txt","THIRD_PARTY_NOTICES.md"]:
  shutil.copyfile(root/"test-package"/f,p/f)
 shutil.copyfile(root/"LICENSE",p/"LICENSE")
 for f in ["start-test.sh","TripViewer-PR21-Test.AppImage"]:(p/f).chmod(0o755)
-info={"source_commit":"5dbdaf9c998df63385c979e7cb72e38bdbeb8d36","source_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending"}
+info={"source_commit":"6fb9480ee512605a38807f332d46a68a68570ed3","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending"}
 (p/"BUILD-INFO.json").write_text(json.dumps(info,indent=2)+"\n")
 # Retain available native redistribution notices from the packaging host.
 for f in Path("/usr/share/doc").glob("*/copyright"):
@@ -24,7 +24,13 @@ check=subprocess.run(["timeout","--signal=TERM","12s","xvfb-run","-a","dbus-run-
 assert check.returncode==124, (check.returncode,check.stderr)
 settings=scratch/"settings/data/com.tripviewer.pr21test/settings.json"
 assert json.loads(settings.read_text())["last_archive"]==str(scratch/"archive")
-assert (scratch/"archive/.tripviewer/tripviewer.db").exists()
+dbfile=scratch/"archive/.tripviewer/tripviewer.db"
+assert dbfile.exists()
+import sqlite3
+with sqlite3.connect(dbfile) as db:
+ assert db.execute("PRAGMA user_version").fetchone()[0]==13
+info["archive_schema_version"]=13
+info["analysis_storage"]="separate disposable analysis-cache-v1.sqlite"
 log=(scratch/"settings/last-run.log").read_text()
 assert "scan_folder: found 0 video files" in log, "Packaged frontend did not scan the empty scratch archive"
 assert "Unable to spawn" not in log and "appsink not found" not in log

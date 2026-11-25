@@ -32,6 +32,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload pr21-test-5dbdaf9 test-package/out/TripViewer-PR21-Test-5dbdaf9-Ubuntu-x86_64.tar.gz test-package/out/TEST-PACKAGE-SHA256SUMS.txt test-package/tauri.test.conf.json
-          gh release edit pr21-test-5dbdaf9 --draft=false --prerelease --latest=false --notes-file test-package/release-notes.md
+          gh release upload pr21-test-6fb9480 test-package/out/TripViewer-PR21-Test-6fb9480-Ubuntu-x86_64.tar.gz test-package/out/TEST-PACKAGE-SHA256SUMS.txt test-package/tauri.test.conf.json
+          gh release edit pr21-test-6fb9480 --draft=false --prerelease --latest=false --notes-file test-package/release-notes.md
           test "$(gh api repos/Marcus-P/trip-viewer/releases/latest --jq .tag_name)" = v0.13.0
