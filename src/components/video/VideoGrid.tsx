@@ -37,6 +37,9 @@ interface Props {
    *  Stable identity across renders so useSyncEngine doesn't re-run. */
   channelRefs: MutableRefObject<Map<string, HTMLVideoElement | null>>;
   activeSegment: Segment | null;
+  syncMasterLabel: string | null;
+  onMediaError: (label: string, message: string, cached: boolean) => void;
+  onMediaRecovered: (label: string) => void;
 }
 
 /**
@@ -69,7 +72,7 @@ function gridStyle(
   return { gridColumn: 2, gridRow: secondaryIndex + 1 };
 }
 
-export function VideoGrid({ channelRefs, activeSegment }: Props) {
+export function VideoGrid({ channelRefs, activeSegment, syncMasterLabel, onMediaError, onMediaRecovered }: Props) {
   const primaryChannel = useStore((s) => s.primaryChannel);
   const setPrimaryChannel = useStore((s) => s.setPrimaryChannel);
   const videoPort = useStore((s) => s.videoPort);
@@ -159,7 +162,11 @@ export function VideoGrid({ channelRefs, activeSegment }: Props) {
               ref={setRef(channel.label)}
               label={channel.label}
               src={videoSrcFor(channel.filePath, videoPort)}
+              filePath={channel.filePath}
               isMaster={isPrimary}
+              audioEnabled={channel.label === syncMasterLabel}
+              onMediaError={onMediaError}
+              onMediaRecovered={onMediaRecovered}
               onClick={isPrimary ? undefined : () => setPrimaryChannel(channel.label)}
               onDoubleClick={isPrimary ? handleMainDoubleClick : undefined}
             />

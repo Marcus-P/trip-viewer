@@ -651,7 +651,7 @@ fn boundary_has_local_utc_continuity(left: &[TimedGpsPoint], right: &[TimedGpsPo
     boundary_times_are_locally_continuous(&left_times, &right_times)
 }
 
-fn boundary_times_are_locally_continuous(left: &[i64], right: &[i64]) -> bool {
+pub(super) fn boundary_times_are_locally_continuous(left: &[i64], right: &[i64]) -> bool {
     if left.len() < 2 || right.len() < 2 {
         return false;
     }

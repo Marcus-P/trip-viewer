@@ -250,6 +250,17 @@ function App() {
   }, []);
 
   const issueCount = scanErrors.length;
+  // Keep PlayerShell mounted while the user visits Scan/Review/Timelapse.
+  // Unmounting it tears down three WebKitGTK/GStreamer pipelines and returning
+  // immediately recreates them; repeated cycles are what preceded the
+  // WebLoaderStrategy internal errors seen in the runtime log. Pause playback
+  // when leaving the Player, but retain all media elements and their buffers.
+  useEffect(() => {
+    if (mainView !== "player") {
+      window.dispatchEvent(new Event("tripviewer:pause-playback"));
+    }
+  }, [mainView]);
+
   const issuesOpen = mainView === "issues";
   const issueBreakdown = kindCounts(scanErrors);
 
@@ -368,6 +379,17 @@ function App() {
       <main className="flex flex-1 flex-col overflow-hidden">
         <MainNavTabs />
         <div className="flex flex-1 flex-col overflow-hidden">
+          <div
+            className={
+              mainView === "player"
+                ? "flex min-h-0 flex-1 flex-col"
+                : "hidden"
+            }
+            aria-hidden={mainView !== "player"}
+          >
+            <PlayerShell />
+          </div>
+
           {mainView === "issues" ? (
             <IssuesView />
           ) : mainView === "scan" ? (
@@ -378,9 +400,7 @@ function App() {
             <PlacesView />
           ) : mainView === "timelapse" ? (
             <TimelapseView />
-          ) : (
-            <PlayerShell />
-          )}
+          ) : null}
         </div>
       </main>
     </div>
