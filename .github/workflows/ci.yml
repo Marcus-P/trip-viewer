@@ -55,10 +55,19 @@ jobs:
         run: node node_modules/@tauri-apps/cli/tauri.js build --bundles appimage --config test-package/tauri.test.conf.json -- --locked
       - name: Package with separate launcher and verify startup
         run: python3 test-package/package.py
+      - name: Keep the checked package for upload-only recovery
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pr21-ubuntu-a61c7e7-${{ github.run_id }}
+          path: |
+            test-package/out/*-Ubuntu-x86_64.tar.gz
+            test-package/out/TEST-PACKAGE-SHA256SUMS.txt
+            test-package/tauri.test.conf.json
+            test-package/PR21-description.md
+            test-package/PR21-A129-test-request.md
+          retention-days: 1
       - name: Upload and publish only the test prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload pr21-test-a61c7e7 test-package/out/TripViewer-PR21-Test-a61c7e7-Ubuntu-x86_64.tar.gz test-package/out/TEST-PACKAGE-SHA256SUMS.txt test-package/tauri.test.conf.json
-          gh release edit pr21-test-a61c7e7 --draft=false --prerelease --latest=false --notes-file test-package/release-notes.md
-          test "$(gh api repos/Marcus-P/trip-viewer/releases/latest --jq .tag_name)" = v0.13.0
+        run: python3 test-package/publish.py
