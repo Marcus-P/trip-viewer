@@ -1,10 +1,35 @@
 name: PR21 isolated Ubuntu acceptance download
 on:
   workflow_dispatch:
+    inputs:
+      diagnose_run:
+        description: Read one existing failed run without rebuilding
+        type: string
+        default: ''
 permissions:
   contents: write
 jobs:
+  inspect-existing-run:
+    if: inputs.diagnose_run != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Report the existing failure through check annotations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_TO_INSPECT: ${{ inputs.diagnose_run }}
+        run: |
+          gh run view "$RUN_TO_INSPECT" --repo "$GITHUB_REPOSITORY" --log-failed > failure.txt
+          python3 - <<'PYREPORT'
+          from pathlib import Path
+          text=Path("failure.txt").read_text()[-18000:]
+          escaped=text.replace("%","%25").replace("\r","%0D").replace("\n","%0A")
+          print("::warning title=Existing package failure::"+escaped)
+          PYREPORT
   ubuntu-test:
+    if: inputs.diagnose_run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
