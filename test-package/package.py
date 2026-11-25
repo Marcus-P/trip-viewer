@@ -1,7 +1,7 @@
 from pathlib import Path
 import hashlib, json, os, shutil, subprocess, tarfile
 root=Path.cwd()
-name="TripViewer-PR21-Test-3381609"
+name="TripViewer-PR21-Test-680a9b2"
 out=root/"test-package/out"; out.mkdir()
 p=out/name;p.mkdir()
 images=list((root/"src-tauri/target/release/bundle/appimage").glob("*.AppImage"))
@@ -11,7 +11,7 @@ for f in ["start-test.sh","README-DE.txt","THIRD_PARTY_NOTICES.md"]:
  shutil.copyfile(root/"test-package"/f,p/f)
 shutil.copyfile(root/"LICENSE",p/"LICENSE")
 for f in ["start-test.sh","TripViewer-PR21-Test.AppImage"]:(p/f).chmod(0o755)
-info={"source_commit":"3381609f929c6384bb9b5d355db68faca212088c","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending"}
+info={"source_commit":"680a9b2ec3838daddb55cb865d83b09fc917f277","base_snapshot":"462eeaa49e23519aeea1fde2ac1031d9848c3e6b","packaging_commit":os.environ["GITHUB_SHA"],"runner":"ubuntu-24.04","application_identifier":"com.tripviewer.pr21test","updater_endpoints":[],"owner_media_playback":"pending"}
 (p/"BUILD-INFO.json").write_text(json.dumps(info,indent=2)+"\n")
 # Retain available native redistribution notices from the packaging host.
 for f in Path("/usr/share/doc").glob("*/copyright"):

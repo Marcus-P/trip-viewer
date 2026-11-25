@@ -10,9 +10,9 @@ Nach dem Entpacken im Paketordner:
   ./start-test.sh
 
 Eigenes Einstellungsverzeichnis:
-  ~/.local/share/tripviewer-pr21-test/3381609
-Fenstertitel: Trip Viewer PR21 Test — 3381609
-Native Testversion: 0.3.4-rc.2026112503. Die unveränderte Oberfläche kann
+  ~/.local/share/tripviewer-pr21-test/680a9b2
+Fenstertitel: Trip Viewer PR21 Test — 680a9b2
+Native Testversion: 0.3.4-rc.2026112504. Die unveränderte Oberfläche kann
 weiterhin die Upstream-Paketversion 0.3.3 anzeigen.
 
 Die Hauptdatenbank bleibt auf Upstream-Schema 13. Zwischenergebnisse und
@@ -41,3 +41,14 @@ Die Drei-Sekunden-Dateizuordnung bleibt eine Heuristik; in diesem Paket wurde
 keine GPS-basierte Kanalzuordnung eingeführt. Keine automatischen Log-Uploads.
 Bei Fehlern reicht zunächst eine kurze Beschreibung; keine Rohvideos oder
 GPS-Rohdaten veröffentlichen.
+
+Gezielter GPS-Nachtest:
+  TRIPVIEWER_GPS_TIMING=1 ./start-test.sh
+Die Ausgabe erscheint jetzt im Terminal und in last-run.log. Eine vorhandene
+Fahrt auswählen; Videos dürfen pausiert bleiben. GPS-Reader-Version9 prüft
+die bisherigen Version8-Zwischenstände einmal neu, ohne sie manuell zu löschen.
+Die bisherige 4-KB-Grenze für ganze GPS-Container ist durch einen begrenzten
+Lesepuffer ersetzt. Dass dies die Ursache der echten Aufnahmen war, ist noch
+nicht bestätigt. Bei Lesefehlern wird ein Fehler statt eines erfolgreichen
+leeren Tracks gemeldet. Medienfehler, Ruckeln und Vollbild-Synchronität sind
+weiterhin offen; dieses Paket ist keine Abnahme dieser Probleme.

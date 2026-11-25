@@ -1,15 +1,13 @@
-Isolated Ubuntu 24.04 x86_64 acceptance package for the PR21 reliability follow-up.
+Isolated Ubuntu 24.04 x86_64 GPS diagnostic candidate for PR21 follow-up.
 
-**Manual prerelease only. Not an update for stable v0.13.0, not Latest, no updater manifest or signatures.**
+**Manual prerelease only: not Latest, no stable updater metadata, no change to stable v0.13.0 or upstream PR21.**
 
-This revision reuses the already implemented full-fork solutions for Linux media preparation, stable playback intent, canonical audio, channel-local failure/recovery and persistent segment-level GPS preparation. Optional overlay, zoom, layout and bookmark features are excluded. The existing three-second filename association remains heuristic.
+The prior candidate stored empty GPS checkpoints for all tested segments. This revision replaces a whole-box size rejection with bounded-memory reading of padded VIOFO GPS boxes. Synthetic regression tests preserve the original last-marker selection across read-window boundaries. This is a plausible regression fix, not yet a confirmed diagnosis on owner recordings.
 
-The previous isolated package produced owner-reported severe Front-video stutter, no audible sound, intermittent Play/Pause/synchronization problems and very slow GPS loading. CPU usage reached 100% during playback and dropped after pausing. These are observed symptoms, not proof of a particular decoder or CPU cause. This corrected package still needs owner hardware acceptance.
+Reader failures now propagate instead of being cached as successful empty GPS. Healthy sibling-camera fallback remains available. Map status distinguishes active preparation, failure and completed empty results. Native diagnostics report request, progress, completion and errors. Reader version9 revalidates old version8 analysis once; the main archive schema and migration head remain13.
 
-**Upstream archive schema remains 13.** Existing migration files and the main trip_gps table are unchanged. Disposable GPS checkpoints, provenance and media-health state live separately in `.tripviewer/analysis-cache-v1.sqlite`. Tests verify cache writes do not change the main database schema/version and that archived legacy GPS remains available. Completed segments are published progressively, including timeline speed data, instead of waiting for the whole trip; merged/reordered trips invalidate the completed-track cache.
+Close the old PR21 test, extract this package and run `TRIPVIEWER_GPS_TIMING=1 ./start-test.sh`. Select one existing scratch-archive trip with videos paused. No new footage copy, timelapse encode or manual cache deletion is needed. Output appears in the terminal and local last-run.log. Do not publish raw logs containing private paths or location data.
 
-Close the previous PR21 test before launching. Run `start-test.sh` from the extracted package; it reuses the existing scratch archive `~/Downloads/TripViewer-PR21-Testarchiv-5dbdaf9` and uses fresh isolated app settings. Do not open a production archive. Start with Original at x1, where audio is enabled; other playback rates and timelapse modes intentionally remain muted. No parking footage or timelapse encode is required.
+This targets GPS only. Previously reported playback stutter, high CPU and fullscreen transport drift remain unresolved. Successful packaging/startup and automated tests do not certify real hardware behavior.
 
-Focused playback/audio/recovery, progressive GPS, cache and archive-schema tests pass locally. Publication requires the Ubuntu24.04 AppImage build and isolated packaged startup/schema check. No universal camera/hardware certification is claimed.
-
-The Linux media preparation commit retains @gubiq's authorship. Earlier A129 contributions from @alinnastac remain acknowledged in the synthetic regression fixture; contributor and upstream license notices remain intact. Codex assisted with the targeted backport and packaging from @Marcus-P's requirements. Neither upstream PR21 nor stable main/develop are updated by this test publication.
+Upstream/contributor authorship and license notices remain intact, including @gubiq's Linux media preparation and the synthetic A129 layout fixture adapted from @alinnastac's contribution. Codex assists with implementation; owner hardware acceptance remains pending.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 bundle_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-test_root="${TRIPVIEWER_PR21_HOME:-$HOME/.local/share/tripviewer-pr21-test/3381609}"
+test_root="${TRIPVIEWER_PR21_HOME:-$HOME/.local/share/tripviewer-pr21-test/680a9b2}"
 export XDG_DATA_HOME="$test_root/data"
 export XDG_CONFIG_HOME="$test_root/config"
 export XDG_CACHE_HOME="$test_root/cache"
@@ -21,4 +21,4 @@ tmp.write_text(json.dumps(s, indent=2)+'\n')
 os.replace(tmp,p)
 PYSETTINGS
 printf 'PR21-Testarchiv: %s\nLokales Startlog: %s/last-run.log\n' "$test_archive" "$test_root"
-exec "$bundle_dir/TripViewer-PR21-Test.AppImage" > "$test_root/last-run.log" 2>&1
+"$bundle_dir/TripViewer-PR21-Test.AppImage" 2>&1 | tee "$test_root/last-run.log"
