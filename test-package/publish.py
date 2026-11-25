@@ -1,4 +1,5 @@
 """Publish the already-checked test package; never rebuild or touch stable assets."""
+
 import json
 from pathlib import Path
 import subprocess
@@ -33,19 +34,40 @@ payload = {
 }
 request_file = root / "out/release-request.json"
 request_file.write_text(json.dumps(payload))
-release = api("--method", "PATCH", f"repos/{repo}/releases/{release_id}", "--input", str(request_file))
+release = api(
+    "--method",
+    "PATCH",
+    f"repos/{repo}/releases/{release_id}",
+    "--input",
+    str(request_file),
+)
 assert release["tag_name"] == tag and release["draft"]
 assert release["target_commitish"] == info["packaging_commit"]
-subprocess.run([
-    "gh", "release", "upload", tag, "--repo", repo, str(archive),
-    str(root / "out/TEST-PACKAGE-SHA256SUMS.txt"),
-    str(root / "tauri.test.conf.json"),
-    str(root / "PR21-description.md"),
-    str(root / "PR21-A129-test-request.md"),
-], check=True)
+subprocess.run(
+    [
+        "gh",
+        "release",
+        "upload",
+        tag,
+        "--repo",
+        repo,
+        str(archive),
+        str(root / "out/TEST-PACKAGE-SHA256SUMS.txt"),
+        str(root / "tauri.test.conf.json"),
+        str(root / "PR21-description.md"),
+        str(root / "PR21-A129-test-request.md"),
+    ],
+    check=True,
+)
 payload["draft"] = False
 request_file.write_text(json.dumps(payload))
-release = api("--method", "PATCH", f"repos/{repo}/releases/{release_id}", "--input", str(request_file))
+release = api(
+    "--method",
+    "PATCH",
+    f"repos/{repo}/releases/{release_id}",
+    "--input",
+    str(request_file),
+)
 assert release["tag_name"] == tag and not release["draft"] and release["prerelease"]
 assert api(f"repos/{repo}/releases/latest")["tag_name"] == "v0.13.0"
 print(release["html_url"])
