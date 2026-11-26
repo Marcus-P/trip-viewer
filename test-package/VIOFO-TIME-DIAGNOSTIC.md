@@ -2,7 +2,11 @@
 
 This is an optional standalone check for the temporal-ambiguity messages in
 PR #21. It does not change Trip Viewer, its database, the validator or recordings.
-**Revision 2** adds a standard MP4 timing-reference check. If you already
+**Revision 2.1** distinguishes missing files, denied access and device read
+errors using fixed codes without exposing paths. A failure in the optional
+structure check preserves already collected temporal results.
+
+Revision 2 adds a standard MP4 timing-reference check. If you already
 provided a revision-1 report, one previously checked parking clip is enough.
 Use a new output name such as `viofo-time-structure-report.json`.
 
@@ -90,3 +94,17 @@ If convenient, share only the reviewed JSON on the existing PR discussion. No
 footage, screenshots, database, full application logs or coordinates are needed.
 The optional parking test does not require the fork owner to possess parking
 footage. A complete result with no GPS box is not claimed for unsupported files.
+
+## If reading fails
+
+A report with `status: incomplete` and no timing values is not a GPS result.
+`input_file_not_found` means the supplied path could not be found at execution
+time; check that the card/drive is mounted and select the existing file again.
+`input_permission_denied` means access was denied. `input_device_io_error` means
+the operating system reported an I/O failure; it does not identify the cause
+or prove recording corruption. Other fixed codes cover unavailable devices,
+stale file handles, directory inputs and invalid seek positions. Do not share
+full paths or raw exception messages to diagnose these errors.
+
+If only `container_time_links` is unavailable, the temporal counts remain
+usable but no conclusion about container timing references follows.

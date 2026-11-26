@@ -1,4 +1,5 @@
 import datetime as dt
+import errno
 import importlib.util
 import io
 import json
@@ -6,6 +7,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('diagnostic', Path(__file__).with_name('viofo-time-diagnostic.py'))
 d = importlib.util.module_from_spec(spec)
@@ -124,6 +126,32 @@ class Checks(unittest.TestCase):
         track = self.analyse(fixture(count=3))['container_time_links'][0]
         self.assertEqual(track['status'], 'unavailable')
         self.assertNotIn('exact_gps_sample_matches', track)
+
+    def test_read_error_codes_do_not_disclose_path(self):
+        for number, expected in [
+            (errno.ENOENT, 'input_file_not_found'),
+            (errno.EACCES, 'input_permission_denied'),
+            (errno.EIO, 'input_device_io_error'),
+            (errno.ENODEV, 'input_device_unavailable'),
+        ]:
+            error = OSError(number, 'PRIVATE error text', '/PRIVATE/user/file.mp4')
+            self.assertEqual(d.input_error_reason(error), expected)
+            self.assertNotIn('PRIVATE', d.input_error_reason(error))
+
+    def test_structure_io_error_preserves_temporal_result(self):
+        with patch.object(d, 'container_time_links', side_effect=OSError(errno.EIO, 'PRIVATE')):
+            r = self.analyse(fixture(count=3))
+        self.assertEqual(r['status'], 'complete')
+        self.assertEqual(r['decoded_records'], 3)
+        self.assertEqual(r['container_time_links'][0]['status'], 'unavailable')
+        self.assertEqual(r['container_time_links'][0]['reason'], 'input_device_io_error')
+
+    def test_track_io_error_remains_unavailable(self):
+        with patch.object(d, 'read_at', side_effect=OSError(errno.EACCES, 'PRIVATE')):
+            result = d.container_time_links(io.BytesIO(bytes(8)), [(b'trak', 0, 8)], set(), float('inf'))
+        self.assertEqual(result[0]['status'], 'unavailable')
+        self.assertEqual(result[0]['reason'], 'input_permission_denied')
+        self.assertNotIn('exact_gps_sample_matches', result[0])
 
 if __name__=='__main__':
     unittest.main()

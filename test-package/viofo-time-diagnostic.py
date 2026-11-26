@@ -9,6 +9,7 @@ implementation does not run or certify the application's Rust pipeline.
 """
 import argparse
 import datetime as dt
+import errno
 import json
 import math
 from pathlib import Path
@@ -18,6 +19,24 @@ import time
 
 class DiagnosticError(Exception):
     pass
+
+
+def input_error_reason(error):
+    """Fixed codes only: exception messages can contain private file paths."""
+    codes = {
+        errno.ENOENT: 'input_file_not_found',
+        errno.ENOTDIR: 'input_parent_not_directory',
+        errno.EACCES: 'input_permission_denied',
+        errno.EPERM: 'input_permission_denied',
+        errno.EISDIR: 'input_is_directory',
+        errno.EIO: 'input_device_io_error',
+        errno.ENODEV: 'input_device_unavailable',
+        errno.EINVAL: 'input_invalid_seek_or_read',
+        errno.EOVERFLOW: 'input_position_out_of_range',
+    }
+    if hasattr(errno, 'ESTALE'):
+        codes[errno.ESTALE] = 'input_stale_file_handle'
+    return codes.get(error.errno, 'input_read_error')
 
 
 def read_at(f, pos, length):
@@ -259,6 +278,8 @@ def container_time_links(f, children, references, deadline):
             info['reason'] = str(error)
         except (KeyError, struct.error):
             info['reason'] = 'missing_or_unsupported_sample_tables'
+        except OSError as error:
+            info['reason'] = input_error_reason(error)
     return result
 
 
@@ -294,7 +315,12 @@ def analyse(path):
                 values.append(stamp)
             else:
                 undecodable += 1
-        timing_links = container_time_links(f, children, references, deadline)
+        try:
+            timing_links = container_time_links(f, children, references, deadline)
+        except OSError as error:
+            timing_links = [{'status': 'unavailable', 'reason': input_error_reason(error)}]
+        except DiagnosticError as error:
+            timing_links = [{'status': 'unavailable', 'reason': str(error)}]
     valid = [x for x in values if x is not None]
     adjacent = [(a,b) for a,b in zip(values,values[1:]) if a is not None and b is not None]
     limit = math.ceil(duration)
@@ -326,14 +352,14 @@ def main():
             result = analyse(path)
         except DiagnosticError as e:
             result = {'status':'incomplete','reason':str(e)}
-        except OSError:
-            result = {'status':'incomplete','reason':'input_read_error'}
+        except OSError as error:
+            result = {'status':'incomplete','reason':input_error_reason(error)}
         except Exception:
             result = {'status':'incomplete','reason':'unsupported_or_malformed_input'}
         result['file_id'] = f'file-{i:03}'
         results.append(result)
         print(result['file_id'] + ': ' + result['status'])
-    report = {'format':'viofo-time-diagnostic-v2',
+    report = {'format':'viofo-time-diagnostic-v2.1',
               'scope':'time fields only; independent Python reproduction, no spatial validation',
               'files':results}
     # Exclusive create avoids overwriting any input or pre-existing report.
