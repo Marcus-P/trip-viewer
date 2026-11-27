@@ -116,3 +116,7 @@ Intel GPUs or all video acceleration. The owner confirmed the AMD Radeon 780M AM
 Windows 11 encoding job; completion/playback was subsequently owner-confirmed.
 A later Windows 10 Front/8x test also completed and played correctly after codec
 installation, with Intel/QSV shown during the run; the exact Intel GPU is unknown. See the [focused GPU test](testing/AMD_TIMELAPSE_0110.md).
+
+## 70mai T800 support inherited from upstream
+
+- **70mai 4K T800** (3-channel: front / rear / cabin) — filenames like `NO20261018-221543-000352F.MP4`, where the last letter is `F` (front), `R` (rear) or `C` (cabin). The camera saves each channel in its own folder (`Front/`, `Rear/`, `Cabin/`); Trip Viewer groups them by timestamp and counter, so just point it at the parent folder (e.g. `Normal/`). GPS (position, speed, heading) is decoded from the per-frame telemetry track, 1 Hz, and was checked against the on-screen overlay of a real clip. Only northern/eastern-hemisphere footage has been tested; southern/western positions are assumed to be stored as negative values. Event-clip naming (`EV…`) is assumed, not yet confirmed — samples welcome. 70mai SD cards are not auto-detected in the SD-card import list, so open the card with the folder import instead (non-destructive; the card is not wiped).

@@ -1,6 +1,7 @@
 //! GPS extraction — dispatches to a brand-specific decoder based on
 //! `CameraKind` since each dashcam stores GPS in its own proprietary layout.
 
+pub mod mai70;
 pub mod miltona;
 pub mod shenshu;
 pub mod validation;
@@ -909,6 +910,7 @@ pub fn extract_for_kind(path: &Path, kind: CameraKind) -> Result<Vec<GpsPoint>, 
         // data at all). If a GPS-equipped Thinkware model turns up, add a
         // decoder and flip `CameraKind::gps_supported` for that variant.
         CameraKind::Thinkware => Ok(vec![]),
+        CameraKind::Mai70 => mai70::extract(path),
         // VIOFO is currently represented by the persisted Generic enum value
         // to avoid a DB/frontend migration. Distinguish it by its specific
         // A229-family filename before using the historical generic fallback.
