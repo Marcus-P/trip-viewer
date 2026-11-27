@@ -88,7 +88,12 @@ pub fn open_at_path(db_path: &Path, archive_root: &Path) -> Result<DbHandle, App
         });
     }
 
-    conn.pragma_update(None, "journal_mode", "WAL")?;
+    // User bookmarks and core trip changes can share one transaction across
+    // attached files. SQLite's super-journal makes that atomic only with
+    // rollback journals, not WAL. Older applications can still open this DB.
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    conn.pragma_update(None, "journal_mode", "DELETE")?;
+    conn.pragma_update(None, "synchronous", "FULL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     extensions::prepare(&mut conn, Some(db_path))?;
 

@@ -77,6 +77,7 @@ pub(super) fn prepare(conn: &mut Connection, path: Option<&Path>) -> Result<(), 
             expected: 1,
         });
     }
+    conn.execute_batch("PRAGMA extensions.journal_mode = DELETE; PRAGMA extensions.synchronous = FULL;")?;
     conn.execute_batch(SCHEMA)?;
     if version > super::migrations::HEAD_VERSION as i32 {
         // Persist the complete extra data first. If conversion of main fails,
@@ -418,6 +419,28 @@ INSERT INTO timelapse_jobs(trip_id,tier,channel,status,output_path,created_at_ms
                 .unwrap(),
                 if version == 17 { 2 } else { 1 }
             );
+        }
+    }
+
+    #[test]
+    fn disk_databases_use_atomic_cross_file_journals_and_rollback_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tripviewer.db");
+        let old = legacy(&path, 17);
+        drop(old);
+        let db = crate::db::open_at_path(&path, dir.path()).unwrap();
+        {
+            let conn = db.lock().unwrap();
+            for sql in ["PRAGMA main.journal_mode", "PRAGMA extensions.journal_mode"] {
+                assert_eq!(conn.query_row(sql, [], |r| r.get::<_, String>(0)).unwrap(), "delete");
+            }
+            let tx = conn.unchecked_transaction().unwrap();
+            tx.execute("UPDATE main.trips SET start_time_ms=500 WHERE id='trip'", []).unwrap();
+            tx.execute("INSERT INTO extensions.trip_bookmarks VALUES('trip',500)", []).unwrap();
+            // Simulate an application error before commit. Both files roll back.
+            drop(tx);
+            assert_eq!(conn.query_row("SELECT start_time_ms FROM trips", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+            assert_eq!(conn.query_row("SELECT COUNT(*) FROM extensions.trip_bookmarks", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
         }
     }
 
