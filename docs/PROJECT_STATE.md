@@ -9,7 +9,10 @@ the debugging and earlier acceptance history.
 ## Integration candidate
 
 `feat/0.14-integration` combines the independently extractable changes below,
-with proposed source version `0.14.0-rc.1`. No protected branch, upstream PR,
+with proposed source version `0.14.0-rc.1`. Final combined checks passed:
+418 Rust tests (3 opt-in ignored), 142 frontend tests, TypeScript, synchronized
+version metadata and diff whitespace. Owner commit identities were inspected
+for the verified no-reply alias. No protected branch, upstream PR,
 public history or release has been changed. New unknown manufacturer timing
 rules, dedicated parking-location UI and towing-track reconstruction remain
 outside the implemented scope. Do not claim those are solved by this candidate.
