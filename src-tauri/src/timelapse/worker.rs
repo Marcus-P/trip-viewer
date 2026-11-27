@@ -919,6 +919,13 @@ fn append_segment_points(
 /// advance the time cursor. Failed extractions are treated as empty
 /// — a missing GPS trace shouldn't fail the whole encode.
 pub(crate) fn stitch_trip_gps(segments: &[SegmentInfo]) -> Vec<GpsPoint> {
+    stitch_trip_gps_with_progress(segments, |_, _| {})
+}
+
+pub(crate) fn stitch_trip_gps_with_progress(
+    segments: &[SegmentInfo],
+    progress: impl FnMut(usize, usize),
+) -> Vec<GpsPoint> {
     let sources: Vec<gps::TripGpsSegmentSource> = segments
         .iter()
         .map(|seg| {
@@ -935,7 +942,7 @@ pub(crate) fn stitch_trip_gps(segments: &[SegmentInfo]) -> Vec<GpsPoint> {
             }
         })
         .collect();
-    gps::extract_best_trip_gps(&sources)
+    gps::extract_best_trip_gps_with_progress(&sources, progress)
 }
 
 /// Resolve the sibling channel file for a front-channel path by

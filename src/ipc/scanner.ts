@@ -1,11 +1,24 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ChannelMeta, ScanProgress, ScanResult } from "../types/model";
 import { getPreferencesSnapshot } from "../settings/preferences";
 
-export function scanFolder(path: string): Promise<ScanResult> {
+export interface ArchiveScanProgress {
+  phase: "opening" | "discovering" | "grouping" | "metadata" | "persisting" | "ready";
+  completed: number;
+  total: number | null;
+  cached: number;
+}
+
+export function scanFolder(path: string, onProgress?: (progress: ArchiveScanProgress) => void): Promise<ScanResult> {
   const { cameraModel } = getPreferencesSnapshot();
-  return invoke<ScanResult>("scan_folder", { path, cameraModel });
+  const args: Record<string, unknown> = { path, cameraModel };
+  if (onProgress) {
+    const progress = new Channel<ArchiveScanProgress>();
+    progress.onmessage = onProgress;
+    args.progress = progress;
+  }
+  return invoke<ScanResult>("scan_folder", args);
 }
 
 export function probeFile(path: string): Promise<ChannelMeta> {

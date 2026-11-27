@@ -155,11 +155,15 @@ pub enum TripGpsProgress {
 /// Extract and stitch one trip while allowing each segment to pick the camera
 /// file with the strongest usable GPS trace. Candidate order is the tie-breaker,
 /// so a healthy canonical Front remains preferred when all cameras are equal.
-pub(crate) fn extract_best_trip_gps(segments: &[TripGpsSegmentSource]) -> Vec<GpsPoint> {
+pub(crate) fn extract_best_trip_gps_with_progress(
+    segments: &[TripGpsSegmentSource],
+    mut progress: impl FnMut(usize, usize),
+) -> Vec<GpsPoint> {
+    progress(0, segments.len());
     match extract_trip_gps_segments::<std::convert::Infallible>(
         segments,
         |_, segment| Ok(select_segment_gps_parallel(segment, extract_batch_item)),
-        |_, _| {},
+        |done, _| progress(done, segments.len()),
     ) {
         Ok(points) => points,
         Err(never) => match never {},
@@ -638,7 +642,7 @@ fn ensure_trip_gps_cached(
     match prepare_trip_gps(conn, root, trip_id, segments, force)? {
         GpsPreparation::Cached(points) => Ok(points),
         GpsPreparation::Extract(work) => {
-            let points = extract_best_trip_gps(&work.sources);
+            let points = extract_best_trip_gps_with_progress(&work.sources, |_, _| {});
             persist_trip_gps(conn, trip_id, work, points)
         }
     }

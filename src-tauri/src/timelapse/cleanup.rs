@@ -958,6 +958,12 @@ pub fn backfill_candidates(
 /// during stitch or upsert are logged and folded into `Ok(false)` so a
 /// single bad trip doesn't abort a sweep.
 pub fn backfill_one_trip(db: &DbHandle, trip_id: &str) -> Result<bool, AppError> {
+    backfill_one_trip_with_progress(db, trip_id, |_, _| {})
+}
+
+pub fn backfill_one_trip_with_progress(
+    db: &DbHandle, trip_id: &str, progress: impl FnMut(usize, usize),
+) -> Result<bool, AppError> {
     let segments = match worker::trip_segment_info(db, trip_id) {
         Ok(s) => s,
         Err(e) => {
@@ -968,7 +974,7 @@ pub fn backfill_one_trip(db: &DbHandle, trip_id: &str) -> Result<bool, AppError>
     if segments.is_empty() {
         return Ok(false);
     }
-    let stitched = worker::stitch_trip_gps(&segments);
+    let stitched = worker::stitch_trip_gps_with_progress(&segments, progress);
     let conn = db
         .lock()
         .map_err(|_| AppError::Internal("db mutex poisoned".into()))?;

@@ -1,3 +1,4 @@
+import type { ArchiveScanProgress } from "../ipc/scanner";
 import type { StartupSnapshot, StartupTask } from "../ipc/startup";
 
 const LIBRARY_TASK: StartupTask = {
@@ -17,10 +18,6 @@ function pickActive(tasks: StartupTask[]): StartupTask | null {
     tasks.find((t) => t.status === "pending") ??
     tasks[tasks.length - 1]
   );
-}
-
-function hasPendingWork(tasks: StartupTask[]): boolean {
-  return tasks.some((t) => t.status === "running" || t.status === "pending");
 }
 
 function statusGlyph(status: StartupTask["status"]): string {
@@ -52,22 +49,35 @@ function statusColor(status: StartupTask["status"]): string {
 export function StartupSplash({
   snapshot,
   libraryLoading = false,
+  libraryProgress = null,
 }: {
   snapshot: StartupSnapshot;
   /** True while the initial library scan is in-flight. Keeps the splash
    *  up after backend startup tasks finish, so the user can't click
    *  Import or switch archives until trips are loaded. */
   libraryLoading?: boolean;
+  libraryProgress?: ArchiveScanProgress | null;
 }) {
   const realActive = pickActive(snapshot.tasks);
   // Once all backend startup tasks are done (or there were none) and
   // the library is still loading, switch to a synthetic task so the
   // splash explains what's still blocking. With backend tasks still
   // running, show those first.
-  const active =
-    libraryLoading && !hasPendingWork(snapshot.tasks)
-      ? LIBRARY_TASK
-      : realActive;
+  const labels = {
+    opening: "Opening archive", discovering: "Finding video files", grouping: "Grouping recordings",
+    metadata: "Checking video metadata", persisting: "Updating archive index", ready: "Library ready",
+  };
+  const active = libraryLoading
+    ? libraryProgress ? {
+        ...LIBRARY_TASK,
+        label: labels[libraryProgress.phase],
+        current: libraryProgress.completed,
+        total: libraryProgress.total,
+        description: libraryProgress.phase === "metadata"
+          ? `${libraryProgress.cached} unchanged files reused. Counts describe this phase, not elapsed time.`
+          : "This phase has no measured percentage until its total is known.",
+      } : LIBRARY_TASK
+    : realActive;
   const determinate =
     active && active.total != null && active.total > 0
       ? Math.min(100, Math.round((active.current / active.total) * 100))

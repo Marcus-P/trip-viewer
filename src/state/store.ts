@@ -1,3 +1,4 @@
+import type { ArchiveScanProgress } from "../ipc/scanner";
 import { create } from "zustand";
 import type { GpsPoint, ScanError, Tag, Trip } from "../types/model";
 import type {
@@ -167,6 +168,7 @@ export interface AppState
     ScanSlice,
     TimelapseSlice {
   status: AppStatus;
+  archiveLoadProgress: ArchiveScanProgress | null;
   error: string | null;
   videoPort: number | null;
   /** Which component fills the main pane right now. Reset to "player" on
@@ -316,6 +318,7 @@ export const useStore = create<AppState>((set) => ({
   librarySummary: null,
   reclaimableFilter: false,
   libraryFirstLoadDone: false,
+  archiveLoadProgress: null,
   selectedTripIds: new Set<string>(),
   tripSelectionAnchorId: null,
 
@@ -424,6 +427,7 @@ export const useStore = create<AppState>((set) => ({
     status: currentArchive ? "loading" : "idle",
     error: null,
     libraryFirstLoadDone: currentArchive === null,
+    archiveLoadProgress: null,
     trips: [], scanErrors: [], selectedTripId: null, loadedTripId: null,
     activeSegmentId: null, currentTime: 0, isPlaying: false, primaryChannel: null,
     sourceMode: "original", activeSpeedCurve: null, gappedChannels: {}, drift: [],

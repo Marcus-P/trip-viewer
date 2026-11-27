@@ -304,14 +304,24 @@ fn run_gps_backfill(app: &AppHandle, state: &StartupState, db: &DbHandle) {
 
     let mut written = 0usize;
     for (i, trip_id) in candidates.iter().enumerate() {
-        match cleanup::backfill_one_trip(db, trip_id) {
+        with_task(state, TASK_GPS_BACKFILL, |t| {
+            t.label = format!("Backing up GPS: trip {} / {}", i + 1, candidates.len());
+            t.current = 0;
+            t.total = None;
+        });
+        match cleanup::backfill_one_trip_with_progress(db, trip_id, |done, total| {
+            with_task(state, TASK_GPS_BACKFILL, |t| {
+                t.current = done;
+                t.total = Some(total);
+            });
+            emit_progress(state, app);
+        }) {
             Ok(true) => written += 1,
             Ok(false) => {}
             Err(e) => {
                 eprintln!("[startup] backfill_one_trip({trip_id}) failed: {e}");
             }
         }
-        with_task(state, TASK_GPS_BACKFILL, |t| t.current = i + 1);
         emit_progress(state, app);
     }
 

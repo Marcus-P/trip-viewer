@@ -11,7 +11,7 @@ const scans = new WeakMap<CurrentArchive, Promise<boolean>>();
 export async function selectArchive(path: string): Promise<CurrentArchive | null> {
   const request = ++selection;
   opening = true;
-  useStore.setState({ error: null, status: "loading" });
+  useStore.setState({ error: null, status: "loading", archiveLoadProgress: { phase: "opening", completed: 0, total: null, cached: 0 } });
   const task = openQueue.then(() => request === selection ? openArchive(path) : null);
   openQueue = task.catch(() => undefined);
   try {
@@ -57,7 +57,12 @@ export function reloadArchive(options: { fresh?: boolean } = {}): Promise<boolea
   useStore.setState({ error: null, status: "loading" });
   const task = (async () => {
     try {
-      const result = await scanFolder(archive.root);
+      const result = await scanFolder(archive.root, (progress) => {
+        if (!active()) return;
+        const previous = useStore.getState().archiveLoadProgress;
+        if (previous?.phase === progress.phase && progress.completed < previous.completed) return;
+        useStore.setState({ archiveLoadProgress: progress });
+      });
       if (!active()) return false;
       useStore.getState().setScanResult(result);
       return true;

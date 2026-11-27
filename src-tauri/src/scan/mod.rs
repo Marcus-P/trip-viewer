@@ -5,14 +5,16 @@ pub mod viofo;
 pub mod walker;
 
 use crate::error::AppError;
-use crate::metadata::mp4_probe;
+use crate::metadata::{mp4_probe, cache as metadata_cache};
 use crate::model::{ScanError, ScanResult, Segment, Trip};
 use crate::scan::errors::classify;
 use crate::scan::grouping::{GroupingInput, DEFAULT_TRIP_GAP_SECONDS};
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::{atomic::Ordering, Mutex};
+use std::time::{Duration as StdDuration, Instant};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,65 +69,138 @@ fn parse_filename(
 ) -> Result<naming::ParsedName, AppError> {
     match camera_model {
         CameraModelPreference::Auto => naming::parse(name),
-        CameraModelPreference::ViofoA229Pro => viofo::parse(name).ok_or_else(|| {
-            AppError::Parse(format!("not a VIOFO A229 Pro filename: {name}"))
-        }),
+        CameraModelPreference::ViofoA229Pro => viofo::parse(name)
+            .ok_or_else(|| AppError::Parse(format!("not a VIOFO A229 Pro filename: {name}"))),
     }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveScanProgress {
+    phase: &'static str,
+    completed: usize,
+    total: Option<usize>,
+    cached: usize,
 }
 
 #[tauri::command]
 pub async fn scan_folder(
     path: String,
     camera_model: Option<CameraModelPreference>,
+    progress: Option<tauri::ipc::JavaScriptChannelId>,
+    webview: tauri::Webview,
     slot: tauri::State<'_, crate::archive::ArchiveSlot>,
 ) -> Result<ScanResult, AppError> {
+    let progress = progress.map(|id| id.channel_on::<_, ArchiveScanProgress>(webview));
     let db = crate::archive::require_db(&slot)?;
-    let archive_root = db.archive_root().to_path_buf();
-    let scan_root = scan_root_in_archive(Path::new(&path), &archive_root)?;
-    let mut result = scan_folder_sync_with_camera_model(
-        &scan_root,
-        &archive_root,
-        camera_model.unwrap_or_default(),
-    )?;
-    let scan_started_ms = chrono::Utc::now().timestamp_millis();
-    // Persistence is best-effort; a DB failure must not block the user
-    // from seeing their scan results, they just won't have tags yet.
-    // We swap in the merge-applied trip list so the frontend renders
-    // the same view the DB now has: natural trips that match a
-    // `manual_trip_merges` directive get folded into their primary.
-    if let Ok(mut conn) = db.lock() {
-        match crate::db::segments::persist_and_gc(
-            &mut conn,
-            &result.trips,
-            scan_started_ms,
-            &archive_root,
-        ) {
-            Ok(merged) => result.trips = merged,
-            Err(e) => eprintln!("[db] persist_and_gc failed: {e}"),
-        }
-        // Hydrate tombstones (segments whose originals were deleted but
-        // whose trip's timelapse archive remains). The scanner only
-        // sees real files on disk; tombstones live only in the DB.
-        // Inserting them into each trip's segments by start_time lets
-        // the timeline render hatched gaps and the player auto-switch
-        // to a tier across the deleted spans.
-        let trip_ids: Vec<String> = result.trips.iter().map(|t| t.id.to_string()).collect();
-        match crate::db::segments::load_tombstones_for_trips(&conn, &trip_ids) {
-            Ok(by_trip) => {
-                for trip in result.trips.iter_mut() {
-                    if let Some(extras) = by_trip.get(&trip.id.to_string()) {
-                        if extras.is_empty() {
-                            continue;
-                        }
-                        trip.segments.extend(extras.iter().cloned());
-                        trip.segments.sort_by_key(|s| s.start_time);
+    tauri::async_runtime::spawn_blocking(move || {
+        let started = Instant::now();
+        let archive_root = db.archive_root().to_path_buf();
+        let scan_root = scan_root_in_archive(Path::new(&path), &archive_root)?;
+        let cache = db
+            .lock()
+            .ok()
+            .and_then(|conn| metadata_cache::MetadataCache::load(&conn, &archive_root).ok());
+        let completed = Mutex::new((0usize, Instant::now()));
+        let phase_timing = Mutex::new(("", Instant::now()));
+        let report = |phase, current, total| {
+            if let Ok(mut previous) = phase_timing.lock() {
+                if previous.0 != phase {
+                    if !previous.0.is_empty() {
+                        eprintln!(
+                            "[archive] phase={} elapsed_ms={}",
+                            previous.0,
+                            previous.1.elapsed().as_millis()
+                        );
                     }
+                    *previous = (phase, Instant::now());
                 }
             }
-            Err(e) => eprintln!("[db] load_tombstones_for_trips failed: {e}"),
+            if let Some(channel) = &progress {
+                let _ = channel.send(ArchiveScanProgress {
+                    phase,
+                    completed: current,
+                    total,
+                    cached: cache.as_ref().map_or(0, |c| c.hits.load(Ordering::Relaxed)),
+                });
+            }
+        };
+        let probe = |path: &Path, total| {
+            let result = cache
+                .as_ref()
+                .map_or_else(|| mp4_probe::probe(path), |c| c.probe(path));
+            if let Ok(mut count) = completed.lock() {
+                count.0 += 1;
+                // Coalesce IPC only. Time never determines completed work.
+                if count.0 == total || count.1.elapsed() >= StdDuration::from_millis(50) {
+                    report("metadata", count.0, Some(total));
+                    count.1 = Instant::now();
+                }
+            }
+            result
+        };
+        let mut result = scan_folder_with_probe(
+            &scan_root,
+            &archive_root,
+            camera_model.unwrap_or_default(),
+            &probe,
+            &report,
+        )?;
+        report("persisting", 0, None);
+        if let Some(cache) = &cache {
+            if let Ok(conn) = db.lock() {
+                if let Err(error) = cache.flush(&conn) {
+                    eprintln!("[archive] metadata cache write failed: {error}");
+                }
+            }
         }
-    }
-    Ok(result)
+        let scan_started_ms = chrono::Utc::now().timestamp_millis();
+        // Persistence is best-effort; a DB failure must not block the user
+        // from seeing their scan results, they just won't have tags yet.
+        // We swap in the merge-applied trip list so the frontend renders
+        // the same view the DB now has: natural trips that match a
+        // `manual_trip_merges` directive get folded into their primary.
+        if let Ok(mut conn) = db.lock() {
+            match crate::db::segments::persist_and_gc(
+                &mut conn,
+                &result.trips,
+                scan_started_ms,
+                &archive_root,
+            ) {
+                Ok(merged) => result.trips = merged,
+                Err(e) => eprintln!("[db] persist_and_gc failed: {e}"),
+            }
+            // Hydrate tombstones (segments whose originals were deleted but
+            // whose trip's timelapse archive remains). The scanner only
+            // sees real files on disk; tombstones live only in the DB.
+            // Inserting them into each trip's segments by start_time lets
+            // the timeline render hatched gaps and the player auto-switch
+            // to a tier across the deleted spans.
+            let trip_ids: Vec<String> = result.trips.iter().map(|t| t.id.to_string()).collect();
+            match crate::db::segments::load_tombstones_for_trips(&conn, &trip_ids) {
+                Ok(by_trip) => {
+                    for trip in result.trips.iter_mut() {
+                        if let Some(extras) = by_trip.get(&trip.id.to_string()) {
+                            if extras.is_empty() {
+                                continue;
+                            }
+                            trip.segments.extend(extras.iter().cloned());
+                            trip.segments.sort_by_key(|s| s.start_time);
+                        }
+                    }
+                }
+                Err(e) => eprintln!("[db] load_tombstones_for_trips failed: {e}"),
+            }
+        }
+        report("ready", 1, Some(1));
+        eprintln!(
+            "[archive] scan complete in {}ms",
+            started.elapsed().as_millis()
+        );
+        Ok(result)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("archive scan worker failed: {e}")))?
 }
 
 pub fn scan_folder_sync(root: &Path, archive_root: &Path) -> Result<ScanResult, AppError> {
@@ -137,6 +212,22 @@ pub fn scan_folder_sync_with_camera_model(
     archive_root: &Path,
     camera_model: CameraModelPreference,
 ) -> Result<ScanResult, AppError> {
+    scan_folder_with_probe(
+        root,
+        archive_root,
+        camera_model,
+        &|path, _| mp4_probe::probe(path),
+        &|_, _, _| {},
+    )
+}
+
+fn scan_folder_with_probe(
+    root: &Path,
+    archive_root: &Path,
+    camera_model: CameraModelPreference,
+    probe: &(impl Fn(&Path, usize) -> Result<crate::model::ChannelMeta, AppError> + Sync),
+    report: &(impl Fn(&'static str, usize, Option<usize>) + Sync),
+) -> Result<ScanResult, AppError> {
     if !root.is_dir() {
         return Err(AppError::Internal(format!(
             "not a directory: {}",
@@ -144,7 +235,8 @@ pub fn scan_folder_sync_with_camera_model(
         )));
     }
 
-    let files = walker::find_video_files(root);
+    report("discovering", 0, None);
+    let files = walker::find_video_files_checked(root)?;
     eprintln!(
         "scan_folder: found {} video files under {}",
         files.len(),
@@ -164,14 +256,12 @@ pub fn scan_folder_sync_with_camera_model(
             None => continue,
         };
         match parse_filename(name, camera_model) {
-            Ok(parsed) => parsed_inputs.push(GroupingInput {
-                path: file,
-                parsed,
-            }),
+            Ok(parsed) => parsed_inputs.push(GroupingInput { path: file, parsed }),
             Err(e) => errors.push(make_scan_error(&file, &e)),
         }
     }
 
+    report("grouping", 0, None);
     // Stage 2: group parsed files into segments and trips. Any channel
     // count (1–N) is accepted. archive_root threads through so segment
     // UUIDs can be derived from archive-relative paths — same UUID on
@@ -193,9 +283,11 @@ pub fn scan_folder_sync_with_camera_model(
         })
         .collect();
 
+    let total: usize = segment_paths.iter().map(Vec::len).sum();
+    report("metadata", 0, Some(total));
     let probe_outcomes: Vec<SegmentProbe> = segment_paths
         .par_iter()
-        .map(|paths| probe_segment(paths))
+        .map(|paths| probe_segment_with(paths, &|path| probe(path, total)))
         .collect();
 
     // Apply probe outcomes to segments.
@@ -220,6 +312,7 @@ pub fn scan_folder_sync_with_camera_model(
         errors.extend(probe.errors);
     }
 
+    report("grouping", 0, None);
     // Stage 4: re-run trip merging with real durations. The stub 180s
     // assumption may have mis-merged short event segments.
     let all_segments: Vec<Segment> = trips.into_iter().flat_map(|t| t.segments).collect();
@@ -252,7 +345,15 @@ struct SegmentProbe {
     size_bytes: Option<u64>,
 }
 
+#[cfg(test)]
 fn probe_segment(paths: &[PathBuf]) -> SegmentProbe {
+    probe_segment_with(paths, &mp4_probe::probe)
+}
+
+fn probe_segment_with(
+    paths: &[PathBuf],
+    probe: &impl Fn(&Path) -> Result<crate::model::ChannelMeta, AppError>,
+) -> SegmentProbe {
     let mut out = SegmentProbe::default();
     let mut size_total: u64 = 0;
     let mut any_size = false;
@@ -261,7 +362,7 @@ fn probe_segment(paths: &[PathBuf]) -> SegmentProbe {
             size_total = size_total.saturating_add(meta.len());
             any_size = true;
         }
-        match mp4_probe::probe(path) {
+        match probe(path) {
             Ok(meta) => {
                 if idx == 0 {
                     out.master_duration = Some(meta.duration_s);
@@ -329,7 +430,10 @@ fn remerge_trips(segments: Vec<Segment>, trip_gap_s: i64) -> Vec<Trip> {
 }
 
 fn close_trip(segments: Vec<Segment>) -> Trip {
-    let start_time = segments.first().expect("close_trip on non-empty").start_time;
+    let start_time = segments
+        .first()
+        .expect("close_trip on non-empty")
+        .start_time;
     let last = segments.last().expect("close_trip on non-empty");
     let last_duration = if last.duration_s > 0.0 {
         last.duration_s
@@ -390,8 +494,12 @@ mod tests {
 
     #[test]
     fn auto_and_manual_viofo_recognize_mixed_filename_generations() {
-        for name in ["2025_0706_201953_F.MP4", "2025_0706_201953_I.MP4",
-            "2025_0706_201953_000001R.MP4", "2025_0706_201953_PF.MP4"] {
+        for name in [
+            "2025_0706_201953_F.MP4",
+            "2025_0706_201953_I.MP4",
+            "2025_0706_201953_000001R.MP4",
+            "2025_0706_201953_PF.MP4",
+        ] {
             let auto = parse_filename(name, CameraModelPreference::Auto).unwrap();
             let manual = parse_filename(name, CameraModelPreference::ViofoA229Pro).unwrap();
             assert_eq!(auto, manual);

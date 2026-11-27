@@ -50,7 +50,7 @@ it("clears the old library/player and scans the canonical newly selected directo
   const first = reloadArchive();
   expect(reloadArchive()).toBe(first);
   expect(useStore.getState().status).toBe("loading");
-  expect(scanFolder).toHaveBeenCalledExactlyOnceWith(b.root);
+  expect(scanFolder).toHaveBeenCalledExactlyOnceWith(b.root, expect.any(Function));
   scanned.resolve(result("new"));
   expect(await first).toBe(true);
   expect(useStore.getState().trips[0].id).toBe("new");
@@ -104,7 +104,7 @@ it("restores the backend's remembered directory and reloads its files on startup
   await restoreArchive();
   await reloadArchive();
   expect(useStore.getState().currentArchive).toEqual(b);
-  expect(scanFolder).toHaveBeenCalledExactlyOnceWith(b.root);
+  expect(scanFolder).toHaveBeenCalledExactlyOnceWith(b.root, expect.any(Function));
 });
 
 it("does not let a delayed startup response overwrite a user's new selection", async () => {
@@ -161,4 +161,24 @@ it("does not dismiss the new folder's loading placeholder when old post-scan wor
   await old.promise;
   expect(useStore.getState().libraryFirstLoadDone).toBe(false);
   expect(useStore.getState().trips).toEqual([]);
+});
+
+it("ignores late progress from a previous archive and never moves a file counter backwards", async () => {
+  useStore.getState().setCurrentArchive(a);
+  const old = deferred<ScanResult>();
+  let notify!: NonNullable<Parameters<typeof scanFolder>[1]>;
+  vi.mocked(scanFolder).mockImplementationOnce((_path, callback) => {
+    notify = callback!;
+    return old.promise;
+  });
+  const request = reloadArchive();
+  notify({ phase: "metadata", completed: 4, total: 10, cached: 2 });
+  notify({ phase: "metadata", completed: 2, total: 10, cached: 1 });
+  expect(useStore.getState().archiveLoadProgress?.completed).toBe(4);
+  vi.mocked(openArchive).mockResolvedValueOnce(b);
+  await selectArchive(b.root);
+  notify({ phase: "metadata", completed: 9, total: 10, cached: 8 });
+  expect(useStore.getState().archiveLoadProgress).toBeNull();
+  old.resolve(result("old"));
+  expect(await request).toBe(false);
 });

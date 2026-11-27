@@ -82,8 +82,12 @@ const RECENT_ARCHIVES_MAX: usize = 20;
 pub async fn open_archive(
     path: String,
     slot: State<'_, ArchiveSlot>,
-    settings: State<'_, AppSettingsHandle>,
+    app: tauri::AppHandle,
 ) -> Result<CurrentArchiveInfo, AppError> {
+    let slot = slot.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+    use tauri::Manager;
+    let settings = app.state::<AppSettingsHandle>();
     let raw_root = PathBuf::from(&path);
     if !raw_root.exists() {
         return Err(AppError::Internal(format!(
@@ -131,6 +135,7 @@ pub async fn open_archive(
     replace_slot(&slot, Some(handle))?;
 
     Ok(info)
+    }).await.map_err(|e| AppError::Internal(format!("archive open worker failed: {e}")))?
 }
 
 /// Drop the currently-open archive. The frontend's empty state takes

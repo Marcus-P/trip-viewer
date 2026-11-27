@@ -52,10 +52,31 @@ pub fn find_video_files(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Inventory must be complete before a scan may garbage-collect saved rows.
+pub fn find_video_files_checked(root: &Path) -> Result<Vec<PathBuf>, crate::error::AppError> {
+    let mut files = Vec::new();
+    for entry in WalkDir::new(root).follow_links(false).into_iter().filter_entry(|e| !should_skip_dir(e)) {
+        let entry = entry.map_err(|e| crate::error::AppError::Internal(format!("incomplete archive enumeration: {e}")))?;
+        if entry.file_type().is_file() && entry.path().extension().and_then(|x| x.to_str())
+            .is_some_and(|ext| VIDEO_EXTENSIONS.iter().any(|v| ext.eq_ignore_ascii_case(v))) {
+            files.push(entry.into_path());
+        }
+    }
+    Ok(files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn checked_inventory_rejects_unreadable_or_missing_roots() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_video_files_checked(&dir.path().join("missing")).is_err());
+        fs::write(dir.path().join("clip.mp4"), b"x").unwrap();
+        assert_eq!(find_video_files_checked(dir.path()).unwrap().len(), 1);
+    }
 
     #[test]
     fn finds_mp4_and_mov_case_insensitively() {

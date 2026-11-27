@@ -51,6 +51,7 @@ function App() {
   const trips = useStore((s) => s.trips);
   const scanErrors = useStore((s) => s.scanErrors);
   const status = useStore((s) => s.status);
+  const archiveLoadProgress = useStore((s) => s.archiveLoadProgress);
   const error = useStore((s) => s.error);
   const importError = useStore((s) => s.importError);
   const resetImport = useStore((s) => s.resetImport);
@@ -269,10 +270,9 @@ function App() {
   // on a big archive, and the sidebar's small "Loading library…" hint
   // is easy to miss on a large display — meanwhile Import from SD and
   // Open archive would otherwise be live and could race against the
-  // in-flight scan. `libraryLoading` is gated on `currentArchive` so
-  // we don't flash a splash before hydration tells us there's an
-  // archive to load.
-  const libraryLoading = currentArchive != null && !libraryFirstLoadDone;
+  // in-flight scan. An explicit open request also shows its indeterminate
+  // phase before the native archive handle is ready; idle hydration does not.
+  const libraryLoading = status === "loading" || (currentArchive != null && !libraryFirstLoadDone);
   const startupRunning = !!(startup && !startup.done);
   const showSplash = startupRunning || libraryLoading;
 
@@ -302,6 +302,7 @@ function App() {
       <StartupSplash
         snapshot={startup ?? { tasks: [], done: false }}
         libraryLoading={libraryLoading}
+        libraryProgress={archiveLoadProgress}
       />
     )}
     <div className="flex h-full">
