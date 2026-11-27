@@ -73,3 +73,16 @@ Linux/macOS can run `capture.py` with Python 3.9+, ExifTool and FFprobe installe
 using repeated `--set PROFILE FOLDER`, `--exiftool PATH`, `--ffprobe PATH` and
 `--output-dir NEW_DIRECTORY`. Windows launcher validation is synthetic; actual
 camera metadata results require the owner's recording run.
+
+## Validation
+
+Six targeted checks pass, including real ExifTool 13.64/FFprobe extraction of
+a synthetic custom metadata field on Linux, raw-value privacy, exact unknown
+block preservation, partial-file handling, timeout and overwrite protection.
+The actual ZIP's portable Python/ExifTool launch and report collection passed
+under Windows PowerShell in [run 45981247302](https://github.com/Marcus-P/trip-viewer/actions/runs/45981247302).
+That Windows check used a small FFprobe stub to avoid another FFmpeg download;
+it validates native invocation, not Windows FFprobe/media compatibility. The
+only subsequent runtime change pins the successfully downloaded official
+ExifTool archive's SHA256. No app build, original camera footage upload or
+hardware certification is implied.

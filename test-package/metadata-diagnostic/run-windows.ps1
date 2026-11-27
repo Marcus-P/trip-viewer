@@ -118,10 +118,8 @@ foreach ($tripExifUrl in $tripExifUrls) {
 if (-not $tripExifValid) {
     throw 'The official ExifTool download did not return a valid ZIP. No downloaded ExifTool was executed.'
 }
-# Replaced by the official archive checksum after the Windows smoke check.
-$tripExifSha = 'WINDOWS_SMOKE_CHECKSUM_PENDING'
-if ($tripExifSha -ne 'WINDOWS_SMOKE_CHECKSUM_PENDING' -and
-    (Get-FileHash -Algorithm SHA256 -LiteralPath $tripExifArchive).Hash.ToLowerInvariant() -ne $tripExifSha) {
+$tripExifSha = '72c29c44d1e860eebcaefa71692d979af9858fe9a6d7d791a5e7f1dac77804af'
+if ((Get-FileHash -Algorithm SHA256 -LiteralPath $tripExifArchive).Hash.ToLowerInvariant() -ne $tripExifSha) {
     throw 'ExifTool checksum mismatch. Nothing from that archive will be executed.'
 }
 Expand-Archive -LiteralPath $tripExifArchive -DestinationPath $tripExifDirectory
