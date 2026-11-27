@@ -93,7 +93,31 @@ $tripPython = Join-Path $tripRuntimeDirectory 'tools\python.exe'
 $tripExifArchive = Join-Path $ToolDir 'exiftool-13.64_64.zip'
 $tripExifDirectory = Join-Path $ToolDir 'exiftool-runtime'
 Write-Host 'Downloading portable ExifTool 13.64 from its official SourceForge project (about 11 MB).'
-Invoke-WebRequest -UseBasicParsing -Uri 'https://downloads.sourceforge.net/project/exiftool/exiftool-13.64_64.zip' -OutFile $tripExifArchive
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$tripExifValid = $false
+# Some SourceForge mirrors return an HTML page with HTTP 200. Follow the
+# official download page's redirects and require an actual, readable ZIP.
+$tripExifUrls = @(
+    'https://sourceforge.net/projects/exiftool/files/exiftool-13.64_64.zip/download',
+    'https://downloads.sourceforge.net/project/exiftool/exiftool-13.64_64.zip?use_mirror=phoenixnap'
+)
+foreach ($tripExifUrl in $tripExifUrls) {
+    try {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            & curl.exe --fail --location --silent --show-error --max-time 90 --output $tripExifArchive $tripExifUrl
+            if ($LASTEXITCODE -ne 0) { continue }
+        } else {
+            Invoke-WebRequest -UseBasicParsing -Uri $tripExifUrl -OutFile $tripExifArchive
+        }
+        $tripZipCheck = [IO.Compression.ZipFile]::OpenRead($tripExifArchive)
+        $tripZipCheck.Dispose()
+        $tripExifValid = $true
+        break
+    } catch { }
+}
+if (-not $tripExifValid) {
+    throw 'The official ExifTool download did not return a valid ZIP. No downloaded ExifTool was executed.'
+}
 # Replaced by the official archive checksum after the Windows smoke check.
 $tripExifSha = 'WINDOWS_SMOKE_CHECKSUM_PENDING'
 if ($tripExifSha -ne 'WINDOWS_SMOKE_CHECKSUM_PENDING' -and

@@ -141,14 +141,16 @@ jobs:
             Write-Host ('::error title=Windows metadata smoke failure::' + $_.Exception.Message.Replace("`r", ' ').Replace("`n", ' '))
             throw
           }
-          python test-package/metadata-diagnostic/package.py
           $env:METADATA_WORK = Join-Path $env:RUNNER_TEMP 'metadata-check'
           New-Item -ItemType Directory -Path $env:METADATA_WORK | Out-Null
           Expand-Archive -LiteralPath test-package/viofo-metadata-diagnostic-v1.zip -DestinationPath (Join-Path $env:METADATA_WORK 'tool')
           @'
-          import importlib.util,os
+          import hashlib,importlib.util,json,os,zipfile
           from pathlib import Path
           root=Path(os.environ['METADATA_WORK'])
+          with zipfile.ZipFile('test-package/viofo-metadata-diagnostic-v1.zip') as archive:
+              for name,expected in json.loads(archive.read('SHA256SUMS.json')).items():
+                  assert hashlib.sha256(archive.read(name)).hexdigest()==expected
           spec=importlib.util.spec_from_file_location('fixture','test-package/test_viofo_time_diagnostic.py')
           module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
           for name in ['two channels','three channels']:
@@ -158,7 +160,7 @@ jobs:
           # Real FFprobe is checked on Linux. This stub checks Windows native
           # argument passing without downloading another large FFmpeg package.
           Add-Type -TypeDefinition 'public class Probe { public static void Main(string[] args) { System.Console.WriteLine("{\"format\":{\"filename\":\"PRIVATE_MARKER\",\"duration\":\"1\"}}"); } }' -OutputAssembly (Join-Path $env:METADATA_WORK 'ffprobe.exe') -OutputType ConsoleApplication
-          & .\test-package\metadata-diagnostic\run-windows.ps1 `
+          & (Join-Path $env:METADATA_WORK 'tool\run-windows.ps1') `
             -TwoChannel (Join-Path $env:METADATA_WORK 'two channels') `
             -ThreeChannel (Join-Path $env:METADATA_WORK 'three channels') `
             -ToolDir (Join-Path $env:METADATA_WORK 'tool') `
