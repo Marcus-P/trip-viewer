@@ -31,7 +31,10 @@ under the new diagnostic directory. No media or report is uploaded.
   settings, field types, occurrence/distinct-value counts, standard ExifTool tag
   names and equality comparisons between the two sets. Custom field names are
   represented by IDs, because a name itself can contain private text. No source
-  values, hashes, original names/paths, coordinates or absolute times are copied.
+  arbitrary values, hashes, original names/paths, coordinates or absolute times
+  are copied. A closed list of explicit mode categories and common capture-rate
+  values is retained only for specifically named mode/rate fields. These are
+  metadata observations, not proof that a mode was active or a GPS mapping valid.
   Review this report before sharing; aggregate characteristics are not a promise
   of mathematical anonymity. These are declared test modes, not inferred modes.
 

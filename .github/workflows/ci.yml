@@ -32,7 +32,7 @@ jobs:
           gh run view "$RUN_TO_INSPECT" --repo "$GITHUB_REPOSITORY" --log-failed > failure.txt
           python3 - <<'PYREPORT'
           from pathlib import Path
-          text=Path("failure.txt").read_text()[-18000:]
+          text=Path("failure.txt").read_text()[-3000:]
           escaped=text.replace("%","%25").replace("\r","%0D").replace("\n","%0A")
           print("::warning title=Existing package failure::"+escaped)
           PYREPORT
@@ -131,6 +131,16 @@ jobs:
       - name: Build and check the exact source-only ZIP
         shell: powershell
         run: |
+          trap {
+            if ($env:METADATA_WORK) {
+              $tripFailedArchive = Join-Path $env:METADATA_WORK 'tool\exiftool-13.64_64.zip'
+              if (Test-Path -LiteralPath $tripFailedArchive) {
+                Write-Host ('::notice title=Official ExifTool 13.64 archive SHA256::' + (Get-FileHash -LiteralPath $tripFailedArchive -Algorithm SHA256).Hash.ToLowerInvariant())
+              }
+            }
+            Write-Host ('::error title=Windows metadata smoke failure::' + $_.Exception.Message.Replace("`r", ' ').Replace("`n", ' '))
+            throw
+          }
           python test-package/metadata-diagnostic/package.py
           $env:METADATA_WORK = Join-Path $env:RUNNER_TEMP 'metadata-check'
           New-Item -ItemType Directory -Path $env:METADATA_WORK | Out-Null

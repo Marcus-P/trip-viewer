@@ -49,6 +49,14 @@ class CaptureTests(unittest.TestCase):
             self.assertNotIn('abcd', json.dumps(result))
             self.assertFalse((output / 'block-000001.bin').exists())
 
+    def test_only_closed_mode_categories_are_exported(self):
+        self.assertEqual(capture.safe_semantic_value(('XMP:ParkingMode',), 'Time Lapse'),
+                         {'mode_category': 'time_lapse'})
+        self.assertIsNone(capture.safe_semantic_value(('XMP:ParkingMode',), 'PRIVATE_MARKER'))
+        self.assertIsNone(capture.safe_semantic_value(('GPSLatitude',), 2))
+        self.assertEqual(capture.safe_semantic_value(('CaptureFrameRate',), 2),
+                         {'explicit_rate_value': '2'})
+
     def test_limit_is_reported_not_silently_ignored(self):
         previous = capture.MAX_BLOCK
         try:

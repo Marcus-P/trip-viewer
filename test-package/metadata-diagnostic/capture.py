@@ -23,6 +23,23 @@ MAX_BLOCK = 32 * 1024 * 1024
 MAX_BLOCK_TOTAL = 128 * 1024 * 1024
 TIMEOUT = 180
 KNOWN_BOXES = set('ftyp moov mdat free skip wide uuid meta udta moof mfra sidx'.split())
+MODE_VALUES = {'parking': 'parking', 'timelapse': 'time_lapse',
+               'lowbitrate': 'low_bitrate', 'normal': 'normal',
+               'autoeventdetection': 'auto_event', 'impactdetection': 'impact',
+               'hybridparking': 'hybrid'}
+
+
+def safe_semantic_value(path, value):
+    """Closed categories only, never arbitrary purported mode/rate strings."""
+    name = re.sub(r'[^a-z]', '', path[-1].split(':')[-1].lower()) if path else ''
+    if name in {'parkingmode', 'parkmode', 'recordingmode', 'capturemode'} and isinstance(value, str):
+        category = MODE_VALUES.get(re.sub(r'[^a-z]', '', value.lower()))
+        if category:
+            return {'mode_category': category}
+    if name in {'captureframerate', 'timelapseframerate', 'timelapsefps', 'capturefps'}:
+        if str(value) in {'1', '2', '3', '5', '10', '15', '30', '60'}:
+            return {'explicit_rate_value': str(value)}
+    return None
 
 
 def write_json(path, value):
@@ -171,7 +188,7 @@ class Inventory:
             key = (tool, path)
             if key not in self.rows:
                 self.rows[key] = {'id': 'field-%05d' % (len(self.rows) + 1),
-                                  'types': Counter(), 'sets': {}}
+                                  'types': Counter(), 'sets': {}, 'safe_categories': {}}
             row = self.rows[key]
             row['types'][type(value).__name__] += 1
             entry = row['sets'].setdefault(set_id, {'files': set(), 'values': set(),
@@ -181,6 +198,9 @@ class Inventory:
             # nor raw strings/numbers are emitted to the sharing report.
             entry['values'].add(json.dumps(value, sort_keys=True, ensure_ascii=True))
             entry['occurrences'] += 1
+            category = safe_semantic_value(path, value)
+            if category:
+                row['safe_categories'].setdefault(set_id, set()).add(json.dumps(category, sort_keys=True))
 
     def reports(self):
         public, private = [], []
@@ -206,6 +226,10 @@ class Inventory:
             item['constant_within_each_set_and_different_between_sets'] = (
                 len(sets) > 1 and all(len(s['values']) == 1 for s in sets.values())
                 and len({next(iter(s['values'])) for s in sets.values()}) > 1)
+            if row['safe_categories']:
+                item['explicit_metadata_categories_not_mode_inference'] = {
+                    set_id: [json.loads(value) for value in sorted(values)]
+                    for set_id, values in row['safe_categories'].items()}
             public.append(item)
             private.append({'field_id': row['id'], 'tool': tool,
                             'raw_json_path': list(path)})
@@ -284,6 +308,12 @@ def main():
                     result = run_tool(command, raw, destination / (tool + '-errors-PRIVATE.txt'))
                     data = load_json(raw)
                     result['json_readable'] = data is not None
+                    if data is not None:
+                        diagnostics = sum(path[-1].split(':')[-1] in ('Warning', 'Error')
+                                          for path, _ in fields(data) if path)
+                        result['diagnostic_fields'] = diagnostics
+                        if diagnostics and result['status'] == 'complete':
+                            result['status'] = 'metadata_warning'
                     current[tool] = result
                     if data is not None:
                         inventory.add(tool, data, set_id, file_id)
