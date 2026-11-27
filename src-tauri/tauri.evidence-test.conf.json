@@ -1,0 +1,17 @@
+{
+  "productName": "Trip Viewer Evidence Test",
+  "identifier": "com.tripviewer.evidencetest",
+  "app": {
+    "windows": [{
+      "title": "Trip Viewer Evidence Test",
+      "width": 1280,
+      "height": 760,
+      "minWidth": 720,
+      "minHeight": 600,
+      "visible": false,
+      "backgroundColor": "#0a0a0a"
+    }]
+  },
+  "bundle": { "createUpdaterArtifacts": false },
+  "plugins": { "updater": { "endpoints": [] } }
+}

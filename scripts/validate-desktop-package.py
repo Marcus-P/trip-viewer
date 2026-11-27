@@ -25,6 +25,10 @@ parser.add_argument("--installed", type=pathlib.Path)
 args = parser.parse_args()
 root = pathlib.Path(__file__).resolve().parent.parent
 version = json.loads((root / "package.json").read_text())["version"]
+package_config = os.environ.get("TRIPVIEWER_PACKAGE_CONFIG")
+override = json.loads((root / package_config).read_text()) if package_config else {}
+product_name = override.get("productName", "Trip Viewer")
+app_identifier = override.get("identifier", "com.tripviewer.app")
 notices = ["LICENSE", "THIRD_PARTY_NOTICES.md", "NODE_RUNTIME_LICENSES.txt",
            "RUST_DEPENDENCY_LICENSES.txt", "NODE_RUNTIME_LICENSE_TEXTS.tar.gz",
            "RUST_DEPENDENCY_LICENSE_TEXTS.tar.gz"]
@@ -75,7 +79,7 @@ if args.platform == "Windows-x64":
         file.seek(header + 24 + 68)
         assert struct.unpack("<H", file.read(2))[0] == 2, "Expected GUI subsystem"
     check_notices(args.installed / "licenses")
-    shortcut = pathlib.Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/Trip Viewer.lnk"
+    shortcut = pathlib.Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs" / (product_name + ".lnk")
     assert shortcut.is_file(), "Missing Start Menu shortcut"
     smoke(binary)
 else:
@@ -100,7 +104,7 @@ else:
         finally:
             checked(["hdiutil", "detach", str(mount)])
         info = plistlib.loads((installed / "Contents/Info.plist").read_bytes())
-        assert info["CFBundleIdentifier"] == "com.tripviewer.app"
+        assert info["CFBundleIdentifier"] == app_identifier
         assert info["CFBundleShortVersionString"] == version
         binary = installed / "Contents/MacOS" / info["CFBundleExecutable"]
         checked(["lipo", str(binary), "-verify_arch", "arm64", "x86_64"])

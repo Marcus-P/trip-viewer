@@ -15,6 +15,10 @@ on:
         description: Repeat native tests before packaging
         type: boolean
         default: false
+      isolated-evidence:
+        description: Separate Evidence Test app identity and settings; no updater
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       windows-only:
@@ -24,6 +28,9 @@ on:
         type: boolean
         default: false
       run-tests:
+        type: boolean
+        default: false
+      isolated-evidence:
         type: boolean
         default: false
 
@@ -38,6 +45,8 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.windows-only && '[{"platform":"Windows-x64","runner":"windows-2022","target":"x86_64-pc-windows-msvc","rust-targets":"x86_64-pc-windows-msvc","bundles":"nsis"}]' || '[{"platform":"Windows-x64","runner":"windows-2022","target":"x86_64-pc-windows-msvc","rust-targets":"x86_64-pc-windows-msvc","bundles":"nsis"},{"platform":"macOS-universal","runner":"macos-15","target":"universal-apple-darwin","rust-targets":"aarch64-apple-darwin,x86_64-apple-darwin","bundles":"dmg"}]') }}
     runs-on: ${{ matrix.runner }}
+    env:
+      TRIPVIEWER_PACKAGE_CONFIG: ${{ inputs.isolated-evidence && 'src-tauri/tauri.evidence-test.conf.json' || '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -71,7 +80,12 @@ jobs:
         shell: bash
         run: |
           set +e
+          config_args=()
+          if [ -n "$TRIPVIEWER_PACKAGE_CONFIG" ]; then
+            config_args=(--config "$TRIPVIEWER_PACKAGE_CONFIG")
+          fi
           npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} \
+            "${config_args[@]}" \
             2>&1 | tee "$RUNNER_TEMP/package-build.log"
           BUILD_STATUS=${PIPESTATUS[0]}
           if [ "$BUILD_STATUS" -ne 0 ]; then
