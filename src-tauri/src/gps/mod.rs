@@ -685,12 +685,23 @@ fn trip_gps_sources(
             }
             files.push((stored, fingerprint, ranges));
         }
-        signature.push(serde_json::json!([
+        let mut segment_signature = serde_json::json!([
             segment.segment_id,
             segment.duration_s,
             segment.camera_kind,
             files
-        ]));
+        ]);
+        if segment
+            .channels
+            .iter()
+            .any(|channel| viofo::is_parking_path(Path::new(&channel.path)))
+        {
+            segment_signature
+                .as_array_mut()
+                .expect("segment signature is an array")
+                .push(serde_json::json!("parking-location-v1"));
+        }
+        signature.push(segment_signature);
         available.push(has_original);
         sources.push(TripGpsSegmentSource {
             duration_s: segment.duration_s,
@@ -736,6 +747,9 @@ fn is_viofo_path(path: &Path) -> bool {
 }
 
 fn extract_viofo_timed(path: &Path) -> Result<Vec<viofo::TimedGpsPoint>, AppError> {
+    if viofo::is_parking_path(path) {
+        return Ok(viofo::parking_location(viofo::extract_timed(path, None)?));
+    }
     // The consistency validator needs the clip's measured duration only as an
     // upper bound on how far apart two UTC records from this same MP4 can be.
     // It does not use the filename clock or infer any timezone.

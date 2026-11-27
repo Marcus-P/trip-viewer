@@ -10,6 +10,9 @@
 //! timestamps are never used to reorder the source records: a malformed clock
 //! field must not be allowed to move a damaged point to another part of a trip.
 
+mod parking;
+pub(crate) use parking::{is_parking as is_parking_path, location as parking_location};
+
 use crate::error::AppError;
 use crate::gps::validation::{self, FieldConsistency, GpsObservation, ValidationContext};
 use crate::model::GpsPoint;
@@ -273,7 +276,11 @@ fn read_gps_free_box(
     offset: u64,
     descriptor_size: u64,
 ) -> Result<Option<RawGpsRecord>, AppError> {
-    if offset.saturating_add(descriptor_size) > file_len || descriptor_size < 12 {
+    if descriptor_size < 12
+        || offset
+            .checked_add(descriptor_size)
+            .is_none_or(|end| end > file_len)
+    {
         return Ok(None);
     }
 
@@ -285,10 +292,29 @@ fn read_gps_free_box(
         return Ok(None);
     }
 
-    let payload_len = descriptor_size.saturating_sub(12) as usize;
-    let mut payload = vec![0u8; payload_len];
-    file.read_exact(&mut payload)?;
-    Ok(decode_packet(&payload))
+    // The enclosing vendor box can be much larger than its 44-byte record.
+    // Preserve the original decoder's last-marker rule without allocating a
+    // buffer proportional to the declared box size. Adjacent reverse windows
+    // overlap by record_size - 1, so a record crossing a boundary is retained.
+    const RECORD_SIZE: u64 = 44;
+    const WINDOW_SIZE: u64 = 4096;
+    let mut buffer = [0u8; WINDOW_SIZE as usize];
+    let payload_start = offset + 12;
+    let mut end = descriptor_size - 12;
+    while end > 0 {
+        let start = end.saturating_sub(WINDOW_SIZE);
+        let len = (end - start) as usize;
+        file.seek(SeekFrom::Start(payload_start + start))?;
+        file.read_exact(&mut buffer[..len])?;
+        if find_record_offset(&buffer[..len]).is_some() {
+            return Ok(decode_packet(&buffer[..len]));
+        }
+        if start == 0 {
+            break;
+        }
+        end = start + RECORD_SIZE - 1;
+    }
+    Ok(None)
 }
 
 fn decode_packet(data: &[u8]) -> Option<RawGpsRecord> {
@@ -312,7 +338,8 @@ fn decode_packet(data: &[u8]) -> Option<RawGpsRecord> {
     let bearing = read_f32_le(data, offset + 40)? as f64;
 
     let utc = i32::try_from(year).ok().and_then(|year| {
-        NaiveDate::from_ymd_opt(2000 + year, month, day)
+        year.checked_add(2000)
+            .and_then(|year| NaiveDate::from_ymd_opt(year, month, day))
             .and_then(|date| date.and_hms_opt(hour, minute, second))
     });
 
