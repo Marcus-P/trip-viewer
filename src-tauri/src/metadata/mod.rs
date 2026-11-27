@@ -1,3 +1,4 @@
+pub(crate) mod cache;
 pub mod evidence;
 pub mod mp4_probe;
 

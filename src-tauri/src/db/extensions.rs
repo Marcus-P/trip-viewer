@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS extensions.trip_gps_provenance (
     trip_id TEXT PRIMARY KEY, source_signature TEXT NOT NULL,
     payload_hash TEXT NOT NULL, parser_version INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS extensions.metadata_cache_v1 (
+    file_path TEXT PRIMARY KEY, file_size INTEGER NOT NULL, modified_ns TEXT NOT NULL,
+    probe_version INTEGER NOT NULL, payload_json TEXT NOT NULL
+);
 PRAGMA extensions.user_version = 1;
 "#;
 
