@@ -1,5 +1,14 @@
 # Trip Viewer 0.13.1-rc.1
 
+## Direct media positioning (local implementation, awaiting acceptance)
+
+- Position new sources at the requested timestamp as soon as metadata permits,
+  rather than waiting for a decoded frame at the segment beginning first.
+- Use known per-channel timelapse curves, wait for actual seek/current-data
+  readiness and avoid repeating an already reached seek target.
+- Retain the most recent seek requested while a source is loading and keep
+  pre-positioning frames hidden. Hardware playback acceptance is still needed.
+
 ## GPS preview efficiency (local implementation)
 
 - Index cached GPS by segment once per preparation request instead of repeatedly

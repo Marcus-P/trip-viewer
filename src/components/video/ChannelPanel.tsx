@@ -229,15 +229,17 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
       if (!video) return;
 
       const onLoaded = () => {
-        if (failedRef.current) return;
+        if (failedRef.current || video.seeking || video.readyState < 2) return;
         setReady(true);
         setError(null);
       };
       video.addEventListener("loadeddata", onLoaded);
-      if (video.readyState >= 2) setReady(true);
+      video.addEventListener("seeked", onLoaded);
+      onLoaded();
 
       return () => {
         video.removeEventListener("loadeddata", onLoaded);
+        video.removeEventListener("seeked", onLoaded);
       };
     }, [src]);
 
@@ -527,7 +529,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
           style={cropStyle ?? { transform: zoom.view.scale > 1 ? `translate(${zoom.view.x}px, ${zoom.view.y}px) scale(${zoom.view.scale})` : undefined,
             touchAction: canZoom && zoom.view.scale > 1 ? "none" : "auto",
             cursor: canZoom && zoom.view.scale > 1 ? "grab" : undefined }}
-          className="h-full w-full object-contain"
+          className={clsx("h-full w-full object-contain", !ready && !error && "invisible")}
           muted={audioMuted}
           preload="auto"
           playsInline

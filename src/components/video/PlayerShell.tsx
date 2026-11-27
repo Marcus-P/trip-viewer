@@ -431,9 +431,8 @@ export function PlayerShell() {
           sourceMode: "original",
           activeSpeedCurve: null,
           activeSegmentId: targetSegId,
-          // currentTime is segment-local in Original; set to 0 so it
-          // doesn't momentarily appear out-of-range before pendingSeek.
-          currentTime: 0,
+          // Publish the new source's real target before metadata arrives.
+          currentTime: targetLocal,
         });
       } else {
         // Tiered: target is a file-time derived from tripTime via
@@ -446,10 +445,8 @@ export function PlayerShell() {
           sourceMode: newMode,
           activeSpeedCurve: newCurve,
           activeSegmentId: virtualSeg,
-          // currentTime is file-time in tiered; it'll get overwritten
-          // by the engine tick once the video loads, but start from 0
-          // to avoid showing a stale segment-local value.
-          currentTime: 0,
+          // The new source uses file time, not the previous segment clock.
+          currentTime: fileTime,
         });
       }
     },
@@ -647,13 +644,16 @@ export function PlayerShell() {
         const currentSegId = activeSegmentId ?? trip.segments[0]?.id;
         if (target.activeSegmentId === currentSegId) {
           if (engine) void engine.seek(target.segmentLocalTime);
-          else useStore.getState().setCurrentTime(target.segmentLocalTime);
+          else {
+            pendingSeekRef.current = target.segmentLocalTime;
+            useStore.getState().setCurrentTime(target.segmentLocalTime);
+          }
         } else {
           pendingSeekRef.current = target.segmentLocalTime;
           if (isPlaying) shouldAutoPlay.current = true;
           useStore.setState({
             activeSegmentId: target.activeSegmentId,
-            currentTime: 0,
+            currentTime: target.segmentLocalTime,
           });
         }
       } else {
@@ -661,7 +661,11 @@ export function PlayerShell() {
         // current segment for tags; useEffect above will also fire on
         // the currentTime change, so this write + engine.seek keeps
         // everything consistent.
-        void engine?.seek(target.fileTime);
+        if (engine) void engine.seek(target.fileTime);
+        else {
+          pendingSeekRef.current = target.fileTime;
+          useStore.getState().setCurrentTime(target.fileTime);
+        }
         if (target.virtualActiveSegmentId) {
           useStore.setState({ activeSegmentId: target.virtualActiveSegmentId });
         }

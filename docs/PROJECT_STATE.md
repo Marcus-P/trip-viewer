@@ -6,6 +6,24 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Local direct media positioning (not published)
+
+`fix/direct-media-position` positions each channel once metadata is available,
+before waiting for current data. It uses the shared source target and existing
+per-channel timelapse curves, not GPS/filename clock guesses or a fixed delay.
+Seek completion/current data gates engine creation; matching positions do not
+trigger a second seek/decoder flush. New source transitions publish their real
+file/local target instead of a temporary zero. Seeks while loading update the
+pending target. Initial frames remain hidden until positioning completes.
+
+TypeScript and 20 targeted transport/recovery/position tests passed. The three
+new checks cover metadata readiness without a first frame, no repeated matching
+seek, duration bounds, invalid target rejection and individual channel curves.
+This does not change a codec, infer timing for unknown cameras, or prove a
+hardware performance improvement. Require Ubuntu AppImage packaging plus focused
+real playback acceptance before calling it ready. Keep this frontend commit
+separable from DB compatibility, settings and GPS-preview indexing.
+
 ## Local GPS preview efficiency (not published)
 
 `perf/gps-preview-index` partitions previously cached points once by the known

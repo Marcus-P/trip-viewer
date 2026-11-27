@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useStore } from "../state/store";
+import { initialChannelPosition, positionMedia } from "./mediaPosition";
 import { SyncEngine } from "./SyncEngine";
 import type { CurveSegment } from "../utils/speedCurve";
 
@@ -43,9 +45,27 @@ export function useSyncEngine(
 
     const getEl = (label: string) => channelRefs.current.get(label) ?? null;
 
+    const masterCurve = channelCurves.get(masterLabel) ?? null;
+    const primed = new Set<HTMLVideoElement>();
+    const prime = (label: string) => {
+      const video = getEl(label);
+      if (!video || primed.has(video)) return;
+      const channelTarget = initialChannelPosition(
+        useStore.getState().currentTime,
+        masterCurve,
+        channelCurves.get(label) ?? null,
+      );
+      try {
+        if (positionMedia(video, channelTarget)) primed.add(video);
+      } catch (error) {
+        console.warn("[sync] initial positioning failed:", error);
+      }
+    };
+
     const tryInit = () => {
+      for (const label of [masterLabel, ...slaveLabels]) prime(label);
       const master = getEl(masterLabel);
-      if (!master || master.readyState < 2) return;
+      if (!master || master.readyState < 2 || master.seeking) return;
       if (engineRef.current) return;
 
       // Wait for every slave to be ready — if we init with a partial set,
@@ -56,12 +76,11 @@ export function useSyncEngine(
       const includedLabels: string[] = [];
       for (const label of slaveLabels) {
         const el = getEl(label);
-        if (!el || el.readyState < 2) return;
+        if (!el || el.readyState < 2 || el.seeking) return;
         slaves.push(el);
         includedLabels.push(label);
       }
 
-      const masterCurve = channelCurves.get(masterLabel) ?? null;
       const slaveCurves = includedLabels.map((l) => channelCurves.get(l) ?? null);
       const e = new SyncEngine(master, slaves, includedLabels, masterCurve, slaveCurves);
       e.start();
@@ -72,26 +91,34 @@ export function useSyncEngine(
 
     // WebKit can reach HAVE_CURRENT_DATA without delivering loadeddata after
     // a source reset. Readiness must not leave Play disabled forever merely
-    // because that event was lost. Polling only reads state; it never seeks.
+    // because that event was lost. The fallback requires actual metadata and
+    // applies at most one initial position per element; time is not evidence
+    // of readiness or seek completion.
     const readinessPoll = window.setInterval(tryInit, 250);
     tryInit();
 
-    // Re-try every time any channel fires `loadeddata`. We listen on all
-    // channels because the engine won't init until the last slow channel
-    // is ready.
+    // Metadata permits the initial seek; seeked/current data permits engine
+    // creation. The existing readiness fallback also handles a missed event,
+    // but elapsed time never establishes a successful seek.
     const allLabels = [masterLabel, ...slaveLabels];
     const listeners: Array<[HTMLVideoElement, () => void]> = [];
     for (const label of allLabels) {
       const el = getEl(label);
       if (!el) continue;
       const h = () => tryInit();
+      el.addEventListener("loadedmetadata", h);
+      el.addEventListener("seeked", h);
       el.addEventListener("loadeddata", h);
       listeners.push([el, h]);
     }
 
     return () => {
       window.clearInterval(readinessPoll);
-      for (const [el, h] of listeners) el.removeEventListener("loadeddata", h);
+      for (const [el, h] of listeners) {
+        el.removeEventListener("loadedmetadata", h);
+        el.removeEventListener("seeked", h);
+        el.removeEventListener("loadeddata", h);
+      }
       engineRef.current?.pause();
       engineRef.current?.dispose();
       engineRef.current = null;

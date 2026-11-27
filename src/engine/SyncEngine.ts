@@ -1,3 +1,4 @@
+import { positionMedia } from "./mediaPosition";
 import { useStore, type PlaybackSlice } from "../state/store";
 import { type CurveSegment, coverageAt, fileToConcat } from "../utils/speedCurve";
 
@@ -765,7 +766,7 @@ export class SyncEngine {
       ? this.master.duration
       : Infinity;
     const clamped = Math.min(Math.max(0, t), duration);
-    this.master.currentTime = clamped;
+    positionMedia(this.master, clamped);
 
     if (!this.masterCurve || this.masterCurve.length === 0) {
       for (let i = 0; i < this.slaves.length; i++) {
@@ -773,7 +774,7 @@ export class SyncEngine {
         const slaveDuration = Number.isFinite(slave.duration)
           ? slave.duration
           : Infinity;
-        slave.currentTime = Math.min(Math.max(0, clamped), slaveDuration);
+        positionMedia(slave, Math.min(Math.max(0, clamped), slaveDuration));
         this.slaveInGap[i] = false;
         this.gapPaused.delete(slave);
         state.setChannelGapped(this.slaveLabels[i], false);
@@ -795,7 +796,7 @@ export class SyncEngine {
         const slaveDuration = Number.isFinite(slave.duration)
           ? slave.duration
           : Infinity;
-        slave.currentTime = Math.min(Math.max(0, target), slaveDuration);
+        positionMedia(slave, Math.min(Math.max(0, target), slaveDuration));
         this.slaveInGap[i] = !covered;
         state.setChannelGapped(this.slaveLabels[i], !covered);
         if (covered) this.gapPaused.delete(slave);
