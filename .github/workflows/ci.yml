@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      SOURCE_SHA: 48f52e7c230a94250bc1a29973d77c39894d13c7
-      RELEASE_TAG: test-0.14.0-48f52e7-ubuntu
+      SOURCE_SHA: 31dde0d819ac00c6f9c3b0ba917a3833b8fe85e2
+      RELEASE_TAG: test-0.14.0-31dde0d-ubuntu
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 48f52e7c230a94250bc1a29973d77c39894d13c7
+          ref: 31dde0d819ac00c6f9c3b0ba917a3833b8fe85e2
           fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
@@ -30,7 +30,7 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools ffmpeg
       - run: npm ci
       - name: Preserve bundled license notices
         run: python3 scripts/prepare-release-licenses.py
@@ -39,6 +39,18 @@ jobs:
           CARGO_BUILD_JOBS: '2'
           NO_STRIP: 'true'
         run: npm run tauri -- build --bundles appimage --config src-tauri/tauri.evidence-test.conf.json
+      - name: Verify decoding using the bundled media framework
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage')
+          test "${#images[@]}" = 1
+          if ! bash scripts/check-appimage-codecs.sh "${images[0]}" > "$RUNNER_TEMP/codec-check.log" 2>&1; then
+            cat "$RUNNER_TEMP/codec-check.log"
+            echo "::error::Bundled codec check failed: $(tail -n 5 "$RUNNER_TEMP/codec-check.log" | tr '\n' ' ')"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/codec-check.log"
       - name: Prepare checked download
         shell: bash
         run: |
@@ -58,14 +70,14 @@ jobs:
         run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/acceptance-notes.md" <<'EOF'
-          Isolated Ubuntu 24.04 x86_64 acceptance package for the proposed develop integration. Source commit: 48f52e7c230a94250bc1a29973d77c39894d13c7.
+          Isolated Ubuntu 24.04 x86_64 acceptance package for the proposed develop integration. Source commit: 31dde0d819ac00c6f9c3b0ba917a3833b8fe85e2.
 
           This is a test-branch download, not a merge into develop/main or a stable app update. Separate Evidence Test identity/settings and no updater endpoints. Close other Trip Viewer instances and use a disposable test archive for initial acceptance; selecting a shared archive is not isolated by the application identity.
 
           Includes schema-13 compatibility with retained archive-local extras and backups for verified legacy fork schemas; central immediate settings; camera-independent GPS preview indexing and metadata-ready direct positioning. Keep archive-extras-v1.sqlite because it contains bookmarks. Shared-schema compatibility does not imply old applications understand fork-only features.
 
-          The source passed 418 Rust tests (3 opt-in ignored), 142 frontend tests and local Ubuntu packaging. This run builds only Ubuntu and does not repeat those suites. Real-camera acceptance is pending. Implementation and preparation were assisted by Codex; contributor authorship and bundled license notices are preserved.
+          The source passed 423 Rust tests (3 opt-in ignored), 145 frontend tests and local Ubuntu packaging. This run builds only Ubuntu and does not repeat those suites. Real-camera acceptance is pending. Implementation and preparation were assisted by Codex; contributor authorship and bundled license notices are preserved.
 
           Download AppImage and SHA256SUMS.txt together. Verify with sha256sum -c SHA256SUMS.txt. Run the AppImage after making it executable, or extract it with --appimage-extract and start squashfs-root/AppRun. No installation or sudo is needed.
           EOF
-          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title '0.14 isolated Ubuntu acceptance — 48f52e7' --prerelease --latest=false --notes-file "$RUNNER_TEMP/acceptance-notes.md" download/TripViewer-0.14-Test-Ubuntu-x86_64.AppImage download/SHA256SUMS.txt download/BUILD_INFO.txt
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title '0.14 isolated Ubuntu acceptance — 31dde0d' --prerelease --latest=false --notes-file "$RUNNER_TEMP/acceptance-notes.md" download/TripViewer-0.14-Test-Ubuntu-x86_64.AppImage download/SHA256SUMS.txt download/BUILD_INFO.txt
