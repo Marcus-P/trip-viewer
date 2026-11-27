@@ -1,5 +1,12 @@
 # Trip Viewer 0.13.1-rc.1
 
+## GPS preview efficiency (local implementation)
+
+- Index cached GPS by segment once per preparation request instead of repeatedly
+  scanning the whole baseline track for each segment in every progress update.
+- Keep shared camera-independent time boundaries, progressive results and
+  archive isolation. No decoding/validation policy or database change is needed.
+
 ## Central settings (local implementation, awaiting acceptance)
 
 - Group preferences in one settings dialog by application area. Apply ordinary

@@ -6,6 +6,19 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Local GPS preview efficiency (not published)
+
+`perf/gps-preview-index` partitions previously cached points once by the known
+concatenated segment durations. Progress messages reuse those buckets instead
+of filtering the complete cached track for every unprocessed segment on every
+message. Point order, half-open boundaries, partial results and archive/session
+isolation are retained. This is camera-independent frontend preparation, not a
+new GPS decoder/filter, mode inference or measured hardware throughput claim.
+TypeScript and 14 targeted preview/preparation tests passed. The pure helper
+checks exact boundaries, zero-duration segments, unsorted input, invalid timing
+and one timestamp read per point. The commit has no database or settings code
+dependency and can be extracted independently despite the stacked work branch.
+
 ## Local central settings work (not published)
 
 `feat/central-settings` adds an independent frontend commit on the compatibility

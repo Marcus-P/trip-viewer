@@ -1,5 +1,6 @@
 import { ensureTripGps } from "../ipc/gps";
 import type { GpsPoint, Trip } from "../types/model";
+import { indexGpsPreview } from "./gpsPreviewIndex";
 import { useStore } from "./store";
 
 type Request = { archive: ReturnType<typeof useStore.getState>["currentArchive"]; baseline: GpsPoint[] | undefined; sources: string; promise: Promise<void> };
@@ -55,12 +56,10 @@ async function runPreparation(
   });
   let attempt = 0;
   const partial = new Map<number, GpsPoint[]>();
-  const offsets: number[] = [];
-  let cursor = 0;
-  for (const segment of trip.segments) {
-    offsets.push(cursor);
-    cursor += segment.durationS;
-  }
+  const baselineBySegment = indexGpsPreview(
+    request.baseline ?? [],
+    trip.segments.map((segment) => segment.durationS),
+  );
   try {
     const points = await ensureTripGps(trip, excluded, force, (progress) => {
       if (!active()) return;
@@ -76,9 +75,8 @@ async function runPreparation(
             partial.set(update.index, update.points);
           }
         }
-        const preview = trip.segments.flatMap((segment, index) =>
-          partial.get(index) ?? (request.baseline ?? []).filter((p) =>
-            p.tOffsetS >= offsets[index] && p.tOffsetS < offsets[index] + segment.durationS));
+        const preview = trip.segments.flatMap((_, index) =>
+          partial.get(index) ?? baselineBySegment[index]);
         useStore.setState((s) => ({ tripGpsByTrip: { ...s.tripGpsByTrip, [trip.id]: preview } }));
       }
       useStore.setState((s) => ({ gpsProgressByTrip: {
