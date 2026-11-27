@@ -40,9 +40,18 @@ Do not ask the owner to delete archive databases or re-encode recordings.
 Shared schema remains13. The metadata table is optional/additive at extension
 version1 so prior compatible builds can ignore it. Existing settings, media,
 trip merges, bookmarks and camera naming/decoding policies are retained.
-Local tests passed423 Rust/3 ignored and145 frontend tests, TypeScript, interface
-registry and documentation checks. Final source/package validation is pending.
-PR21/main/develop and the previous acceptance assets are not modified here.
+Final checks passed423 Rust/3 ignored and145 frontend tests, TypeScript,
+interface registry, documentation and version checks. Corrected Ubuntu run
+`46068067156` built source `31dde0d`, verified actual bundled H.264/HEVC decoding
+with synthetic frames, and published a non-latest isolated prerelease:
+https://github.com/Marcus-P/trip-viewer/releases/tag/test-0.14.0-31dde0d-ubuntu
+App version `0.14.0-rc.46068067156`, asset SHA256
+`354055bcb053cf0e2d21bffc8ae892be854c1d46b5e86c3d458fee2844196b63`.
+Real owner playback/warm-open acceptance remains pending. No new encoding is
+needed; close old test instances, play an existing source, then reopen the same
+archive once and observe reported metadata reuse. Do not rebuild for this note.
+PR21/main/develop and previous acceptance assets remain unchanged; the earlier
+incomplete package is marked superseded in its release description.
 
 The latest @alinnastac PR21 reply reports one prepared GPS point from a parking
 clip and no previous temporal warnings; it does not explicitly confirm the map
@@ -54,11 +63,11 @@ presentation, playback or exact tested commit. No reply was posted by Codex.
 with proposed source version `0.14.0-rc.1`. Final combined checks passed:
 418 Rust tests (3 opt-in ignored), 142 frontend tests, TypeScript, synchronized
 version metadata and diff whitespace. Owner commit identities were inspected
-for the verified no-reply alias. No protected branch, upstream PR,
-public history or release has been changed. The isolated Ubuntu Evidence Test
-AppImage built successfully from runtime source `183a723` (later changes only
-update working rules/state). It has not been tested on owner hardware or
-published. The separate test identity/updater configuration remains in use.
+for the verified no-reply alias. Protected branches and upstream PR21 remain
+unchanged. The original isolated acceptance package was subsequently published;
+its missing bundled codec failure and corrected download are recorded above.
+The earlier local AppImage build from `183a723` was packaging-only evidence,
+not proof of working video decoding. The separate test identity/updater configuration remains in use.
 Unknown older applications may ignore fork-only extras: shared-schema access
 is not a promise of feature parity with those applications. New unknown manufacturer timing
 rules, dedicated parking-location UI and towing-track reconstruction remain
