@@ -72,20 +72,39 @@ $tripRuntimeDirectory = Join-Path $ToolDir 'python-runtime'
 # Reuse only a checksum-verified archive from the earlier diagnostic. Extract
 # fresh; do not trust an executable from a previous writable runtime directory.
 $tripDownloadRoot = Split-Path $ToolDir -Parent
-$tripArchives = @(Get-ChildItem -Path (Join-Path $tripDownloadRoot 'TripViewer-Parkdiagnose*\python-runtime.zip') `
-    -File -ErrorAction SilentlyContinue)
+$tripArchives = @()
+foreach ($tripPattern in @('TripViewer-Parkdiagnose*', 'TripViewer-Metadaten-*')) {
+    $tripArchives += @(Get-ChildItem -Path (Join-Path $tripDownloadRoot ($tripPattern + '\python-runtime.zip')) `
+        -File -ErrorAction SilentlyContinue)
+}
 foreach ($tripArchive in $tripArchives) {
     if ((Get-FileHash -Algorithm SHA256 -LiteralPath $tripArchive.FullName).Hash.ToLowerInvariant() -eq $tripRuntimeSha) {
-        Copy-Item -LiteralPath $tripArchive.FullName -Destination $tripRuntimeArchive
+        if ($tripArchive.FullName -ne $tripRuntimeArchive) {
+            Copy-Item -LiteralPath $tripArchive.FullName -Destination $tripRuntimeArchive
+        }
         break
     }
 }
-if (-not (Test-Path -LiteralPath $tripRuntimeArchive)) {
+$tripRuntimeValid = (Test-Path -LiteralPath $tripRuntimeArchive -PathType Leaf) -and
+    ((Get-FileHash -Algorithm SHA256 -LiteralPath $tripRuntimeArchive).Hash.ToLowerInvariant() -eq $tripRuntimeSha)
+if (-not $tripRuntimeValid) {
     Write-Host 'Downloading portable Python (about 14 MB); no installation.'
-    Invoke-WebRequest -UseBasicParsing -Uri 'https://www.nuget.org/api/v2/package/python/3.12.10' -OutFile $tripRuntimeArchive
+    # The v2 endpoint redirects to globalcdn.nuget.org, which can fail DNS on
+    # an otherwise working connection. Flat-container serves the SAME pinned
+    # official package directly from api.nuget.org, without that redirect.
+    foreach ($tripRuntimeUrl in @(
+        'https://api.nuget.org/v3-flatcontainer/python/3.12.10/python.3.12.10.nupkg',
+        'https://www.nuget.org/api/v2/package/python/3.12.10'
+    )) {
+        try {
+            Invoke-WebRequest -UseBasicParsing -TimeoutSec 45 -Uri $tripRuntimeUrl -OutFile $tripRuntimeArchive
+            $tripRuntimeValid = (Get-FileHash -Algorithm SHA256 -LiteralPath $tripRuntimeArchive).Hash.ToLowerInvariant() -eq $tripRuntimeSha
+            if ($tripRuntimeValid) { break }
+        } catch { }
+    }
 }
-if ((Get-FileHash -Algorithm SHA256 -LiteralPath $tripRuntimeArchive).Hash.ToLowerInvariant() -ne $tripRuntimeSha) {
-    throw 'Python runtime checksum mismatch. Nothing will be executed.'
+if (-not $tripRuntimeValid) {
+    throw 'Neither official Python endpoint returned the checksum-verified package. No Python was executed.'
 }
 Expand-Archive -LiteralPath $tripRuntimeArchive -DestinationPath $tripRuntimeDirectory
 $tripPython = Join-Path $tripRuntimeDirectory 'tools\python.exe'

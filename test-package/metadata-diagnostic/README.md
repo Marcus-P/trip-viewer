@@ -17,7 +17,11 @@ not install or download another FFmpeg build.
 
 The launcher downloads official portable ExifTool 13.64 for Windows x64 and
 Python Software Foundation Python 3.12.10. It reuses a verified prior Python
-archive where available. No administrator access, system Python, PATH change
+archive from either diagnostic where available. Python is fetched directly
+from the official NuGet flat-container endpoint first, avoiding the v2
+redirect to `globalcdn.nuget.org`; v2 remains a bounded fallback. Both must
+match the same pinned SHA256, and incomplete cached downloads are retried.
+No administrator access, system Python, PATH change
 or execution-policy change is needed. Tool files and their licenses remain
 under the new diagnostic directory. No media or report is uploaded.
 
