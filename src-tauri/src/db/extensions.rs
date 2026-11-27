@@ -166,10 +166,10 @@ fn verify_legacy_schema(conn: &Connection, version: i32) -> Result<(), AppError>
     let mut expected = Connection::open_in_memory()?;
     super::migrations::apply(&mut expected)?;
     let migrations = [
-        include_str!("migrations/0014_media_health_ranges.sql"),
-        include_str!("migrations/0015_trip_gps_source_signature.sql"),
-        include_str!("migrations/0016_gps_segment_checkpoints.sql"),
-        include_str!("migrations/0017_trip_bookmarks.sql"),
+        include_str!("legacy_fork/0014_media_health_ranges.sql"),
+        include_str!("legacy_fork/0015_trip_gps_source_signature.sql"),
+        include_str!("legacy_fork/0016_gps_segment_checkpoints.sql"),
+        include_str!("legacy_fork/0017_trip_bookmarks.sql"),
     ];
     for sql in migrations.iter().take((version - 13) as usize) {
         expected.execute_batch(sql)?;
@@ -243,10 +243,10 @@ mod tests {
         let mut conn = Connection::open(path).unwrap();
         super::super::migrations::apply(&mut conn).unwrap();
         for sql in [
-            include_str!("migrations/0014_media_health_ranges.sql"),
-            include_str!("migrations/0015_trip_gps_source_signature.sql"),
-            include_str!("migrations/0016_gps_segment_checkpoints.sql"),
-            include_str!("migrations/0017_trip_bookmarks.sql"),
+            include_str!("legacy_fork/0014_media_health_ranges.sql"),
+            include_str!("legacy_fork/0015_trip_gps_source_signature.sql"),
+            include_str!("legacy_fork/0016_gps_segment_checkpoints.sql"),
+            include_str!("legacy_fork/0017_trip_bookmarks.sql"),
         ]
         .iter()
         .take((version - 13) as usize)
@@ -341,10 +341,10 @@ INSERT INTO timelapse_jobs(trip_id,tier,channel,status,output_path,created_at_ms
             if version == 17 {
                 let old = Connection::open(&path).unwrap();
                 for sql in [
-                    include_str!("migrations/0014_media_health_ranges.sql"),
-                    include_str!("migrations/0015_trip_gps_source_signature.sql"),
-                    include_str!("migrations/0016_gps_segment_checkpoints.sql"),
-                    include_str!("migrations/0017_trip_bookmarks.sql"),
+                    include_str!("legacy_fork/0014_media_health_ranges.sql"),
+                    include_str!("legacy_fork/0015_trip_gps_source_signature.sql"),
+                    include_str!("legacy_fork/0016_gps_segment_checkpoints.sql"),
+                    include_str!("legacy_fork/0017_trip_bookmarks.sql"),
                 ] {
                     old.execute_batch(sql).unwrap();
                 }
