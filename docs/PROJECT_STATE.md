@@ -6,6 +6,48 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Ubuntu playback recovery and archive-load work
+
+The owner reported all channels unavailable in the isolated Ubuntu package from
+run46046620878. Inspection of the actual downloaded AppImage confirmed absent
+`libgstlibav.so` and `libgstvideoparsersbad.so`. Its packaging-only workflow had
+omitted the GStreamer packages used by normal Ubuntu builds. Its AppRun hook
+restricts plugin discovery to the bundle, so host codecs are not a reliable fix.
+Do not ask the owner to delete archive databases or re-encode recordings.
+
+`fix/ubuntu-playback-and-archive-load` separates:
+- Runtime load/codec/abort errors from durable decode-failure intervals. Existing
+  runtime-only rows are retained but ignored for playback and GPS provenance;
+  supported content-decode failures retain channel-local recovery/failover.
+- Historical fork conversion SQL from the 13 actual active migrations.
+- An optional `metadata_cache_v1` table in the extension database, not main.
+  It reuses successful MP4 metadata by archive-relative path, size, nanosecond
+  mtime and probe-policy version; unavailable fingerprints, failed probes,
+  changed-during-read files, invalid payloads and stale policies fall back to a
+  fresh probe. Cache failure is nonfatal and never establishes file absence.
+- Blocking archive-open/scan work moved off the async IPC executor. Folder
+  inventory errors abort before saved-row cleanup. Enumeration/grouping remain
+  real work; no provisional trips or guessed completeness is introduced.
+- Request-scoped progress reports phases and actual completed metadata files,
+  including cache hits. Unknown totals remain indeterminate. Old-archive events
+  and backwards counters are ignored. GPS startup backfill also reports actual
+  completed segments within each explicitly labelled trip, using its existing
+  decoder/validation pipeline instead of waiting for the whole trip to finish.
+- A bundle-specific H.264/H.265 synthetic decode smoke check. It rejects the
+  previous incomplete package before running and must pass on the next Ubuntu
+  acceptance package before publication. It is not a hardware/playback test.
+
+Shared schema remains13. The metadata table is optional/additive at extension
+version1 so prior compatible builds can ignore it. Existing settings, media,
+trip merges, bookmarks and camera naming/decoding policies are retained.
+Local tests passed423 Rust/3 ignored and145 frontend tests, TypeScript, interface
+registry and documentation checks. Final source/package validation is pending.
+PR21/main/develop and the previous acceptance assets are not modified here.
+
+The latest @alinnastac PR21 reply reports one prepared GPS point from a parking
+clip and no previous temporal warnings; it does not explicitly confirm the map
+presentation, playback or exact tested commit. No reply was posted by Codex.
+
 ## Integration candidate
 
 `feat/0.14-integration` combines the independently extractable changes below,

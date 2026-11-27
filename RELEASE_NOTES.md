@@ -1,5 +1,19 @@
 # Trip Viewer 0.14.0-rc.1
 
+## Ubuntu playback and archive loading corrections
+
+- Include and verify the bundled GStreamer H.264/HEVC decoding components in
+  isolated Ubuntu packaging, matching normal Ubuntu dependency preparation.
+- Stop treating missing codecs, load failures and aborted sources as persistent
+  recording damage. Ignore earlier runtime-only health rows without deleting
+  user data; retain actual decode-failure recovery and healthy GPS failover.
+- Reuse unchanged MP4 metadata from the optional archive-local extension cache.
+  Preserve schema13 and probe changed/unverifiable files normally.
+- Run blocking archive opens/scans outside the async IPC executor; abort
+  incomplete inventories before saved-row cleanup.
+- Report actual file/segment completion per named loading phase, with cache hits,
+  archive-session isolation and indeterminate display when totals are unknown.
+
 ## Direct media positioning (local implementation, awaiting acceptance)
 
 - Position new sources at the requested timestamp as soon as metadata permits,
