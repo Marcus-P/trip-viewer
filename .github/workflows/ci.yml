@@ -10,11 +10,15 @@ on:
         description: Test only the portable parking diagnostic on Windows (no app build)
         type: boolean
         default: false
+      metadata_windows:
+        description: Test only local metadata collection on Windows (no app build)
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
   inspect-existing-run:
-    if: inputs.diagnose_run != '' && inputs.parking_windows != true
+    if: inputs.diagnose_run != '' && inputs.parking_windows != true && inputs.metadata_windows != true
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -33,7 +37,7 @@ jobs:
           print("::warning title=Existing package failure::"+escaped)
           PYREPORT
   ubuntu-test:
-    if: inputs.diagnose_run == '' && inputs.parking_windows != true
+    if: inputs.diagnose_run == '' && inputs.parking_windows != true && inputs.metadata_windows != true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -77,7 +81,7 @@ jobs:
         run: python3 test-package/publish.py
 
   windows-diagnostic:
-    if: inputs.parking_windows == true
+    if: inputs.parking_windows == true && inputs.metadata_windows != true
     permissions:
       contents: read
     runs-on: windows-latest
@@ -115,3 +119,50 @@ jobs:
           }
           $text = Get-Content -Raw (Join-Path $env:DIAG_WORK 'report.json')
           if ($text.Contains($env:DIAG_WORK) -or $text.Contains('2020_0101')) { throw 'Report leaked input identity' }
+
+  windows-metadata:
+    if: inputs.metadata_windows == true
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and check the exact source-only ZIP
+        shell: powershell
+        run: |
+          python test-package/metadata-diagnostic/package.py
+          $env:METADATA_WORK = Join-Path $env:RUNNER_TEMP 'metadata-check'
+          New-Item -ItemType Directory -Path $env:METADATA_WORK | Out-Null
+          Expand-Archive -LiteralPath test-package/viofo-metadata-diagnostic-v1.zip -DestinationPath (Join-Path $env:METADATA_WORK 'tool')
+          @'
+          import importlib.util,os
+          from pathlib import Path
+          root=Path(os.environ['METADATA_WORK'])
+          spec=importlib.util.spec_from_file_location('fixture','test-package/test_viofo_time_diagnostic.py')
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          for name in ['two channels','three channels']:
+              folder=root/name;folder.mkdir()
+              (folder/'PRIVATE_MARKER.mp4').write_bytes(module.fixture(count=3))
+          '@ | python
+          # Real FFprobe is checked on Linux. This stub checks Windows native
+          # argument passing without downloading another large FFmpeg package.
+          Add-Type -TypeDefinition 'public class Probe { public static void Main(string[] args) { System.Console.WriteLine("{\"format\":{\"filename\":\"PRIVATE_MARKER\",\"duration\":\"1\"}}"); } }' -OutputAssembly (Join-Path $env:METADATA_WORK 'ffprobe.exe') -OutputType ConsoleApplication
+          & .\test-package\metadata-diagnostic\run-windows.ps1 `
+            -TwoChannel (Join-Path $env:METADATA_WORK 'two channels') `
+            -ThreeChannel (Join-Path $env:METADATA_WORK 'three channels') `
+            -ToolDir (Join-Path $env:METADATA_WORK 'tool') `
+            -FFprobe (Join-Path $env:METADATA_WORK 'ffprobe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Metadata launcher failed' }
+          $tripArchive = Join-Path $env:METADATA_WORK 'tool\exiftool-13.64_64.zip'
+          $tripArchiveSha = (Get-FileHash -LiteralPath $tripArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host ('::notice title=Official ExifTool 13.64 archive SHA256::' + $tripArchiveSha)
+          $tripReport = Join-Path $env:METADATA_WORK 'tool\metadata-results\SHARE-metadata-report.json'
+          $tripText = Get-Content -Raw -LiteralPath $tripReport
+          $tripData = $tripText | ConvertFrom-Json
+          if ($tripData.status -ne 'complete' -or $tripData.sets.Count -ne 2) { throw 'Incomplete metadata collection' }
+          if ($tripData.fields.Count -lt 5) { throw 'Missing metadata field inventory' }
+          if ($tripText.Contains('PRIVATE_MARKER') -or $tripText.Contains($env:METADATA_WORK)) { throw 'Report leaked source identity' }
+          $tripPrivate = Get-Content -Raw -LiteralPath (Join-Path $env:METADATA_WORK 'tool\metadata-results\PRIVATE-DO-NOT-SHARE\set-01-file-0001\ffprobe-PRIVATE.json')
+          if (-not $tripPrivate.Contains('PRIVATE_MARKER')) { throw 'Raw metadata was not preserved' }
+          Write-Host '::notice title=Windows metadata smoke::Portable Python and ExifTool collection passed; FFprobe invocation used a synthetic stub. No app build or artifact upload.'
