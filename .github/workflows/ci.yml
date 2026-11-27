@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: 48f52e7c230a94250bc1a29973d77c39894d13c7
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
