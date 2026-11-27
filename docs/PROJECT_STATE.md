@@ -6,6 +6,14 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Integration candidate
+
+`feat/0.14-integration` combines the independently extractable changes below,
+with proposed source version `0.14.0-rc.1`. No protected branch, upstream PR,
+public history or release has been changed. New unknown manufacturer timing
+rules, dedicated parking-location UI and towing-track reconstruction remain
+outside the implemented scope. Do not claim those are solved by this candidate.
+
 ## Local direct media positioning (not published)
 
 `fix/direct-media-position` positions each channel once metadata is available,
@@ -61,6 +69,10 @@ extensions in a transaction. The extra file retains media health, GPS segment
 checkpoints/provenance and bookmarks. Places, trips, merges, timelapse records
 and archived GPS remain in the schema-13 database. Unknown schemas fail closed.
 Do not delete the extra file as a disposable cache; it contains user bookmarks.
+Cross-file user-data transactions use DELETE journals with FULL synchronization
+for SQLite super-journal atomicity; WAL does not provide that cross-file crash
+atomicity. The old application may select WAL again, and compatible open restores
+the required journal modes. The archive mutex remains the connection owner.
 Do not claim compatibility with applications predating schema 13 or protection
 against migrations performed by already published older fork builds themselves.
 
@@ -71,10 +83,9 @@ schemas 14..17, retained data, old-writer provenance invalidation, repeated
 archive was opened or modified and no acceptance package has been published.
 
 The upstream comparison is current at `01e20d6`; protected branches and PR #21
-remain unchanged. Pending independent work: metadata-driven GPS profiles for
-supported cameras without guessing unknown timing, direct target positioning
-on metadata readiness, and central settings grouped by existing app tabs with
-immediate preference application. Keep these separate from the database change.
+remain unchanged. The following separate commits now implement central settings,
+GPS preview indexing and metadata-ready direct positioning. Unknown camera
+metadata still does not justify inventing timing profiles or park submodes.
 
 ## Commit privacy safeguards
 
@@ -87,7 +98,7 @@ Filename/channel offsets up to five seconds and parking trip-boundary policy
 remain separate open questions. Do not claim those are fixed or that a parking
 file location is a frame-timed route or proof of standstill.
 
-This full-fork branch keeps its existing schema 17 and adds the independent
+The earlier `feat/media-evidence-validation` base keeps schema 17 and adds the independent
 `metadata/evidence.rs` module in commit `8829b0a`. It reuses parsed headers,
 reports timing/sample-table findings, skips unsupported fragmented sample
 checks and guards zero video timescale before arithmetic. It does not decode

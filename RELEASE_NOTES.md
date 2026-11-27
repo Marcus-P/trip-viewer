@@ -1,4 +1,4 @@
-# Trip Viewer 0.13.1-rc.1
+# Trip Viewer 0.14.0-rc.1
 
 ## Direct media positioning (local implementation, awaiting acceptance)
 
