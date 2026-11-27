@@ -13,7 +13,12 @@ with proposed source version `0.14.0-rc.1`. Final combined checks passed:
 418 Rust tests (3 opt-in ignored), 142 frontend tests, TypeScript, synchronized
 version metadata and diff whitespace. Owner commit identities were inspected
 for the verified no-reply alias. No protected branch, upstream PR,
-public history or release has been changed. New unknown manufacturer timing
+public history or release has been changed. The isolated Ubuntu Evidence Test
+AppImage built successfully from runtime source `183a723` (later changes only
+update working rules/state). It has not been tested on owner hardware or
+published. The separate test identity/updater configuration remains in use.
+Unknown older applications may ignore fork-only extras: shared-schema access
+is not a promise of feature parity with those applications. New unknown manufacturer timing
 rules, dedicated parking-location UI and towing-track reconstruction remain
 outside the implemented scope. Do not claim those are solved by this candidate.
 
