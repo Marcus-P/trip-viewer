@@ -68,7 +68,7 @@ interface Props {
   onChannelMediaError?: (
     label: string,
     message: string,
-    cached: boolean,
+    affectsGps: boolean,
   ) => void;
   onChannelMediaRecovered?: (label: string) => void;
 }

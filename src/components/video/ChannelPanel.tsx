@@ -92,7 +92,7 @@ interface Props {
   /** Report a terminal media failure for this source. The parent removes the
    *  failed channel from the active SyncEngine while keeping the panel mounted
    *  with its error overlay. A new source/segment gets a clean retry. */
-  onMediaError?: (label: string, message: string, cached: boolean) => void;
+  onMediaError?: (label: string, message: string, affectsGps: boolean) => void;
   onMediaRecovered?: (label: string) => void;
 }
 
@@ -186,7 +186,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
               failedRef.current = true;
               const message = `known media failure: ${known.errorKind}`;
               setError(message);
-              onMediaError?.(label, message, true);
+              onMediaError?.(label, message, false);
             }
             if (!known && localRef.current) localRef.current.src = src;
           }
@@ -254,7 +254,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
         localRef.current?.pause();
         setReady(false);
         setError(displayMessage);
-        onMediaError?.(label, displayMessage, !persist);
+        onMediaError?.(label, displayMessage, persist);
         if (persist) {
           void recordMediaFailure(filePath, failureTime, displayMessage).catch(
             (healthError) => {
@@ -562,7 +562,7 @@ export const ChannelPanel = forwardRef<HTMLVideoElement, Props>(
             markFailed(
               displayMessage,
               useStore.getState().currentTime,
-              true,
+              code === 3,
             );
           }}
         />

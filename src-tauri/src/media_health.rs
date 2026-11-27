@@ -35,6 +35,12 @@ pub(crate) fn stored_path(path: &Path, archive_root: &Path) -> String {
         .unwrap_or_else(|_| path.to_string_lossy().into_owned())
 }
 
+/// A missing codec, aborted load or transport error belongs to the runtime,
+/// not to the recording. Retain legacy rows but never reuse them as damage.
+pub(crate) fn is_content_failure(kind: &str) -> bool {
+    kind == "decode" || kind == "decode error" || kind.starts_with("decode error:")
+}
+
 #[tauri::command]
 pub async fn load_media_health(
     paths: Vec<String>,
@@ -75,7 +81,8 @@ fn load_file_health(
             error_kind: r.get(2)?,
         })
     })?;
-    Ok(rows.collect::<Result<_, _>>()?)
+    Ok(rows.collect::<Result<Vec<_>, _>>()?.into_iter()
+        .filter(|range| is_content_failure(&range.error_kind)).collect())
 }
 
 #[tauri::command]
@@ -85,7 +92,7 @@ pub async fn record_media_failure(
     error_kind: String,
     slot: State<'_, ArchiveSlot>,
 ) -> Result<(), AppError> {
-    if !start_s.is_finite() || start_s < 0.0 {
+    if !start_s.is_finite() || start_s < 0.0 || !is_content_failure(&error_kind) {
         return Ok(());
     }
 
@@ -121,12 +128,16 @@ fn persist_failure(
     error_kind: &str,
     now: i64,
 ) -> Result<(), AppError> {
+    if !is_content_failure(error_kind) {
+        return Ok(());
+    }
     let open_id: Option<i64> = conn
         .query_row(
             "SELECT id
              FROM extensions.media_health_ranges
              WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
                AND end_ms IS NULL
+               AND (error_kind = 'decode' OR error_kind = 'decode error' OR error_kind LIKE 'decode error:%')
              ORDER BY start_ms DESC
              LIMIT 1",
             params![stored, size, modified_ms],
@@ -270,4 +281,22 @@ mod tests {
             .unwrap()
             .is_empty());
     }
+    #[test]
+    fn legacy_runtime_failures_are_ignored_without_deleting_rows() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("clip.mp4");
+        std::fs::write(&path, b"synthetic").unwrap();
+        let db = crate::db::open_in_memory().unwrap();
+        let conn = db.lock().unwrap();
+        let (size, modified) = fingerprint(&path).unwrap();
+        conn.execute("INSERT INTO extensions.media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms) VALUES('clip.mp4',?1,?2,0,'source not supported (load or codec failure)',0)", params![size,modified]).unwrap();
+        assert!(load_file_health(&conn, path.to_str().unwrap(), root.path()).unwrap().is_empty());
+        persist_failure(&conn, "clip.mp4", size, modified, 0, "network error (failed to load)", 1).unwrap();
+        assert_eq!(conn.query_row("SELECT COUNT(*) FROM extensions.media_health_ranges", [], |r| r.get::<_,i64>(0)).unwrap(), 1);
+        persist_failure(&conn, "clip.mp4", size, modified, 1000, "decode error: invalid bitstream", 1).unwrap();
+        let ranges = load_file_health(&conn, path.to_str().unwrap(), root.path()).unwrap();
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].start_s, 1.0);
+    }
+
 }

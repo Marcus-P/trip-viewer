@@ -665,15 +665,19 @@ fn trip_gps_sources(
             if let Some((size, modified)) = fingerprint {
                 has_original = true;
                 let mut stmt = conn.prepare(
-                    "SELECT start_ms, end_ms FROM extensions.media_health_ranges
+                    "SELECT start_ms, end_ms, error_kind FROM extensions.media_health_ranges
                      WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
                      ORDER BY start_ms, end_ms",
                 )?;
                 ranges = stmt
                     .query_map(rusqlite::params![stored, size, modified], |r| {
-                        Ok((r.get(0)?, r.get(1)?))
+                        Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?, r.get::<_, String>(2)?))
                     })?
-                    .collect::<Result<_, _>>()?;
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .filter(|(_, _, kind)| media_health::is_content_failure(kind))
+                    .map(|(start, end, _)| (start, end))
+                    .collect();
                 // Even partial video corruption makes a sibling the safer GPS
                 // provider for this segment. Never assume GPS implies health.
                 if ranges.is_empty() {
@@ -1037,6 +1041,20 @@ mod tests {
                 .unwrap(),
             trip_gps_sources(&conn, root.path(), &segments).unwrap().0
         );
+    }
+
+    #[test]
+    fn missing_codec_history_does_not_exclude_a_gps_source() {
+        let root = tempfile::tempdir().unwrap();
+        let (db, segments) = cache_fixture(root.path());
+        let conn = db.lock().unwrap();
+        let before = trip_gps_sources(&conn, root.path(), &segments).unwrap();
+        let path = Path::new(&segments[0].channels[0].path);
+        let (size, modified) = crate::media_health::fingerprint(path).unwrap();
+        conn.execute("INSERT INTO extensions.media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms) VALUES(?1,?2,?3,0,'source not supported (load or codec failure)',0)", rusqlite::params![crate::media_health::stored_path(path, root.path()),size,modified]).unwrap();
+        let after = trip_gps_sources(&conn, root.path(), &segments).unwrap();
+        assert_eq!(before.0, after.0);
+        assert_eq!(before.1[0].paths, after.1[0].paths);
     }
 
     #[test]
