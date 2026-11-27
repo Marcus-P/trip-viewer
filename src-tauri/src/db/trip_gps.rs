@@ -20,13 +20,16 @@ pub fn upsert(
         .map_err(|e| AppError::Internal(format!("trip_gps serialize: {e}")))?;
     let now = chrono::Utc::now().timestamp_millis();
     conn.execute(
+        "DELETE FROM extensions.trip_gps_provenance WHERE trip_id = ?1",
+        [trip_id],
+    )?;
+    conn.execute(
         "INSERT INTO trip_gps (trip_id, points_json, point_count, parser_version, created_at_ms)
          VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(trip_id) DO UPDATE SET
             points_json    = excluded.points_json,
             point_count    = excluded.point_count,
             parser_version = excluded.parser_version,
-            source_signature = NULL,
             created_at_ms  = excluded.created_at_ms",
         params![trip_id, json, points.len() as i64, parser_version, now],
     )?;
@@ -34,14 +37,15 @@ pub fn upsert(
 }
 
 pub fn source_signature(conn: &Connection, trip_id: &str) -> Result<Option<String>, AppError> {
-    Ok(conn
-        .query_row(
-            "SELECT source_signature FROM trip_gps WHERE trip_id = ?1",
-            params![trip_id],
-            |r| r.get(0),
-        )
-        .optional()?
-        .flatten())
+    super::extensions::source_signature(conn, trip_id)
+}
+
+pub(crate) fn set_source_signature(
+    conn: &Connection,
+    trip_id: &str,
+    signature: &str,
+) -> Result<(), AppError> {
+    super::extensions::set_source_signature(conn, trip_id, signature)
 }
 
 pub fn load(conn: &Connection, trip_id: &str) -> Result<Option<Vec<GpsPoint>>, AppError> {

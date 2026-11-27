@@ -1,5 +1,18 @@
 # Trip Viewer 0.13.1-rc.1
 
+## Archive compatibility (local implementation, awaiting acceptance)
+
+- Keep the shared archive database at upstream schema 13. Preserve known fork
+  schema-14..17 additions in a versioned archive-local extension database before
+  removing them from the shared schema, with a retained SQLite recovery backup.
+- Keep places, manual trip merges, archived GPS and completed timelapses intact.
+  Existing schema-13 archives do not require media reanalysis for this change.
+- Refuse unknown layouts and newer extension schemas. Validate GPS provenance
+  against the archived payload so an older application's writes invalidate it.
+- Older released fork applications may still apply their existing schema-17
+  migration; compatible opens support conversion again without losing retained
+  extension data. Applications older than schema 13 are outside this guarantee.
+
 ## Feature-branch media evidence and parking GPS
 
 - Integrate current upstream 70mai support while preserving its authorship.

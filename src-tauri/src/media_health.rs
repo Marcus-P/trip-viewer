@@ -64,7 +64,7 @@ fn load_file_health(
     };
     let stored = stored_path(path, archive_root);
     let mut stmt = conn.prepare(
-        "SELECT start_ms, end_ms, error_kind FROM media_health_ranges
+        "SELECT start_ms, end_ms, error_kind FROM extensions.media_health_ranges
          WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3 ORDER BY start_ms ASC",
     )?;
     let rows = stmt.query_map(params![stored, size, modified_ms], |r| {
@@ -124,7 +124,7 @@ fn persist_failure(
     let open_id: Option<i64> = conn
         .query_row(
             "SELECT id
-             FROM media_health_ranges
+             FROM extensions.media_health_ranges
              WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
                AND end_ms IS NULL
              ORDER BY start_ms DESC
@@ -136,7 +136,7 @@ fn persist_failure(
 
     if let Some(id) = open_id {
         conn.execute(
-            "UPDATE media_health_ranges
+            "UPDATE extensions.media_health_ranges
              SET start_ms = MIN(start_ms, ?2),
                  error_kind = ?3,
                  updated_at_ms = ?4
@@ -145,7 +145,7 @@ fn persist_failure(
         )?;
     } else {
         conn.execute(
-            "INSERT INTO media_health_ranges
+            "INSERT INTO extensions.media_health_ranges
                 (file_path, file_size, modified_ms, start_ms, end_ms, error_kind, updated_at_ms)
              VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6)",
             params![stored, size, modified_ms, start_ms, error_kind, now],
@@ -190,7 +190,7 @@ fn persist_recovery(
     let open: Option<(i64, i64)> = conn
         .query_row(
             "SELECT id, start_ms
-             FROM media_health_ranges
+             FROM extensions.media_health_ranges
              WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
                AND end_ms IS NULL AND start_ms <= ?4
              ORDER BY start_ms DESC
@@ -202,7 +202,7 @@ fn persist_recovery(
 
     if let Some((id, start_ms)) = open {
         conn.execute(
-            "UPDATE media_health_ranges
+            "UPDATE extensions.media_health_ranges
              SET end_ms = ?2, updated_at_ms = ?3
              WHERE id = ?1",
             params![id, end_ms.max(start_ms), now],

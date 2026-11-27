@@ -6,6 +6,31 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Local schema-compatibility work (not published)
+
+Owner-authorized work on `feat/archive-schema-compatibility` restores the shared
+archive database to upstream schema 13. Known fork schemas 14..17 are checked
+against their actual layout, backed up using SQLite (including committed WAL),
+and copied into `archive-extras-v1.sqlite` before removing only the known fork
+extensions in a transaction. The extra file retains media health, GPS segment
+checkpoints/provenance and bookmarks. Places, trips, merges, timelapse records
+and archived GPS remain in the schema-13 database. Unknown schemas fail closed.
+Do not delete the extra file as a disposable cache; it contains user bookmarks.
+Do not claim compatibility with applications predating schema 13 or protection
+against migrations performed by already published older fork builds themselves.
+
+Validation: 417 Rust tests passed, 3 opt-in tests ignored; the final targeted
+conversion checks passed after lock/backup hardening. Conversion fixtures cover
+schemas 14..17, retained data, old-writer provenance invalidation, repeated
+17-to-13 conversion, unknown layouts and transactional rollback. No owner
+archive was opened or modified and no acceptance package has been published.
+
+The upstream comparison is current at `01e20d6`; protected branches and PR #21
+remain unchanged. Pending independent work: metadata-driven GPS profiles for
+supported cameras without guessing unknown timing, direct target positioning
+on metadata readiness, and central settings grouped by existing app tabs with
+immediate preference application. Keep these separate from the database change.
+
 ## Commit privacy safeguards
 
 Current feature branch integrates upstream main `01e20d6` before runtime work,

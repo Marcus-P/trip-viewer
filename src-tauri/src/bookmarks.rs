@@ -5,8 +5,9 @@ use rusqlite::{params, Connection};
 use tauri::State;
 
 fn list(conn: &Connection, trip_id: &str) -> Result<Vec<i64>, AppError> {
-    let mut stmt =
-        conn.prepare("SELECT time_ms FROM trip_bookmarks WHERE trip_id = ?1 ORDER BY time_ms")?;
+    let mut stmt = conn.prepare(
+        "SELECT time_ms FROM extensions.trip_bookmarks WHERE trip_id = ?1 ORDER BY time_ms",
+    )?;
     let rows = stmt.query_map([trip_id], |r| r.get(0))?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
@@ -19,12 +20,12 @@ fn set(conn: &Connection, trip_id: &str, time_ms: i64, present: bool) -> Result<
     }
     if present {
         conn.execute(
-            "INSERT OR IGNORE INTO trip_bookmarks (trip_id, time_ms) VALUES (?1, ?2)",
+            "INSERT OR IGNORE INTO extensions.trip_bookmarks (trip_id, time_ms) VALUES (?1, ?2)",
             params![trip_id, time_ms],
         )?;
     } else {
         conn.execute(
-            "DELETE FROM trip_bookmarks WHERE trip_id = ?1 AND time_ms = ?2",
+            "DELETE FROM extensions.trip_bookmarks WHERE trip_id = ?1 AND time_ms = ?2",
             params![trip_id, time_ms],
         )?;
     }
@@ -123,7 +124,10 @@ pub(crate) fn rebase_for_merge(
                 .unwrap_or(time);
             rebased.push(mapped);
         }
-        conn.execute("DELETE FROM trip_bookmarks WHERE trip_id = ?1", [id])?;
+        conn.execute(
+            "DELETE FROM extensions.trip_bookmarks WHERE trip_id = ?1",
+            [id],
+        )?;
     }
     for time in rebased {
         set(conn, primary, time, true)?;

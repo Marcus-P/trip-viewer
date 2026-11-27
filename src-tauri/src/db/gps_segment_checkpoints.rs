@@ -11,7 +11,7 @@ pub fn load(
 ) -> Result<Option<String>, AppError> {
     Ok(conn
         .query_row(
-            "SELECT payload_json FROM gps_segment_checkpoints
+            "SELECT payload_json FROM extensions.gps_segment_checkpoints
          WHERE trip_id = ?1 AND segment_id = ?2 AND source_signature = ?3 AND parser_version = ?4",
             params![trip_id, segment_id, signature, parser_version],
             |r| r.get(0),
@@ -28,7 +28,7 @@ pub fn upsert(
     payload: &str,
 ) -> Result<(), AppError> {
     conn.execute(
-        "INSERT INTO gps_segment_checkpoints
+        "INSERT INTO extensions.gps_segment_checkpoints
          (trip_id, segment_id, source_signature, parser_version, payload_json)
          VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(trip_id, segment_id) DO UPDATE SET

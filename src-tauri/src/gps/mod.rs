@@ -622,10 +622,7 @@ fn persist_trip_gps(
     // not leave a new payload carrying an old signature.
     let tx = conn.unchecked_transaction()?;
     trip_gps::upsert(&tx, trip_id, &points, GPS_PARSER_VERSION)?;
-    tx.execute(
-        "UPDATE trip_gps SET source_signature = ?2 WHERE trip_id = ?1",
-        rusqlite::params![trip_id, signature],
-    )?;
+    trip_gps::set_source_signature(&tx, trip_id, &signature)?;
     tx.commit()?;
     Ok(points)
 }
@@ -668,7 +665,7 @@ fn trip_gps_sources(
             if let Some((size, modified)) = fingerprint {
                 has_original = true;
                 let mut stmt = conn.prepare(
-                    "SELECT start_ms, end_ms FROM media_health_ranges
+                    "SELECT start_ms, end_ms FROM extensions.media_health_ranges
                      WHERE file_path = ?1 AND file_size = ?2 AND modified_ms = ?3
                      ORDER BY start_ms, end_ms",
                 )?;
@@ -978,11 +975,7 @@ mod tests {
             GPS_PARSER_VERSION,
         )
         .unwrap();
-        conn.execute(
-            "UPDATE trip_gps SET source_signature = ?1 WHERE trip_id = 'trip'",
-            [signature],
-        )
-        .unwrap();
+        crate::db::trip_gps::set_source_signature(&conn, "trip", &signature).unwrap();
     }
 
     #[test]
@@ -1021,7 +1014,7 @@ mod tests {
             let conn = health_db.lock().unwrap();
             let path = Path::new(&front);
             let (size, modified) = crate::media_health::fingerprint(path).unwrap();
-            conn.execute("INSERT INTO media_health_ranges (file_path, file_size, modified_ms, start_ms, error_kind, updated_at_ms)
+            conn.execute("INSERT INTO extensions.media_health_ranges (file_path, file_size, modified_ms, start_ms, error_kind, updated_at_ms)
                 VALUES (?1, ?2, ?3, 1000, 'decode', 0)",
                 rusqlite::params![crate::media_health::stored_path(path, health_db.archive_root()), size, modified]).unwrap();
             health_tx.send(()).unwrap();
@@ -1141,7 +1134,7 @@ mod tests {
                 _ => {
                     let path = Path::new(&segments[0].channels[0].path);
                     let (size, modified) = crate::media_health::fingerprint(path).unwrap();
-                    conn.execute("INSERT INTO media_health_ranges (file_path, file_size, modified_ms, start_ms, error_kind, updated_at_ms)
+                    conn.execute("INSERT INTO extensions.media_health_ranges (file_path, file_size, modified_ms, start_ms, error_kind, updated_at_ms)
                         VALUES (?1, ?2, ?3, 1000, 'decode', 0)",
                         rusqlite::params![crate::media_health::stored_path(path, root.path()), size, modified]).unwrap();
                 }
@@ -1162,7 +1155,7 @@ mod tests {
         let conn = db.lock().unwrap();
         let path = Path::new(&segments[0].channels[0].path);
         let (size, modified) = crate::media_health::fingerprint(path).unwrap();
-        conn.execute("INSERT INTO media_health_ranges (file_path, file_size, modified_ms, start_ms, end_ms, error_kind, updated_at_ms)
+        conn.execute("INSERT INTO extensions.media_health_ranges (file_path, file_size, modified_ms, start_ms, end_ms, error_kind, updated_at_ms)
             VALUES (?1, ?2, ?3, 1000, 2000, 'decode', 0)",
             rusqlite::params![crate::media_health::stored_path(path, root.path()), size, modified]).unwrap();
         let (_, sources, _) = trip_gps_sources(&conn, root.path(), &segments).unwrap();
@@ -1303,7 +1296,7 @@ mod tests {
             .lock()
             .unwrap()
             .query_row(
-                "SELECT payload_json FROM gps_segment_checkpoints WHERE segment_id='seg-0'",
+                "SELECT payload_json FROM extensions.gps_segment_checkpoints WHERE segment_id='seg-0'",
                 [],
                 |r| r.get(0),
             )
@@ -1383,7 +1376,7 @@ mod tests {
         db.lock()
             .unwrap()
             .execute(
-                "UPDATE gps_segment_checkpoints SET parser_version=-1 WHERE segment_id='seg-2'",
+                "UPDATE extensions.gps_segment_checkpoints SET parser_version=-1 WHERE segment_id='seg-2'",
                 [],
             )
             .unwrap();
@@ -1393,7 +1386,7 @@ mod tests {
         let path = Path::new(&requests[0].channels[0].path);
         let (size, modified) = crate::media_health::fingerprint(path).unwrap();
         db.lock().unwrap().execute(
-            "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
+            "INSERT INTO extensions.media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
              VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path, db.archive_root()),size,modified]).unwrap();
         let result = run(&mut parsed);
         assert!(
@@ -1417,7 +1410,7 @@ mod tests {
                 let path_obj = Path::new(path);
                 let (size, modified) = crate::media_health::fingerprint(path_obj).unwrap();
                 conn.execute(
-                    "INSERT INTO media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
+                    "INSERT INTO extensions.media_health_ranges(file_path,file_size,modified_ms,start_ms,error_kind,updated_at_ms)
                      VALUES (?1,?2,?3,0,'decode',0)", rusqlite::params![crate::media_health::stored_path(path_obj, db.archive_root()),size,modified]).unwrap();
                 fake_batch(path, 1.0)
             }, |_, _| {})
@@ -1431,7 +1424,7 @@ mod tests {
             .lock()
             .unwrap()
             .query_row(
-                "SELECT payload_json FROM gps_segment_checkpoints",
+                "SELECT payload_json FROM extensions.gps_segment_checkpoints",
                 [],
                 |r| r.get(0),
             )

@@ -5,6 +5,7 @@ use rusqlite::Connection;
 
 use crate::error::AppError;
 
+mod extensions;
 pub mod gps_segment_checkpoints;
 pub mod manual_trip_merges;
 mod migrations;
@@ -76,13 +77,10 @@ pub fn open_at_path(db_path: &Path, archive_root: &Path) -> Result<DbHandle, App
     }
     let mut conn = Connection::open(db_path)?;
 
-    // Refuse to open archives whose schema is newer than what this
-    // build can handle. Without this check, rusqlite_migration would
-    // silently succeed (no-op when current >= target) but our code
-    // would then try to read columns it doesn't know about.
-    let current_user_version: i32 =
-        conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    let expected = migrations::HEAD_VERSION as i32;
+    // Known fork schemas 14..17 are converted losslessly to upstream schema
+    // 13 plus archive-local extensions. Refuse anything newer before writing.
+    let current_user_version: i32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    let expected = 17; // Last published fork schema supported by the conversion.
     if current_user_version > expected {
         return Err(AppError::ArchiveSchemaTooNew {
             found: current_user_version,
@@ -92,7 +90,7 @@ pub fn open_at_path(db_path: &Path, archive_root: &Path) -> Result<DbHandle, App
 
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
-    migrations::apply(&mut conn)?;
+    extensions::prepare(&mut conn, Some(db_path))?;
 
     Ok(Arc::new(DbHandleInner {
         conn: Mutex::new(conn),
@@ -113,7 +111,7 @@ pub fn open_in_memory_with_root(archive_root: &Path) -> Result<DbHandle, AppErro
     // Mirror open_at_path so FK cascades (e.g. trip_gps → trips) behave
     // identically in tests and production.
     conn.pragma_update(None, "foreign_keys", "ON")?;
-    migrations::apply(&mut conn)?;
+    extensions::prepare(&mut conn, None)?;
     Ok(Arc::new(DbHandleInner {
         conn: Mutex::new(conn),
         archive_root: archive_root.to_path_buf(),
