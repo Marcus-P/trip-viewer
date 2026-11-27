@@ -14,7 +14,7 @@ import { fallbackCurveForTier } from "../../utils/tripTime";
 import { estimateEncodingStep } from "./encodingProgress";
 import { decoderLabel, encoderLabel } from "./encoderLabel";
 import { TripActionsMenu } from "../trip/TripActionsMenu";
-import { FfmpegConfig } from "./FfmpegConfig";
+import { useSettingsNavigation } from "../../settings/navigation";
 
 // State used by both the per-trip status pills and the library-wide
 // "Overall coverage" summary. Maps onto the same colors and glyphs the
@@ -128,7 +128,7 @@ export function TimelapseView() {
   const selectTrip = useStore((s) => s.selectTrip);
   const setSourceMode = useStore((s) => s.setSourceMode);
 
-  const [showConfig, setShowConfig] = useState(false);
+  const openSettings = useSettingsNavigation((s) => s.open);
   const [pruneState, setPruneState] = useState<
     | { kind: "idle" }
     | { kind: "running" }
@@ -156,8 +156,8 @@ export function TimelapseView() {
 
   // Auto-open the config modal on first visit if ffmpeg isn't set up yet.
   useEffect(() => {
-    if (settingsChecked && !ffmpegPath) setShowConfig(true);
-  }, [settingsChecked, ffmpegPath]);
+    if (settingsChecked && !ffmpegPath) openSettings("timelapse");
+  }, [settingsChecked, ffmpegPath, openSettings]);
 
   // Tick once per second while running so the ETA label updates even
   // between progress events.
@@ -347,25 +347,13 @@ export function TimelapseView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {configured ? (
-            // Healthy state: a small unlabeled gear so the user can
-            // still re-open FfmpegConfig to switch binaries, but no
-            // status pill announcing the obvious "ready" state.
-            <button
-              onClick={() => setShowConfig(true)}
-              className="rounded-md border border-neutral-700 px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-              title="Configure ffmpeg"
-              aria-label="Configure ffmpeg"
-            >
-              ⚙
-            </button>
-          ) : (
+          {!configured && (
             // Broken state: prominent amber-tinted button matching the
             // body banner's tone so the call-to-action is unmissable.
             <button
-              onClick={() => setShowConfig(true)}
+              onClick={() => openSettings("timelapse")}
               className="rounded-md border border-amber-700/50 bg-amber-950/40 px-3 py-1 text-sm text-amber-200 hover:bg-amber-950/60"
-              title="Configure ffmpeg"
+              title="Open Timelapse settings"
             >
               ffmpeg: not set
             </button>
@@ -981,7 +969,6 @@ export function TimelapseView() {
         )}
       </footer>
 
-      {showConfig && <FfmpegConfig onClose={() => setShowConfig(false)} />}
     </div>
   );
 }

@@ -1,5 +1,15 @@
 # Trip Viewer 0.13.1-rc.1
 
+## Central settings (local implementation, awaiting acceptance)
+
+- Group preferences in one settings dialog by application area. Apply ordinary
+  preferences immediately and remove the old Save/Cancel workflow.
+- Reuse FFmpeg configuration in the central Timelapse section. A completed path
+  is validated before persistence; Browse/Test/Clear retain their existing
+  actions. Remove the separate Timelapse gear and route setup prompts centrally.
+- Keep existing preference values, camera support and per-task scan/review
+  controls. No database migration belongs to this independently portable change.
+
 ## Archive compatibility (local implementation, awaiting acceptance)
 
 - Keep the shared archive database at upstream schema 13. Preserve known fork

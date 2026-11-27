@@ -1,8 +1,8 @@
-import { useState } from "react";
 import clsx from "clsx";
 import { useStore } from "../state/store";
 import { KIND_META, kindCounts } from "../utils/issueKinds";
 import type { MainView } from "../state/store";
+import { useSettingsNavigation } from "../settings/navigation";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { ReleaseUpdates } from "./settings/ReleaseUpdates";
 
@@ -72,7 +72,7 @@ export function MainNavTabs() {
   const timelapseRunning = useStore((s) => s.timelapseRunning);
   const timelapseProgress = useStore((s) => s.timelapseProgress);
   const scanErrors = useStore((s) => s.scanErrors);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { section, open: openSettings, close: closeSettings } = useSettingsNavigation();
 
   const issueCount = scanErrors.length;
   const issueBreakdown = kindCounts(scanErrors);
@@ -162,14 +162,14 @@ export function MainNavTabs() {
         {UTILITY_TABS.map(renderTab)}
         <button
           type="button"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => openSettings()}
           className="border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-neutral-400 transition-colors hover:text-neutral-200"
           title="Application settings"
         >
           ⚙ Settings
         </button>
       </nav>
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog open={section !== null} section={section ?? "general"} onSectionChange={openSettings} onClose={closeSettings} />
     </>
   );
 }

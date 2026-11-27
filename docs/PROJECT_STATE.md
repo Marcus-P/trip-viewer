@@ -6,6 +6,20 @@ media. The [documentation index](README.md) is the entry point; the
 [prior development record](history/PROJECT_STATE-before-doc-refresh.md) retains
 the debugging and earlier acceptance history.
 
+## Local central settings work (not published)
+
+`feat/central-settings` adds an independent frontend commit on the compatibility
+branch. One settings dialog routes General, Player, Scan, Review, Timelapse and
+Places through a navigation-only store. General/Player sections retain their
+existing preference storage and apply changes immediately. FFmpeg reuses the
+existing configuration component in the Timelapse section, persisting only a
+successfully checked path; Browse/Test/Clear remain explicit actions. The
+separate configured-state Timelapse gear is removed; missing-FFmpeg actions open
+the central section. Scan/Review/Places currently have no additional global
+preferences; their existing per-task/archive controls remain in their views.
+No settings schema, archive schema, camera decoder or release feed change is
+part of this UI commit. TypeScript and the existing frontend suite passed.
+
 ## Local schema-compatibility work (not published)
 
 Owner-authorized work on `feat/archive-schema-compatibility` restores the shared

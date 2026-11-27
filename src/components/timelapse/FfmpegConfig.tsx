@@ -14,6 +14,7 @@ import { decoderLabel, verifiedEncoderLabel } from "./encoderLabel";
 
 interface Props {
   onClose: () => void;
+  embedded?: boolean;
 }
 
 /**
@@ -22,7 +23,7 @@ interface Props {
  * Windows), then points this dialog at the binary. The Test button
  * checks the version and performs a short GPU/CPU encoding test.
  */
-export function FfmpegConfig({ onClose }: Props) {
+export function FfmpegConfig({ onClose, embedded = false }: Props) {
   const existingPath = useStore((s) => s.ffmpegPath);
   const existingCaps = useStore((s) => s.ffmpegCapabilities);
   const refreshSettings = useStore((s) => s.refreshTimelapseSettings);
@@ -137,12 +138,12 @@ export function FfmpegConfig({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
-      onClick={onClose}
+      className={embedded ? undefined : "fixed inset-0 z-40 flex items-center justify-center bg-black/60"}
+      onClick={embedded ? undefined : onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[32rem] rounded-md border border-neutral-700 bg-neutral-900 p-5 text-neutral-100"
+        className={embedded ? "text-neutral-100" : "w-[32rem] rounded-md border border-neutral-700 bg-neutral-900 p-5 text-neutral-100"}
       >
         <h2 className="text-base font-semibold">Configure ffmpeg</h2>
         <p className="mt-1 text-xs text-neutral-400">
@@ -157,11 +158,20 @@ export function FfmpegConfig({ onClose }: Props) {
           <div className="flex gap-2">
             <input
               value={path}
+              disabled={testing}
               onChange={(e) => setPath(e.target.value)}
+              onBlur={(event) => {
+                // Validate only the completed path, never on each keystroke.
+                // Explicit buttons keep their own action and must not race it.
+                if (event.relatedTarget instanceof Element && event.relatedTarget.closest("[data-ffmpeg-action]")) return;
+                const next = path.trim();
+                if (!testing && next && next !== existingPath) void runTest(next);
+              }}
               placeholder="C:\Program Files\ffmpeg\bin\ffmpeg.exe"
               className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-100 focus:border-sky-500 focus:outline-none"
             />
             <button
+              data-ffmpeg-action
               onClick={() => void onBrowse()}
               disabled={testing}
               className="rounded-md border border-neutral-700 px-3 py-1 text-sm text-neutral-300 hover:bg-neutral-800"
@@ -173,6 +183,7 @@ export function FfmpegConfig({ onClose }: Props) {
 
         <div className="mt-3 flex items-center gap-2">
           <button
+            data-ffmpeg-action
             onClick={() => void runTest(path)}
             disabled={!canTest}
             className={clsx(
@@ -185,6 +196,7 @@ export function FfmpegConfig({ onClose }: Props) {
             {testing ? "Testing…" : "Test"}
           </button>
           <button
+            data-ffmpeg-action
             onClick={() => void onClear()}
             disabled={!canClear}
             title="Erase the saved ffmpeg path and capabilities. Timelapse encoding will be disabled until you point at a binary again."
@@ -197,7 +209,7 @@ export function FfmpegConfig({ onClose }: Props) {
           >
             Clear
           </button>
-          {caps && !testing && (
+          {caps && path === existingPath && !testing && (
             <div className="text-xs">
               <span className="text-emerald-400">✓ {caps.version}</span>
               <span className="ml-2 text-neutral-400">
@@ -280,14 +292,14 @@ export function FfmpegConfig({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        {!embedded && <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
             className="rounded-md border border-neutral-700 px-3 py-1 text-sm text-neutral-300 hover:bg-neutral-800"
           >
             Close
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );
