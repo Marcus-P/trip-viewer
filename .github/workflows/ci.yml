@@ -1,176 +1,70 @@
-name: CI
-
+name: Isolated Ubuntu acceptance download
 on:
-  pull_request:
-    branches: [main, develop]
   workflow_dispatch:
-
+permissions:
+  contents: write
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
+  group: isolated-ubuntu-014-download
+  cancel-in-progress: false
 jobs:
-  scope:
+  package:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      docs: ${{ steps.scope.outputs.docs }}
-      frontend: ${{ steps.scope.outputs.frontend }}
-      backend: ${{ steps.scope.outputs.backend }}
-      bundle: ${{ steps.scope.outputs.bundle }}
-      audit: ${{ steps.scope.outputs.audit }}
-      tooling: ${{ steps.scope.outputs.tooling }}
+    timeout-minutes: 40
+    env:
+      SOURCE_SHA: 48f52e7c230a94250bc1a29973d77c39894d13c7
+      RELEASE_TAG: test-0.14.0-48f52e7-ubuntu
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          ref: 48f52e7c230a94250bc1a29973d77c39894d13c7
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - name: Select relevant checks
-        id: scope
-        env:
-          CHECK_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-        run: node scripts/change-scope.mjs
-      - name: Validate version and mandatory release notes
-        env:
-          VERSION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-        run: node scripts/check-version.mjs
-      - name: Documentation links
-        if: steps.scope.outputs.docs == 'true' || steps.scope.outputs.tooling == 'true'
-        run: node scripts/check-docs.mjs
-      - name: CI policy tests
-        if: steps.scope.outputs.tooling == 'true'
-        run: node --test scripts/*.test.mjs
-  linux:
-    name: Linux checks
-    needs: scope
-    if: ${{ !cancelled() && (needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true') }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: lts/*
-      - name: Stamp an installable prerelease for acceptance builds
-        if: needs.scope.outputs.bundle == 'true'
-        run: node scripts/preview-version.mjs
-      - name: Frontend and backend interfaces
-        if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.backend == 'true'
-        run: node scripts/check-interfaces.mjs
       - uses: dtolnay/rust-toolchain@stable
-        if: needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true'
-      - name: Install Ubuntu build dependencies
-        if: needs.scope.outputs.backend == 'true' || needs.scope.outputs.bundle == 'true'
+      - name: Verify upstream and stamp unique acceptance version
         run: |
-          sudo apt update
-          sudo apt install -y \
-            libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf \
-            gstreamer1.0-libav gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+          node scripts/check-upstream.mjs
+          node scripts/preview-version.mjs
+          node scripts/check-version.mjs
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential pkg-config libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
       - run: npm ci
-        if: needs.scope.outputs.frontend == 'true' || needs.scope.outputs.bundle == 'true' || needs.scope.outputs.audit == 'true'
-      - name: Frontend tests
-        if: needs.scope.outputs.frontend == 'true'
-        run: npm test
-      - name: Frontend typecheck/build
-        if: needs.scope.outputs.frontend == 'true' && needs.scope.outputs.bundle != 'true'
-        run: npm run build
-      - name: Rust tests
-        if: needs.scope.outputs.backend == 'true'
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
-      - name: Runtime dependency audit
-        if: needs.scope.outputs.audit == 'true'
-        run: npm audit --omit=dev --audit-level=high
-      - name: Prepare application and dependency notices
-        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
+      - name: Preserve bundled license notices
         run: python3 scripts/prepare-release-licenses.py
-      - name: Build Ubuntu packages
-        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
-        run: NO_STRIP=true npm run tauri -- build --bundles appimage,deb
-      - name: Validate Ubuntu installers
-        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-          TEST_HOME="${RUNNER_TEMP}/trip-viewer-home"
-          mkdir -p "$TEST_HOME"
-          TRIPVIEWER_INSTALL_ROOT="$TEST_HOME" bash scripts/install-trip-viewer-ubuntu.sh "$SOURCE"
-          test -x "$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage"
-          DESKTOP="$TEST_HOME/.local/share/applications/com.tripviewer.app.desktop"
-          ICON="$TEST_HOME/.local/share/icons/hicolor/256x256/apps/trip-viewer.png"
-          test -s "$DESKTOP"
-          test -s "$ICON"
-          grep -Fq "Exec=$TEST_HOME/.local/opt/trip-viewer/Trip.Viewer.AppImage" "$DESKTOP"
-          grep -Fq "Icon=trip-viewer" "$DESKTOP"
-          DEB="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
-          python3 scripts/prepare-ubuntu-deb.py "$DEB"
-          python3 scripts/validate-ubuntu-deb.py "$DEB"
-          sudo apt-get install -y "./$DEB"
-          dpkg-query -W trip-viewer
-          test -x /usr/bin/tripviewer
-      - name: Prepare one downloadable installer for testing
-        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
-          VERSION="$(node -p "require('./package.json').version")"
-          OUT="${RUNNER_TEMP}/trip-viewer-test-build"
-          mkdir -p "$OUT"
-          DEST="Trip.Viewer_${VERSION}_test-${GITHUB_SHA:0:7}_Ubuntu-24.04_amd64.deb"
-          cp "$SOURCE" "$OUT/$DEST"
-          printf 'Trip Viewer Ubuntu 24.04 installer test\nCommit: %s\nRun: %s/%s/actions/runs/%s\n' \
-            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > "$OUT/BUILD_INFO.txt"
-          cd "$OUT"
-          sha256sum "$DEST" > SHA256SUMS.txt
-      - name: Upload Ubuntu test installer
-        if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
-        uses: actions/upload-artifact@v5
-        with:
-          name: Trip-Viewer-Ubuntu-24.04-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
-          path: ${{ runner.temp }}/trip-viewer-test-build/
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
-  desktop:
-    needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.bundle == 'true' }}
-    permissions:
-      contents: read
-    uses: ./.github/workflows/desktop-packages.yml
-    with:
-      acceptance: true
-      run-tests: ${{ needs.scope.outputs.backend == 'true' }}
-
-  # Preserve the required status name and require every relevant platform.
-  # Docs/version-only changes still get a successful lightweight gate.
-  ubuntu:
-    if: ${{ !cancelled() }}
-    needs: [scope, linux, desktop]
-    runs-on: ubuntu-24.04
-    permissions: {}
-    steps:
-      - name: Require all relevant checks
+      - name: Build only the isolated Ubuntu AppImage
         env:
-          SCOPE_RESULT: ${{ needs.scope.result }}
-          LINUX_RESULT: ${{ needs.linux.result }}
-          DESKTOP_RESULT: ${{ needs.desktop.result }}
-          NEEDS_BUNDLE: ${{ needs.scope.outputs.bundle }}
+          CARGO_BUILD_JOBS: '2'
+          NO_STRIP: 'true'
+        run: npm run tauri -- build --bundles appimage --config src-tauri/tauri.evidence-test.conf.json
+      - name: Prepare checked download
+        shell: bash
         run: |
-          test "$SCOPE_RESULT" = success
-          if [ "$NEEDS_BUNDLE" = true ]; then
-            test "$LINUX_RESULT" = success
-            test "$DESKTOP_RESULT" = success
-          else
-            test "$LINUX_RESULT" = success || test "$LINUX_RESULT" = skipped
-            test "$DESKTOP_RESULT" = skipped
-          fi
+          set -euo pipefail
+          mkdir -p download
+          mapfile -t images < <(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage')
+          test "${#images[@]}" = 1
+          cp "${images[0]}" download/TripViewer-0.14-Test-Ubuntu-x86_64.AppImage
+          VERSION="$(node -p "require('./package.json').version")"
+          printf 'Trip Viewer isolated Ubuntu acceptance\nVersion: %s\nSource: %s\nRun: %s/%s/actions/runs/%s\nIdentifier: com.tripviewer.evidencetest\nShared archive schema: 13\n' "$VERSION" "$SOURCE_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > download/BUILD_INFO.txt
+          cd download
+          sha256sum TripViewer-0.14-Test-Ubuntu-x86_64.AppImage > SHA256SUMS.txt
+      - name: Publish isolated prerelease, never Latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/acceptance-notes.md" <<'EOF'
+          Isolated Ubuntu 24.04 x86_64 acceptance package for the proposed develop integration. Source commit: 48f52e7c230a94250bc1a29973d77c39894d13c7.
+
+          This is a test-branch download, not a merge into develop/main or a stable app update. Separate Evidence Test identity/settings and no updater endpoints. Close other Trip Viewer instances and use a disposable test archive for initial acceptance; selecting a shared archive is not isolated by the application identity.
+
+          Includes schema-13 compatibility with retained archive-local extras and backups for verified legacy fork schemas; central immediate settings; camera-independent GPS preview indexing and metadata-ready direct positioning. Keep archive-extras-v1.sqlite because it contains bookmarks. Shared-schema compatibility does not imply old applications understand fork-only features.
+
+          The source passed 418 Rust tests (3 opt-in ignored), 142 frontend tests and local Ubuntu packaging. This run builds only Ubuntu and does not repeat those suites. Real-camera acceptance is pending. Implementation and preparation were assisted by Codex; contributor authorship and bundled license notices are preserved.
+
+          Download AppImage and SHA256SUMS.txt together. Verify with sha256sum -c SHA256SUMS.txt. Run the AppImage after making it executable, or extract it with --appimage-extract and start squashfs-root/AppRun. No installation or sudo is needed.
+          EOF
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title '0.14 isolated Ubuntu acceptance — 48f52e7' --prerelease --latest=false --notes-file "$RUNNER_TEMP/acceptance-notes.md" download/TripViewer-0.14-Test-Ubuntu-x86_64.AppImage download/SHA256SUMS.txt download/BUILD_INFO.txt
