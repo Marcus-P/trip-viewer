@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::model::ChannelMeta;
-use mp4::{MediaType, TrackType, read_mp4};
+use mp4::{read_mp4, MediaType, TrackType};
 use std::fs::File;
 use std::path::Path;
 
@@ -17,6 +17,19 @@ pub fn probe(path: &Path) -> Result<ChannelMeta, AppError> {
         .values()
         .find(|t| matches!(t.track_type(), Ok(TrackType::Video)))
         .ok_or_else(|| AppError::NotVideo(path.to_string_lossy().into_owned()))?;
+
+    // Metadata-only evidence reuses this parse. Findings are diagnostics, not
+    // a new rejection policy for partially recoverable recordings.
+    let evidence = super::evidence::inspect(video_track, !mp4.moofs.is_empty());
+    if evidence.media_time_scale == 0 {
+        return Err(AppError::Parse("invalid zero video timescale".into()));
+    }
+    if !evidence.findings.is_empty() {
+        eprintln!(
+            "[media-evidence] track={}: {:?}",
+            evidence.track_id, evidence.findings
+        );
+    }
 
     let duration_s = video_track.duration().as_secs_f64();
     let width = video_track.width() as u32;

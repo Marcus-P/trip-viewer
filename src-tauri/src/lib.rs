@@ -280,6 +280,7 @@ pub fn run() {
             archive::forget_archive,
             scan::scan_folder,
             metadata::probe_file,
+            metadata::inspect_media_evidence,
             gps::extract_gps,
             gps::extract_gps_batch,
             gps::ensure_trip_gps,
