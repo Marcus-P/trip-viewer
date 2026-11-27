@@ -1,5 +1,20 @@
 # Trip Viewer 0.13.1-rc.1
 
+## Feature-branch media evidence and parking GPS
+
+- Integrate current upstream 70mai support while preserving its authorship.
+- Use the explicit VIOFO P marker for conservative file-level parking locations.
+  Keep clock/spatial validation without treating compressed playback duration
+  as the maximum GPS wall-time span. No capture-factor or frame-time mapping
+  is invented, and only affected parking analysis keys are refreshed.
+- Add separately portable, metadata-only timing/sample-table diagnostics and
+  protect zero video timescale before duration arithmetic. Other findings are
+  diagnostic and do not introduce a broad file-rejection policy.
+- Provide an explicitly isolated Windows Evidence Test build. Production
+  identifier/updater configuration and the full fork's archive schema remain
+  unchanged. PR #21 receives only its focused parking correction, retaining
+  main archive schema 13. Five-second filename/channel alignment remains open.
+
 ## Upstream-first development and reliability priorities
 
 - Check current upstream ancestry before code work and in a bounded, read-only

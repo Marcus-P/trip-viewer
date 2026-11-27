@@ -8,6 +8,34 @@ the debugging and earlier acceptance history.
 
 ## Commit privacy safeguards
 
+Current feature branch integrates upstream main `01e20d6` before runtime work,
+including 70mai support with original ancestry preserved. The isolated parking
+GPS correction is now in upstream PR #21 at `775c05f`: explicit P marker,
+validated representative file location, no guessed capture/time scaling, no
+main-schema change (PR schema 13). Only parking analysis signatures refresh.
+Filename/channel offsets up to five seconds and parking trip-boundary policy
+remain separate open questions. Do not claim those are fixed or that a parking
+file location is a frame-timed route or proof of standstill.
+
+This full-fork branch keeps its existing schema 17 and adds the independent
+`metadata/evidence.rs` module in commit `8829b0a`. It reuses parsed headers,
+reports timing/sample-table findings, skips unsupported fragmented sample
+checks and guards zero video timescale before arithmetic. It does not decode
+frames or infer a park submode. A clean separate upstream candidate can take
+this one commit after the parking contribution; the module passes strict
+Clippy on the isolated PR base. The fork retains older Clippy findings in
+unchanged timelapse code and existing GPS test borrows; no suppression or
+unrelated cleanup is included here.
+
+Validation: isolated PR 391 Rust tests passed (2 opt-in tests ignored), 78
+frontend tests, TypeScript and strict Clippy pass. Full fork 414 Rust tests
+passed (3 ignored), 134 frontend tests and TypeScript pass. Windows-only
+acceptance run `45994068697`, source `81c8cf5`, built, installed and launched
+successfully. Artifact `15194514977` uses the separate Evidence Test identity,
+settings and empty updater endpoints; no stable release/update was published.
+Owner parking playback/location acceptance of this revision is still pending.
+Do not rebuild the unchanged runtime for this documentation update.
+
 Owner development sessions use `node scripts/commit-privacy.mjs setup` to set a
 repository-local verified no-reply identity and install shared local commit,
 message and push guards. Private-address markers stay in local Git configuration.
